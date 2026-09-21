@@ -1,0 +1,14 @@
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.venv/
+.venv*/
+build/
+dist/
+
+# Local datasets and generated artifacts are intentionally not committed.
+data/*
+!data/README.md
+
+.DS_Store
