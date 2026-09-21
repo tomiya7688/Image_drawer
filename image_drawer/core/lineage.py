@@ -14,10 +14,15 @@ def build_artifact_lineage(
     """Return the reachable parent graph for one artifact.
 
     The returned mapping includes the requested artifact and every reachable
-    ancestor. Missing referenced parents and cycles are treated as invalid
-    provenance and reported explicitly.
+    ancestor. Duplicate IDs, missing referenced parents, and cycles are treated
+    as invalid provenance and reported explicitly.
     """
-    by_id = {artifact.id: artifact for artifact in artifacts}
+    by_id: dict[str, Artifact] = {}
+    for artifact in artifacts:
+        if artifact.id in by_id:
+            raise ValueError(f"duplicate artifact id: {artifact.id}")
+        by_id[artifact.id] = artifact
+
     if artifact_id not in by_id:
         raise KeyError(f"unknown artifact id: {artifact_id}")
 
@@ -25,10 +30,10 @@ def build_artifact_lineage(
     visiting: set[str] = set()
 
     def visit(current_id: str) -> None:
-        if current_id in lineage:
-            return
         if current_id in visiting:
             raise ValueError(f"artifact lineage contains a cycle at {current_id}")
+        if current_id in lineage:
+            return
 
         try:
             artifact = by_id[current_id]
@@ -37,10 +42,10 @@ def build_artifact_lineage(
 
         visiting.add(current_id)
         parents = tuple(artifact.parent_artifact_ids)
-        lineage[current_id] = parents
         for parent_id in parents:
             visit(parent_id)
         visiting.remove(current_id)
+        lineage[current_id] = parents
 
     visit(artifact_id)
     return lineage
