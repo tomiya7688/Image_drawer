@@ -56,4 +56,18 @@ dataset
 
 High-quality generation models are intentionally not required for the first architecture milestone. Mock/simple backends should be used until the workflow, artifact, provenance and experiment infrastructure is stable.
 
-This repository is currently in the design/specification phase.
+## Development
+
+The M0 project skeleton is intentionally dependency-light and requires Python 3.11+.
+
+```bash
+python -m pip install -e ".[dev]"
+python -m pytest
+python -m build
+python -m image_drawer --input hello
+image-drawer-gui --check
+```
+
+CI verifies three layers on every pull request and push to `main`: source-level input/output tests, package build, and execution of the generated wheel from a fresh virtual environment.
+
+Implementation now proceeds milestone-by-milestone through GitHub Issues and pull requests.
