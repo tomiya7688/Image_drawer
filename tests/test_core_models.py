@@ -234,3 +234,23 @@ def test_artifact_lineage_rejects_missing_parent():
         assert "missing parent artifact" in str(error)
     else:
         raise AssertionError("missing lineage parent should be reported")
+
+
+def test_artifact_lineage_rejects_cycles():
+    first = Artifact(
+        id="a",
+        artifact_type="Image",
+        parent_artifact_ids=["b"],
+    )
+    second = Artifact(
+        id="b",
+        artifact_type="Image",
+        parent_artifact_ids=["a"],
+    )
+
+    try:
+        build_artifact_lineage([first, second], first.id)
+    except ValueError as error:
+        assert "cycle" in str(error)
+    else:
+        raise AssertionError("lineage cycle should be reported")
