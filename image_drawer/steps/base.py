@@ -1,0 +1,95 @@
+"""Common Step interface and declarative Step schema."""
+
+from __future__ import annotations
+
+from abc import ABC, abstractmethod
+from dataclasses import dataclass, field
+from typing import Any
+
+from image_drawer.core import Artifact, Score
+
+ArtifactTypeSpec = str | tuple[str, ...]
+_MISSING = object()
+
+
+@dataclass(frozen=True, slots=True)
+class ParameterSpec:
+    """Validation rules for one serializable Step parameter."""
+
+    value_type: type | tuple[type, ...]
+    required: bool = False
+    default: Any = _MISSING
+    choices: tuple[Any, ...] | None = None
+
+    @property
+    def has_default(self) -> bool:
+        return self.default is not _MISSING
+
+
+@dataclass(frozen=True, slots=True)
+class StepSchema:
+    """Static contract used by the validator and GUI/DSL layers."""
+
+    step_type: str
+    input_types: tuple[ArtifactTypeSpec, ...]
+    output_type: str
+    parameters: dict[str, ParameterSpec] = field(default_factory=dict)
+    capabilities: frozenset[str] = field(default_factory=frozenset)
+
+
+@dataclass(slots=True)
+class StepContext:
+    """Execution context supplied by the runtime to a Step implementation."""
+
+    run_id: str
+    step_id: str
+    backend: str
+    external_inputs: dict[str, Any]
+
+    def artifact_id(self) -> str:
+        return f"artifact:{self.run_id}:{self.step_id}"
+
+    def score_id(self, suffix: str = "0") -> str:
+        return f"score:{self.run_id}:{self.step_id}:{suffix}"
+
+    def make_artifact(
+        self,
+        artifact_type: str,
+        *,
+        parent_artifact_ids: list[str] | None = None,
+        uri: str | None = None,
+        model: str | None = None,
+        version: str | None = None,
+        seed: int | None = None,
+        scores: list[Score] | None = None,
+        metadata: dict[str, Any] | None = None,
+    ) -> Artifact:
+        return Artifact(
+            id=self.artifact_id(),
+            artifact_type=artifact_type,
+            uri=uri,
+            parent_artifact_ids=list(parent_artifact_ids or []),
+            producing_step_id=self.step_id,
+            backend=self.backend,
+            model=model,
+            version=version,
+            seed=seed,
+            scores=list(scores or []),
+            metadata=dict(metadata or {}),
+        )
+
+
+class Step(ABC):
+    """Model/backend-independent runtime operation."""
+
+    schema: StepSchema
+    backend: str = "default"
+
+    @abstractmethod
+    def run(
+        self,
+        inputs: list[Artifact],
+        params: dict[str, Any],
+        context: StepContext,
+    ) -> Artifact:
+        """Execute the Step and return its single M2 output Artifact."""
