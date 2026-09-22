@@ -11,14 +11,17 @@ requires-python = ">=3.11"
 dependencies = []
 
 [project.optional-dependencies]
+part-bank = ["Pillow>=12.3.0,<13"]
 dev = [
   "build>=1.2",
   "pytest>=8.0",
+  "Pillow>=12.3.0,<13",
 ]
 
 [project.scripts]
 image-drawer = "image_drawer.cli:main"
 image-drawer-gui = "image_drawer.gui:main"
+image-drawer-part-bank = "image_drawer.part_bank.cli:main"
 
 [tool.setuptools.packages.find]
 where = ["."]
