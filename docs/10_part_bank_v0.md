@@ -11,7 +11,8 @@ image-drawer-part-bank ingest /path/to/images \
   --bank ./data/part-bank --dataset my-dataset --split train
 ```
 
-For a non-development install, use `pip install "image-drawer[part-bank]"`.
+For a non-editable install from this checkout, use `python -m pip install ".[part-bank]"`.
+This does not assume the project has been published to PyPI.
 The equivalent module entrypoint is `python -m image_drawer.part_bank`.
 The original `image-drawer --input ...` M0 command is unchanged.
 Pillow is optional; the core package and mock runtime still have no runtime dependencies.
