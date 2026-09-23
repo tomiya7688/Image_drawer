@@ -8,6 +8,7 @@ from image_drawer.steps.base import (
     StepResult,
     StepSchema,
 )
+from image_drawer.steps.compose import PartBankComposeStep
 from image_drawer.steps.mock import create_mock_registry
 from image_drawer.steps.registry import StepRegistry
 from image_drawer.steps.retrieve_parts import (
@@ -18,6 +19,7 @@ from image_drawer.steps.retrieve_parts import (
 __all__ = [
     "ArtifactTypeSpec",
     "ParameterSpec",
+    "PartBankComposeStep",
     "PartBankRetrievePartsStep",
     "Step",
     "StepContext",
