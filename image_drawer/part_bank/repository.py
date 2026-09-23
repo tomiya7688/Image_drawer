@@ -1,4 +1,4 @@
-"""SQLite metadata and embedding storage; binary payloads stay on filesystem."""
+"""SQLiteでmetadataとembeddingを保存し、binary payloadはfilesystemへ置く。"""
 
 from __future__ import annotations
 
@@ -18,11 +18,11 @@ from image_drawer.part_bank.index import BruteForceCosineIndex, PartIndex
 
 
 class ProvenanceConflict(ValueError):
-    """A checksum cannot silently acquire another dataset or train/test split."""
+    """同一checksumへ別datasetやtrain/test splitを暗黙に割り当てることを禁止する。"""
 
 
 class SQLitePartRepository:
-    """Single-writer local repository for Parts and versioned embeddings."""
+    """Partとversioned embeddingを扱うsingle-writer local repository。"""
 
     def __init__(self, path: str | Path) -> None:
         path = Path(path)
@@ -126,7 +126,7 @@ class SQLitePartRepository:
         ]
 
     def check_source(self, source: SourceImage) -> SourceImage | None:
-        """Check deduplication compatibility before publishing image files."""
+        """image fileをpublishする前にdeduplication互換性を確認する。"""
         existing = self.find_source(source.checksum)
         if existing is not None:
             if (
@@ -159,7 +159,7 @@ class SQLitePartRepository:
         origin_uri: str,
         provenance: dict | None = None,
     ) -> tuple[int, int]:
-        """Commit one source, its parts and origin, or none of them."""
+        """1 SourceとそのPart・Originをまとめてcommitし、失敗時は一切commitしない。"""
         parts = list(parts)
         if len({part.id for part in parts}) != len(parts):
             raise ValueError("duplicate part IDs in one extraction")
@@ -251,7 +251,7 @@ class SQLitePartRepository:
         )
 
     def store_embedding(self, record: EmbeddingRecord) -> bool:
-        """Persist one embedding. Returns True only for a new record."""
+        """1 embeddingを永続化し、新規recordの場合だけTrueを返す。"""
         exists = self._db.execute(
             "SELECT 1 FROM parts WHERE id=?", (record.part_id,)
         ).fetchone()
@@ -335,7 +335,7 @@ class SQLitePartRepository:
         return records
 
     def ensure_embeddings(self, embedder: PartEmbedder) -> int:
-        """Create only missing embeddings for the selected embedding identity."""
+        """選択したembedding identityについて不足しているembeddingだけを生成する。"""
         added = 0
         for part in self.list_parts():
             if self.get_embedding(part.id, embedder.identity) is not None:
@@ -382,7 +382,7 @@ class SQLitePartRepository:
         filters: Mapping[str, object] | None = None,
         index: PartIndex | None = None,
     ) -> PartSet:
-        """Search Parts while preserving raw retrieval scores and versions."""
+        """raw retrieval scoreとversionを保持したままPartを検索する。"""
         if not isinstance(query, str) or not query.strip():
             raise ValueError("query must be a non-empty string")
         if type(top_k) is not int or top_k <= 0:
