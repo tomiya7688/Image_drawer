@@ -651,9 +651,21 @@ class WorkbenchApp:
         shown = 0
         for candidate in record.candidates:
             artifact = artifact_by_id.get(candidate.artifact_id)
-            if artifact is None:
-                continue
-            path = self.controller.artifact_path(artifact)
+            if artifact is not None:
+                path = self.controller.artifact_path(artifact)
+            elif candidate.uri and self.controller.bank_dir is not None:
+                candidate_path = (
+                    self.controller.bank_dir / candidate.uri
+                ).resolve()
+                path = (
+                    candidate_path
+                    if candidate_path.is_relative_to(
+                        self.controller.bank_dir
+                    )
+                    else None
+                )
+            else:
+                path = None
             if path is None or not path.is_file():
                 continue
             photo = self._load_photo(path, max_size=110)
