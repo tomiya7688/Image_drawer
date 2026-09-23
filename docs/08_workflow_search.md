@@ -1,33 +1,33 @@
-# Workflow Search Specification
+# Workflow Search仕様
 
-Status: adopted design
-Date: 2026-09-20
+状態: 採用済み設計
+日付: 2026-09-20
 
-## 1. Purpose
+## 1. 目的
 
-Workflow Search is the layer that learns or searches for which image-production procedure should be used.
+Workflow Searchは「どの画像制作工程を採用するべきか」を探索・学習する層です。
 
-Image Drawer should learn not only:
+Image Drawerは次だけでなく、
 
-- which visual Part to choose,
-- how to compose Parts,
+- どのPartを選ぶか
+- Partをどうcomposeするか
 
-but eventually:
+最終的に次も学習対象にします。
 
-- which Step should run next,
-- when evaluation should occur,
-- where branching is useful,
-- how many candidates should be generated,
-- when refinement should stop,
-- which model/operator should be used for a task.
+- 次にどのStepを実行するか
+- どこで評価するか
+- どこでbranchするか
+- candidateをいくつ生成するか
+- refinementをいつ止めるか
+- どのmodel/operatorを使うか
 
-The initial implementation should treat this as an experiment/search problem before introducing reinforcement learning.
+初期段階ではreinforcement learningより先にexperiment/search problemとして扱います。
 
-## 2. Workflow as a search object
+## 2. Search対象としてのWorkflow
 
-A workflow is represented as a graph or ordered DAG of Step nodes.
+WorkflowはStep nodeのgraphまたはordered DAGとして表現します。
 
-Example:
+例A:
 
     INPUT
       -> PLAN_LAYOUT
@@ -38,7 +38,7 @@ Example:
       -> EVALUATE
       -> OUTPUT
 
-Alternative:
+例B:
 
     INPUT
       -> RETRIEVE_PARTS
@@ -49,67 +49,65 @@ Alternative:
       -> EVALUATE
       -> OUTPUT
 
-Both should be executable through the same runtime.
+どちらも同じRuntimeで実行できる必要があります。
 
-## 3. Searchable dimensions
+## 3. Search dimension
 
 ### Structure
 
-- add/remove Step
-- reorder compatible Steps
-- move EVALUATE
-- insert SELECT
-- insert REFINE
-- branch candidate generation
-- merge candidates
+- Step追加/削除
+- compatible Stepの並べ替え
+- EVALUATE位置変更
+- SELECT挿入
+- REFINE挿入
+- candidate generationのbranch
+- candidate merge
 
-### Parameters
+### Parameter
 
 - candidate count
 - top-k
 - evaluator weights
 - refinement count
 - retrieval depth
-- thresholds
-- temperatures/seeds where applicable
+- threshold
+- temperature / seed等
 
 ### Backend choice
 
-A logical Step may have several backends.
-
-Example:
+同じlogical Stepに複数backendを設定できます。
 
     COLOR.backend = controlnet_a
     COLOR.backend = adapter_b
 
-Workflow Search may eventually include backend selection.
+将来的にbackend選択もWorkflow Search対象にします。
 
-## 4. Constraints
+## 4. Constraint
 
-Workflow search must never generate arbitrary invalid graphs.
+Workflow Searchから任意の壊れたgraphを生成してはいけません。
 
-Every Step exposes a schema:
+各Stepはschemaを公開します。
 
     inputs
     outputs
     parameter schema
     capabilities
 
-The search engine must operate only on workflows that pass static validation.
+Search engineはstatic validationを通るWorkflowだけを実行します。
 
-Required validation:
+必須validation:
 
-- all inputs are available;
-- artifact types are compatible;
-- OUTPUT is reachable;
-- no illegal cycles for the current runtime;
-- required parameters are valid.
+- 全inputが利用可能
+- Artifact型がcompatible
+- OUTPUTへ到達可能
+- 現Runtimeでillegal cycleがない
+- required parameterがvalid
 
 ## 5. Objective model
 
-Do not optimize only one image score.
+単一image scoreだけを最適化しません。
 
-A run may produce:
+runごとに例えば次を持ちます。
 
     ObjectiveResult
       final_quality
@@ -122,9 +120,9 @@ A run may produce:
       editability
       intermediate_consistency
 
-Initial MVP can use a weighted aggregate, but all components must be preserved.
+初期MVPではweighted aggregateを使って構いませんが、元componentをすべて保持します。
 
-Example:
+例:
 
     objective =
         0.40 * final_quality
@@ -133,13 +131,11 @@ Example:
       + 0.15 * diversity
       - compute_penalty
 
-Weights are experiment configuration, not hard-coded policy.
+weightはexperiment configurationでありhard-codeしません。
 
 ## 6. Experiment unit
 
-A single workflow should never be judged from one prompt.
-
-Define:
+1 Workflowを1 promptだけで評価しません。
 
     Experiment
       workflow
@@ -149,7 +145,7 @@ Define:
       dataset/index_version
       model_versions
 
-Output:
+output:
 
     ExperimentResult
       runs[]
@@ -157,11 +153,11 @@ Output:
       confidence/statistics
       failures[]
 
-The same prompt set and seed policy should be reused when comparing workflows where possible.
+Workflow比較では可能な限り同じprompt setとseed policyを再利用します。
 
-## 7. Trajectory requirements
+## 7. Trajectory要件
 
-Every run must store:
+各runで保存:
 
     Trajectory
       workflow_id
@@ -177,7 +173,7 @@ Every run must store:
       timing
       errors
 
-Each Step execution records:
+Stepごとの記録:
 
     StepExecution
       step_id
@@ -191,27 +187,25 @@ Each Step execution records:
       duration
       error
 
-This is the training/search log.
+これがtraining/search logになります。
 
-## 8. Search stages
+## 8. Search stage
 
-### Stage 0: manual workflows
+### Stage 0: Manual Workflow
 
-Users build workflows in the GUI.
+GUIから人間がWorkflowを作ります。
 
-Purpose:
+目的:
 
-- establish baselines;
-- discover useful operators;
-- validate logging.
+- baseline確立
+- 有用operator発見
+- logging検証
 
-No automatic search.
+automatic searchは行いません。
 
-### Stage 1: parameter search
+### Stage 1: Parameter Search
 
-Keep workflow structure fixed.
-
-Search:
+Workflow structureを固定して次を探索します。
 
 - candidate count
 - top-k
@@ -219,18 +213,16 @@ Search:
 - retrieval depth
 - refinement strength/count
 
-Algorithms:
+algorithm:
 
 - grid search
 - random search
 
-This should be implemented first.
+最初に実装します。
 
-### Stage 2: template search
+### Stage 2: Template Search
 
-Define several valid workflow templates.
-
-Example:
+複数のvalid Workflow templateを定義します。
 
     template_a:
       RETRIEVE -> SELECT -> COMPOSE -> REFINE
@@ -241,51 +233,53 @@ Example:
     template_c:
       RETRIEVE -> SELECT -> COMPOSE -> EVAL -> REFINE
 
-Compare templates using common prompt sets.
+共通prompt setで比較します。
 
-### Stage 3: constrained structural search
+### Stage 3: Constrained Structural Search
 
-Allow safe mutations:
+安全なmutationだけを許可します。
 
-- insert EVALUATE
-- insert SELECT
-- insert REFINE
-- change candidate count
-- swap compatible operators
-- enable/disable optional Step
+- EVALUATE挿入
+- SELECT挿入
+- REFINE挿入
+- candidate count変更
+- compatible operator差し替え
+- optional Step enable/disable
 
-Candidate algorithms:
+候補algorithm:
 
 - random search
 - evolutionary search
-- Bayesian optimization over mixed parameters
+- mixed parameter向けBayesian optimization
 
-### Stage 4: workflow policy
+### Stage 4: Workflow Policy
 
-Once enough trajectories exist, train:
+十分なTrajectoryが溜まった後、
 
     choose_workflow(prompt, context)
 
-or:
+または
 
     choose_next_step(state)
 
-This is where learned orchestration begins.
+を学習します。
 
-### Stage 5: RL / sequential policy
+ここからlearned orchestrationが始まります。
 
-Only introduce RL if:
+### Stage 5: RL / Sequential Policy
 
-- state/action definitions are stable;
-- evaluator behavior is understood;
-- reward hacking is monitored;
-- search baselines are insufficient.
+次を満たした場合のみRLを導入します。
 
-RL is not an MVP dependency.
+- state/action定義が安定
+- Evaluator挙動を理解済み
+- reward hackingを監視できる
+- search baselineでは不足
 
-## 9. Search-space representation
+RLはMVP dependencyではありません。
 
-Recommended internal structure:
+## 9. Search space表現
+
+内部表現:
 
     WorkflowSpec
       nodes[]
@@ -300,21 +294,19 @@ Recommended internal structure:
       backend
       parameters
 
-The DSL is a serialization of WorkflowSpec.
+DSLはWorkflowSpecのserializationです。
 
-The search layer should mutate WorkflowSpec, then serialize to DSL if needed.
-
-Do not mutate raw DSL strings.
+Search layerはraw DSL stringを直接書き換えず、WorkflowSpecをmutationします。
 
 ## 10. Mutation interface
 
-Future interface:
+将来interface:
 
     class WorkflowMutator:
         def propose(self, workflow, search_space, rng):
             ...
 
-Safe mutation types:
+安全なmutation type:
 
     SetParameter
     ReplaceBackend
@@ -323,11 +315,11 @@ Safe mutation types:
     ChangeCandidateCount
     ChangeTopK
 
-Every mutation must be validated before execution.
+すべてvalidationしてから実行します。
 
-## 11. Baseline workflows
+## 11. Baseline Workflow
 
-The repository should ship with explicit baselines.
+repositoryに明示baselineを同梱します。
 
 ### Baseline A: retrieval-first
 
@@ -338,7 +330,7 @@ The repository should ship with explicit baselines.
     final = REFINE(draft, prompt)
     OUTPUT final
 
-### Baseline B: evaluate before refine
+### Baseline B: refine前に評価
 
     INPUT prompt
     parts = RETRIEVE_PARTS(prompt, top=20)
@@ -359,19 +351,19 @@ The repository should ship with explicit baselines.
     final = REFINE(draft, prompt)
     OUTPUT final
 
-These form the first workflow-comparison experiment.
+これらを最初のWorkflow比較実験に使います。
 
 ## 12. Selection learning
 
-Part selection and workflow selection should be kept separate.
+Part selectionとWorkflow selectionを分離します。
 
 ### PartSelector
 
-Question:
+問い:
 
-    which candidate Part should be used?
+    どのcandidate Partを使うべきか?
 
-Inputs:
+input:
 
 - PartSet
 - current composition
@@ -381,26 +373,24 @@ Inputs:
 
 ### WorkflowSelector
 
-Question:
+問い:
 
-    which production workflow should be used?
+    どの制作Workflowを使うべきか?
 
-Inputs:
+input:
 
 - prompt
 - requested style/task
 - resource budget
 - optional dataset/context features
 
-Keeping these separate makes training and evaluation easier.
+分離することで学習・評価がしやすくなります。
 
 ## 13. Next-step policy
 
-Long-term representation:
+長期表現:
 
     policy(state) -> StepDecision
-
-Where:
 
     StepDecision
       step_type
@@ -408,7 +398,7 @@ Where:
       parameters
       stop: bool
 
-State can include:
+state候補:
 
 - prompt embedding
 - current Artifact summary
@@ -416,27 +406,25 @@ State can include:
 - executed Step history
 - remaining compute budget
 
-This is not required for early versions, but the Trajectory format should preserve the data needed to train it later.
+初期versionでは不要ですが、将来学習できるようTrajectoryに必要dataを保持します。
 
 ## 14. Stopping policy
 
-A useful production workflow must learn not only what to do, but when to stop.
+良いWorkflowは「何をするか」だけでなく「いつ止めるか」も決める必要があります。
 
-Possible stop conditions:
+候補:
 
-- quality score above threshold
-- no meaningful improvement after N refinements
-- compute budget exhausted
+- quality scoreがthreshold超過
+- N回refineしても改善なし
+- compute budget消費
 - human acceptance
-- selector confidence high enough
+- selector confidenceが十分
 
-Initially these are explicit Step parameters.
-
-Later they may be learned.
+初期は明示parameterとして扱い、将来学習対象にできます。
 
 ## 15. Experiment reproducibility
 
-Every experiment must record:
+各experimentで記録:
 
 - git commit
 - workflow version
@@ -447,32 +435,30 @@ Every experiment must record:
 - random seeds
 - search configuration
 
-Without this, workflow comparisons will not be trustworthy.
+これらがないresultは信頼できるWorkflow比較として扱いません。
 
-## 16. GUI requirements
+## 16. GUI要件
 
-The GUI should eventually expose a Workflow Search panel.
+将来的にWorkflow Search panelを持たせます。
 
-MVP controls:
+MVP control:
 
-- choose workflow/template
-- choose prompt set
-- choose search parameters
-- start experiment
-- show run table
-- compare aggregate scores
-- inspect winning and losing trajectories
+- workflow/template選択
+- prompt set選択
+- search parameter選択
+- experiment開始
+- run table表示
+- aggregate score比較
+- winning/losing trajectory確認
 
-Later:
+将来:
 
 - mutation visualization
 - Pareto front
-- cost/quality plots
-- prompt-specific workflow recommendations
+- cost/quality plot
+- prompt-specific workflow recommendation
 
-## 17. Implementation package structure
-
-Suggested modules:
+## 17. Package構成案
 
     image_drawer/
       search/
@@ -490,7 +476,7 @@ Suggested modules:
         workflow_selector.py
         next_step_policy.py
 
-MVP only needs:
+MVP必須:
 
 - models.py
 - objective.py
@@ -498,31 +484,30 @@ MVP only needs:
 - parameter_search.py
 - results.py
 
-## 18. MVP acceptance criteria
+## 18. MVP受け入れ条件
 
-Workflow Search v0 is complete when:
+Workflow Search v0完了条件:
 
-1. at least two valid workflows can be defined;
-2. both run on the same prompt set;
-3. all trajectories are persisted;
-4. evaluator metrics are aggregated by workflow;
-5. runtime/failure metrics are recorded;
-6. a simple weighted objective ranks experiment results;
-7. parameter search can vary at least one Step parameter;
-8. the best configuration can be reproduced from saved metadata;
-9. GUI can display comparison results.
+1. 最低2種類のvalid Workflowを定義できる。
+2. 同じprompt setで両方を実行できる。
+3. 全Trajectoryを永続化する。
+4. Workflow単位でEvaluator metricをaggregateする。
+5. runtime/failure metricを記録する。
+6. simple weighted objectiveでexperiment resultを比較できる。
+7. parameter searchで最低1個のStep parameterを変更できる。
+8. best configurationを保存metadataから再現できる。
+9. GUIから比較resultを表示できる。
 
-No RL is required.
+RLは不要です。
 
-## 19. First research experiment
+## 19. 最初の研究実験
 
-Recommended first experiment:
+問い:
 
-Question:
+    candidate generation + evaluation + selection は
+    追加compute costに見合う改善を生むか?
 
-    Does candidate generation + evaluation + selection improve results enough to justify its compute cost?
-
-Compare:
+比較:
 
     A:
       RETRIEVE -> SELECT -> COMPOSE -> REFINE
@@ -531,20 +516,18 @@ Compare:
       RETRIEVE -> SELECT -> COMPOSE(x4)
       -> EVALUATE -> SELECT -> REFINE
 
-Measure:
+測定:
 
-- preference/final quality
+- preference / final quality
 - prompt alignment
 - diversity
 - runtime
 - failure rate
-- human A/B preference on a subset
+- 一部promptでhuman A/B preference
 
-This experiment validates both the architecture and the core project hypothesis.
+アーキテクチャと中心仮説を同時に検証します。
 
-## 20. Implementation priority
-
-Recommended order:
+## 20. 実装優先度
 
 1. Trajectory persistence
 2. WorkflowSpec data model
@@ -554,7 +537,7 @@ Recommended order:
 6. baseline workflow comparison
 7. template search
 8. learned workflow selection
-9. structural/evolutionary search
-10. RL only if justified
+9. structural / evolutionary search
+10. 必要な場合のみRL
 
-The system should remain useful even if the learning algorithm changes.
+学習algorithmが変わってもシステム全体を使い続けられる設計にします。
