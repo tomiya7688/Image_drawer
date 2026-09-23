@@ -22,6 +22,44 @@ class Score(SerializableModel):
 
 
 @dataclass(slots=True)
+class ScoreSet(SerializableModel):
+    id: str
+    evaluator: str
+    evaluator_version: str
+    candidate_artifact_ids: list[str] = field(default_factory=list)
+    scores: list[Score] = field(default_factory=list)
+    metadata: Metadata = field(default_factory=dict)
+
+    def __post_init__(self) -> None:
+        if len(self.candidate_artifact_ids) != len(self.scores):
+            raise ValueError(
+                "candidate_artifact_ids and scores must have equal length"
+            )
+        if len(set(self.candidate_artifact_ids)) != len(
+            self.candidate_artifact_ids
+        ):
+            raise ValueError("ScoreSet candidate_artifact_ids must be unique")
+        if any(score.evaluator != self.evaluator for score in self.scores):
+            raise ValueError("ScoreSet contains score from another evaluator")
+        if any(
+            score.evaluator_version != self.evaluator_version
+            for score in self.scores
+        ):
+            raise ValueError(
+                "ScoreSet contains score from another evaluator version"
+            )
+
+    def score_for(self, artifact_id: str) -> Score:
+        try:
+            index = self.candidate_artifact_ids.index(artifact_id)
+        except ValueError as exc:
+            raise KeyError(
+                f"ScoreSet has no score for Artifact {artifact_id}"
+            ) from exc
+        return self.scores[index]
+
+
+@dataclass(slots=True)
 class Artifact(SerializableModel):
     id: str
     artifact_type: str

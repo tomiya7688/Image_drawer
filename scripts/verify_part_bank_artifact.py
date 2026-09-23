@@ -87,7 +87,9 @@ with SQLitePartRepository(bank / 'metadata.sqlite3') as repo:
         'INPUT prompt: Text',
         'parts = RETRIEVE_PARTS(prompt, category="generic", top=1)',
         'draft = COMPOSE(parts, canvas_width=2, canvas_height=1)',
-        'OUTPUT draft',
+        'scores = EVALUATE(draft, evaluator="mock")',
+        'best = SELECT(draft, scores=scores, strategy="best", top=1)',
+        'OUTPUT best',
         '',
     ])
     workflow = parse_workflow(
@@ -118,9 +120,22 @@ with SQLitePartRepository(bank / 'metadata.sqlite3') as repo:
         rendered.load()
         assert rendered.size == (2, 1)
         assert rendered.tobytes() == bytes([255, 0, 0, 255, 0, 255, 0, 255])
-print('installed Part Bank retrieval and COMPOSE verified')
+    assert len(runtime_result.trajectory.evaluations) == 1
+    score = runtime_result.trajectory.evaluations[0]
+    assert score.evaluator == 'mock' and score.evaluator_version == 'v1'
+    assert score.components['determinism'] == 1.0
+    selection = next(
+        item for item in runtime_result.trajectory.selections
+        if item['step_id'] == 'best'
+    )
+    assert selection['decision']['strategy'] == 'best'
+    assert selection['decision']['selected_artifact_ids'] == [draft.id]
+    final_output = next(iter(runtime_result.outputs.values()))
+    assert final_output.artifact_type == 'Image'
+    assert final_output.uri == draft.uri
+print('installed Part Bank retrieval, COMPOSE, EVALUATE and SELECT verified')
 """, str(bank), str(source / "fixture.ppm"))
-        assert "retrieval and COMPOSE verified" in inspection.stdout
+        assert "COMPOSE, EVALUATE and SELECT verified" in inspection.stdout
         (source / "broken.png").write_bytes(b"not an image")
         partial = run(cli, *args, expected_code=1)
         payload = json.loads(partial.stdout)

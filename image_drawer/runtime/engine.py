@@ -142,8 +142,14 @@ class WorkflowRuntime:
                     produced.id for produced in produced_artifacts
                 ]
                 trajectory.artifacts.extend(produced_artifacts)
+                evaluation_ids = {
+                    score.id for score in trajectory.evaluations
+                }
                 for produced in produced_artifacts:
-                    trajectory.evaluations.extend(produced.scores)
+                    for score in produced.scores:
+                        if score.id not in evaluation_ids:
+                            trajectory.evaluations.append(score)
+                            evaluation_ids.add(score.id)
 
                 execution_identity = artifact.metadata.get("execution_identity")
                 if isinstance(execution_identity, dict):
@@ -153,13 +159,15 @@ class WorkflowRuntime:
                     ] = execution_identity
 
                 if node.type in {"SELECT", "SELECT_PARTS"}:
-                    trajectory.selections.append(
-                        {
-                            "step_id": node_id,
-                            "input_artifact_ids": execution.input_artifact_ids,
-                            "output_artifact_id": artifact.id,
-                        }
-                    )
+                    selection_record = {
+                        "step_id": node_id,
+                        "input_artifact_ids": execution.input_artifact_ids,
+                        "output_artifact_id": artifact.id,
+                    }
+                    decision = artifact.metadata.get("selection")
+                    if isinstance(decision, dict):
+                        selection_record["decision"] = decision
+                    trajectory.selections.append(selection_record)
             except Exception as exc:
                 execution.error = f"{type(exc).__name__}: {exc}"
                 trajectory.errors.append(execution.error)

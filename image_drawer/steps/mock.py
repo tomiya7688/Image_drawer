@@ -198,9 +198,15 @@ def create_mock_registry() -> StepRegistry:
         RetrievePartsStep(),
         SelectPartsStep(),
         ComposeStep(),
-        EvaluateStep(),
-        SelectStep(),
         OutputStep(),
     ):
         registry.register(step, default=True)
+
+    from image_drawer.evaluation import create_default_evaluator_registry
+    from image_drawer.steps.evaluate import EvaluateStep as GenericEvaluateStep
+    from image_drawer.steps.select import SelectStep as GenericSelectStep
+
+    evaluators = create_default_evaluator_registry()
+    registry.register(GenericEvaluateStep(evaluators), default=True)
+    registry.register(GenericSelectStep(), default=True)
     return registry
