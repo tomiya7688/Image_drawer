@@ -1,47 +1,43 @@
-# Concept
+# コンセプト
 
-## 1. Purpose
+## 1. 目的
 
-Image Drawer explores a different approach to image generation.
+Image Drawer は画像生成に対して別のアプローチを試します。
 
-The primary learning target is not a finished image distribution. Instead, the system learns and improves **procedures for producing an image**.
+主な学習対象は完成画像の分布そのものではなく、**画像を制作するための手順**です。
 
-Examples of procedures include:
+制作手順の例:
 
-```text
-prompt
-  -> sketch
-  -> evaluate
-  -> select
-  -> line
-  -> color
-  -> evaluate
-  -> correct
-  -> final
-```
+    prompt
+      -> sketch
+      -> evaluate
+      -> select
+      -> line
+      -> color
+      -> evaluate
+      -> correct
+      -> final
 
-The image itself is still important, but mainly as an observable state and as an input to evaluation.
+画像自体も重要ですが、主に観測可能な状態、および評価器への入力として扱います。
 
-## 2. Core idea
+## 2. 基本概念
 
-The system repeatedly performs:
+システムは次のループを繰り返します。
 
-```text
-State -> Action -> New State -> Evaluation
-```
+    State -> Action -> New State -> Evaluation
 
-A state may include:
+Stateには次のような情報を含められます。
 
 - prompt
-- canvas/image
+- canvas / image
 - line art
-- masks
+- mask
 - palette
-- layers
-- previous scores
-- generation history
+- layer
+- 過去のscore
+- 生成履歴
 
-An action may include:
+Actionには次のような操作を含められます。
 
 - sketch
 - draw line
@@ -54,44 +50,44 @@ An action may include:
 - evaluate
 - select
 
-## 3. Why split the process
+## 3. 工程を分割する理由
 
-A procedural representation gives us several useful properties:
+手順を明示化すると、次の利点があります。
 
-- Intermediate failures can be identified.
-- Different evaluators can be used for different stages.
-- Multiple candidates can branch from the same intermediate result.
-- Good procedures can be retained even when individual images differ.
-- The generation order itself can eventually become a search or learning target.
-- Users can inspect and change the procedure through the GUI.
+- どの中間工程で失敗したかを特定できる。
+- 工程ごとに異なるEvaluatorを利用できる。
+- 同じ中間状態から複数候補へ分岐できる。
+- 個々の完成画像が異なっても、良い制作手順を保存・再利用できる。
+- 将来的にStep順序そのものを探索・学習対象にできる。
+- GUIから人間が制作工程を確認・変更できる。
 
-## 4. First principle
+## 4. DSLの基本原則
 
-The DSL is **not intended to become a general-purpose programming language**.
+DSLは**汎用プログラミング言語にしない**ことを原則とします。
 
-Its main role is to serialize and execute workflows that users manipulate in the GUI.
+主目的は、GUIで操作するWorkflowを保存し、検証し、実行することです。
 
-Therefore the DSL should prioritize:
+そのため優先するのは次の要素です。
 
-1. simple step definitions
-2. explicit inputs and outputs
-3. readable parameters
-4. deterministic serialization
-5. easy GUI <-> DSL conversion
-6. validation before execution
+1. 単純なStep定義
+2. 明示的な入出力
+3. 読みやすいparameter
+4. 決定的なserialization
+5. GUI <-> DSL の容易な変換
+6. 実行前validation
 
-Complex logic should live in the runtime or in reusable step implementations, not in DSL syntax.
+複雑なロジックはDSL構文へ持ち込まず、Runtimeまたは再利用可能なStep実装側へ置きます。
 
-## 5. Long-term direction
+## 5. 長期的な方向性
 
-The initial workflow order will be human-defined.
+初期Workflowの順序は人間が定義します。
 
-Later, the system may search or learn:
+将来的には次の要素を探索・学習対象にします。
 
-- which steps to run
-- how many candidates to generate
-- where to evaluate
-- when to branch
-- when to retry
-- which intermediate result to reuse
-- which order of operations produces better results
+- どのStepを実行するか
+- 候補をいくつ生成するか
+- どこで評価するか
+- どこで分岐するか
+- いつ再試行するか
+- どの中間成果物を再利用するか
+- どの工程順がより良い結果を生むか
