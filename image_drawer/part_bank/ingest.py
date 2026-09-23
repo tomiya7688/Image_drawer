@@ -1,4 +1,4 @@
-"""Streaming filesystem ingest with checksum deduplication and atomic files."""
+"""checksum deduplicationとatomic file操作を行うstreaming filesystem ingest。"""
 
 from __future__ import annotations
 
@@ -106,11 +106,12 @@ def ingest_directory(
     max_pixels: int = 40_000_000,
     max_file_bytes: int = 256 * 1024 * 1024,
 ) -> IngestReport:
-    """Ingest one file at a time, keeping valid files even if another fails.
+    """1 fileずつingestし、別fileが失敗しても正常fileは保持する。
 
-    URIs in records are bank-relative POSIX paths. Coordinates use stored pixels
-    (EXIF orientation is not applied). Animated/multipage images are rejected.
-    The bank and input trees must be disjoint. v0 assumes one ingest writer.
+    record内URIはbank-relative POSIX pathとする。
+    座標はstored pixelを使い、EXIF orientationは適用しない。
+    animated/multipage imageはrejectする。
+    bank treeとinput treeは分離し、v0ではingest writerを1つだけ想定する。
     """
     root, bank = Path(source_dir).resolve(), Path(bank_dir).resolve()
     if not root.is_dir():
@@ -149,7 +150,7 @@ def ingest_directory(
                 with tempfile.TemporaryDirectory(prefix=".ingest-", dir=bank) as temporary:
                     snapshot = Path(temporary) / "source"
                     digest = _snapshot(path, snapshot, max_file_bytes)
-                    # Decode the exact bytes that were hashed, not a changing input file.
+                    # hashしたものと同一byte列をdecodeし、途中で変化し得るinput fileを直接使わない。
                     with warnings.catch_warnings():
                         warnings.simplefilter("error", Image.DecompressionBombWarning)
                         with Image.open(snapshot, formats=list(FORMATS)) as probe:
@@ -194,7 +195,7 @@ def ingest_directory(
                                 metadata={"split": split, "rasterizer": rasterizer,
                                           "coordinate_system": "stored_pixels"},
                             ))
-                        # Publish complete files before committing references to them.
+                        # referenceをcommitする前に、完成したfileを先にpublishする。
                         stored_source = bank / source.uri
                         stored_source.parent.mkdir(parents=True, exist_ok=True)
                         os.replace(snapshot, stored_source)
@@ -207,7 +208,7 @@ def ingest_directory(
                         report.parts_added += added_parts
                         report.duplicates += int(added_sources == 0)
             except sqlite3.Error:
-                # Storage-level failures must not silently turn into a partial success.
+                # storage-level failureを暗黙のpartial successとして扱わない。
                 raise
             except Exception as exc:
                 report.errors.append(IngestFailure(
