@@ -1,4 +1,4 @@
-"""Project configuration loading helpers."""
+"""project configurationをloadするhelper。"""
 
 from __future__ import annotations
 
@@ -11,10 +11,10 @@ CONFIG_ENV_VAR = "IMAGE_DRAWER_CONFIG"
 
 
 def load_config(path: str | Path | None = None) -> dict[str, Any]:
-    """Load TOML configuration.
+    """TOML configurationをloadする。
 
-    When path is omitted, IMAGE_DRAWER_CONFIG is used. If neither is set,
-    an empty configuration is returned so the package remains zero-config.
+    path省略時はIMAGE_DRAWER_CONFIGを使用する。
+    どちらも未指定なら空configurationを返し、packageをzero-configで利用可能に保つ。
     """
     if path is None:
         configured_path = os.environ.get(CONFIG_ENV_VAR)
