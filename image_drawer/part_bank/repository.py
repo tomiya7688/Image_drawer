@@ -252,7 +252,10 @@ class SQLitePartRepository:
 
     def store_embedding(self, record: EmbeddingRecord) -> bool:
         """Persist one embedding. Returns True only for a new record."""
-        if record.part_id not in {part.id for part in self.list_parts()}:
+        exists = self._db.execute(
+            "SELECT 1 FROM parts WHERE id=?", (record.part_id,)
+        ).fetchone()
+        if exists is None:
             raise KeyError(f"unknown part: {record.part_id}")
         if len(record.vector) != record.identity.dimensions:
             raise ValueError("embedding vector dimensions do not match identity")
