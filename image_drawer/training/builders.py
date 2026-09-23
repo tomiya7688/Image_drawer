@@ -158,12 +158,15 @@ def build_part_selector_dataset(
     config: DatasetBuildConfig,
     *,
     repository: PartRepositoryLike | None = None,
+    source_metadata: Mapping[str, Any] | None = None,
     generated_at: str | None = None,
 ) -> TrainingDataset:
     trajectories = list(trajectories)
     examples: list[PartSelectorExample] = []
     used_trajectory_ids: list[str] = []
-    observed_embeddings: dict[str, dict[str, Any]] = {}
+    observed_identities: dict[
+        str, dict[str, dict[str, Any]]
+    ] = defaultdict(dict)
     evaluator_versions: set[tuple[str, str | None]] = set()
 
     for trajectory in trajectories:
@@ -179,6 +182,18 @@ def build_part_selector_dataset(
         identities = trajectory.metadata.get("execution_identity", {})
         if not isinstance(identities, dict):
             identities = {}
+        for identity_group in identities.values():
+            if not isinstance(identity_group, dict):
+                continue
+            for family, identity in identity_group.items():
+                if not isinstance(identity, dict):
+                    continue
+                key = json.dumps(
+                    identity,
+                    sort_keys=True,
+                    separators=(",", ":"),
+                )
+                observed_identities[family][key] = dict(identity)
 
         for execution, retrieval_artifact in _execution_output_artifact(
             trajectory,
@@ -206,14 +221,6 @@ def build_part_selector_dataset(
                 if isinstance(identity_group, dict)
                 else {}
             )
-            if isinstance(embedding_identity, dict) and embedding_identity:
-                key = json.dumps(
-                    embedding_identity,
-                    sort_keys=True,
-                    separators=(",", ":"),
-                )
-                observed_embeddings[key] = dict(embedding_identity)
-
             score_map = {
                 part_id: (
                     None
@@ -342,10 +349,14 @@ def build_part_selector_dataset(
         metadata={
             "generated_at": generated,
             "source_trajectory_ids": sorted(set(used_trajectory_ids)),
-            "embedding_versions": [
-                payload
-                for _, payload in sorted(observed_embeddings.items())
-            ],
+            "observed_versions": {
+                family: [
+                    payload
+                    for _, payload in sorted(values.items())
+                ]
+                for family, values in sorted(observed_identities.items())
+            },
+            "source_metadata": dict(source_metadata or {}),
             "evaluator_versions": [
                 {
                     "name": name,
