@@ -68,13 +68,23 @@ class DeterministicMockEvaluator:
                             "component": "prompt_alignment",
                         }
                     ),
+                    "determinism": 1.0,
                 }
 
             overall = sum(components.values()) / len(components)
+            score_identity = {
+                "evaluator": self.identity.to_dict(),
+                "artifact_id": artifact.id,
+                "components": components,
+                "overall": overall,
+                "prompt": prompt,
+            }
             score_id = "score_" + hashlib.sha256(
-                f"{self.identity.name}:{self.identity.version}:{artifact.id}".encode(
-                    "utf-8"
-                )
+                json.dumps(
+                    score_identity,
+                    sort_keys=True,
+                    separators=(",", ":"),
+                ).encode("utf-8")
             ).hexdigest()
             scores.append(
                 Score(
