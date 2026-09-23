@@ -1,21 +1,21 @@
-# Part Bank Specification
+# Part Bank仕様
 
-Status: adopted design
-Date: 2026-09-20
+状態: 採用済み設計
+日付: 2026-09-20
 
-## 1. Purpose
+## 1. 目的
 
-Part Bank is the reusable visual-asset layer of Image Drawer.
+Part Bankは、Image Drawerで再利用可能な視覚assetを管理する層です。
 
-The project assumes access to a large image dataset. Instead of treating every source image only as a final training target, the system extracts, indexes, retrieves and evaluates reusable visual parts and intermediate structures.
+このプロジェクトでは大量の画像datasetが利用できる前提とし、各source imageをfinal training targetとしてだけ扱うのではなく、再利用可能なPartや中間構造を抽出・index化・検索・評価します。
 
-The first implementation goal is not perfect semantic decomposition. It is a stable data model and pipeline that allows later extraction methods to improve without changing the workflow/runtime interface.
+最初の実装目標は完璧なsemantic decompositionではありません。後から抽出手法を改善してもWorkflow/Runtime interfaceを変えずに済む、安定したdata modelとpipelineを作ることです。
 
-## 2. Core idea
+## 2. 基本概念
 
-A source image can yield zero or more Parts.
+1枚のSourceImageから0個以上のPartを生成できます。
 
-Examples:
+例:
 
 - face
 - hair
@@ -29,17 +29,17 @@ Examples:
 - line-art region
 - palette
 - texture
-- composition/layout template
+- composition / layout template
 - silhouette
 - shading pattern
 
-The exact taxonomy is dataset-dependent and must remain extensible.
+taxonomyはdataset依存であり、拡張可能に保ちます。
 
 ## 3. Data model
 
 ### SourceImage
 
-Required fields:
+必須field:
 
     SourceImage
       id: string
@@ -50,19 +50,19 @@ Required fields:
       dataset: string
       metadata: map
 
-Optional metadata:
+任意metadata:
 
 - tags
 - caption
-- artist/source information when legally available
+- 法的に保持可能なartist/source情報
 - style labels
 - quality flags
 - split: train / validation / test
-- license/provenance information
+- license / provenance情報
 
 ### Part
 
-Required fields:
+必須field:
 
     Part
       id: string
@@ -72,7 +72,7 @@ Required fields:
       bbox: [x, y, width, height]
       metadata: map
 
-Recommended fields:
+推奨field:
 
     Part
       mask_uri: string | null
@@ -83,19 +83,19 @@ Recommended fields:
       extraction_method: string
       extraction_version: string
 
-`embedding_refs` allows several embedding models to coexist.
+embedding_refsにより複数embedding modelを共存させます。
 
-Example:
+例:
 
     embedding_refs:
       clip_v1: embeddings/clip/abc.npy
       custom_part_v2: embeddings/custom/abc.npy
 
-Do not hard-code one embedding model into the Part schema.
+Part schemaへ特定のembedding modelをhard-codeしません。
 
 ### PartSet
 
-A query result is represented as:
+検索結果:
 
     PartSet
       query_id
@@ -106,7 +106,7 @@ A query result is represented as:
 
 ### PartPlacement
 
-Represents a selected part on a canvas:
+canvas上のPart配置:
 
     PartPlacement
       part_id
@@ -127,11 +127,11 @@ Represents a selected part on a canvas:
       background
       metadata
 
-This should be an intermediate Artifact, not only a rendered image.
+Compositionはrendered Imageだけでなく、中間Artifactとして保持します。
 
 ## 4. Storage layout
 
-Initial local implementation:
+初期local実装:
 
     data/
       source/
@@ -144,19 +144,19 @@ Initial local implementation:
       manifests/
       runs/
 
-Metadata should use JSONL or SQLite for the MVP.
+MVPではmetadataにJSONLまたはSQLiteを利用します。
 
-Recommended MVP choice:
+推奨MVP:
 
-- image/crop/mask files on filesystem
-- SQLite for SourceImage / Part / embedding metadata
-- vector index abstraction behind a repository interface
+- image / crop / mask file: filesystem
+- SourceImage / Part / embedding metadata: SQLite
+- vector index: repository interfaceの背後へ抽象化
 
-This keeps the first implementation simple while allowing FAISS, Qdrant, Milvus or another backend later.
+これにより最初は単純に保ちつつ、将来FAISS、Qdrant、Milvus等へ差し替えられます。
 
 ## 5. Extraction pipeline
 
-Recommended pipeline:
+推奨pipeline:
 
     INGEST
       -> VALIDATE
@@ -166,60 +166,60 @@ Recommended pipeline:
       -> INDEX
       -> QUALITY_FILTER
 
-Each stage must be restartable.
+各stageは途中から再実行可能にします。
 
 ### INGEST
 
-Responsibilities:
+責務:
 
-- assign source image id
+- source image id付与
 - checksum
-- dimensions
+- dimension
 - provenance metadata
 - dataset split
 
 ### EXTRACT_PARTS
 
-The extraction algorithm is replaceable.
+抽出algorithmは交換可能にします。
 
-Possible implementations:
+候補:
 
 - bounding-box detector
 - segmentation model
 - semantic segmentation
 - pose-based region extraction
-- manually supplied masks/annotations
+- 手動mask / annotation
 - dataset-specific parser
 
-Output is always normalized to `Part`.
+outputは常にPartへ正規化します。
 
 ### EMBED
 
-Generate one or more searchable representations.
+1個以上の検索表現を作ります。
 
-Initial suggested embeddings:
+初期候補:
 
 - global visual semantic embedding
-- optional category-specific embedding
-- optional color/style embedding
+- category-specific embedding
+- color / style embedding
 
-The repository API must identify which embedding model produced a vector.
+どのembedding modelがvectorを作ったかをrepository APIで識別可能にします。
 
 ### QUALITY_FILTER
 
-Remove or flag unusable parts:
+利用しづらいPartを削除またはflagします。
 
-- extremely small regions
-- invalid/empty masks
-- corrupt crops
-- low-information regions
-- obvious duplicates if desired
+- 極端に小さいregion
+- 無効/空mask
+- corrupt crop
+- low-information region
+- 必要に応じたobvious duplicate
 
-Filtering should be recorded, not destructive by default.
+原則として破壊的削除より記録・flagを優先します。
 
 ## 6. Retrieval API
 
-Core conceptual interface:
+基本interface:
 
     retrieve_parts(
         query,
@@ -229,37 +229,37 @@ Core conceptual interface:
         embedding_model=None
     ) -> PartSet
 
-The query may contain:
+queryには将来次を含められます。
 
 - text
-- current image/canvas
+- current image / canvas
 - reference part
 - workflow state
 - attributes
 
-Version 1 only needs text and category filtering.
+version 1ではtext + category filteringのみで構いません。
 
-## 7. Workflow operations
+## 7. Workflow operation
 
 ### RETRIEVE_PARTS
 
-Inputs:
+input:
 
 - prompt: Text
 - optional current image/state
 
-Parameters:
+parameter:
 
 - category
 - top
 - embedding_model
 - filters
 
-Outputs:
+output:
 
 - PartSet
 
-Example:
+例:
 
     faces = RETRIEVE_PARTS(
       prompt,
@@ -269,59 +269,59 @@ Example:
 
 ### SELECT_PARTS
 
-Inputs:
+input:
 
 - PartSet
 - optional canvas/context
 - optional evaluator scores
 
-Parameters:
+parameter:
 
 - top
 - strategy
 
-MVP strategies:
+MVP strategy:
 
 - retrieval_score
 - evaluator_score
 - weighted_score
 
-Outputs:
+output:
 
-- selected PartSet or Part
+- selected PartSet または Part
 
 ### COMPOSE
 
-Inputs:
+input:
 
 - parts
-- layout/placements
+- layout / placements
 
-Outputs:
+output:
 
 - Composition
 - rendered Image
 
-Version 1 may use simple affine placement.
+version 1では単純なaffine placementで構いません。
 
 ### HARMONIZE / REFINE
 
-Optional in the first real-model pipeline.
+最初のreal-model pipelineでは任意です。
 
-Purpose:
+目的:
 
-- remove seams
-- unify color/style
-- inpaint missing regions
-- improve coherence
+- seam除去
+- color/style統一
+- missing region inpaint
+- coherence改善
 
-This should be implemented as a separate operator, not hidden inside COMPOSE.
+COMPOSE内部へ隠さず独立operatorにします。
 
-## 8. Layout representation
+## 8. Layout表現
 
-Do not encode layout only as pixels.
+layoutをpixelだけで表現しません。
 
-Minimal layout model:
+最小model:
 
     Layout
       canvas_width
@@ -337,17 +337,17 @@ Minimal layout model:
       rotation
       constraints
 
-A future model may generate Layout from a prompt.
+将来的にはpromptからLayoutを生成するmodelを追加できます。
 
-For MVP, layout can be:
+MVPでは次で構いません。
 
-- manually configured
-- fixed templates
+- manual configuration
+- fixed template
 - simple rule-based placement
 
-## 9. Retrieval scoring
+## 9. Retrieval score
 
-A retrieved part can have several scores:
+retrieved Partは複数scoreを持てます。
 
     retrieval.semantic
     retrieval.style
@@ -356,25 +356,27 @@ A retrieved part can have several scores:
     quality
     compatibility
 
-Do not collapse these permanently into one score.
+これらを永続的に1 scoreへ潰しません。
 
-The final selector may compute a weighted aggregate.
+最終Selector側でweighted aggregateを計算できます。
 
-## 10. Compatibility scoring
+## 10. Compatibility score
 
-A part may be individually good but incompatible with the current composition.
+Part単体が良くても現在のCompositionと合わない場合があります。
 
-Therefore selection should eventually distinguish:
+そのため将来的に
 
     part_quality(part)
 
-from:
+と
 
     compatibility(part, current_state)
 
-Examples:
+を分離して扱います。
 
-- face angle vs body pose
+例:
+
+- face angleとbody pose
 - lighting direction
 - line thickness
 - style
@@ -382,48 +384,46 @@ Examples:
 - perspective
 - scale
 
-This is an important future learning target.
+これは重要な将来学習targetです。
 
 ## 11. Deduplication
 
-Large image datasets commonly contain near-duplicates.
+大量datasetではnear-duplicateが一般的です。
 
-The Part Bank should support:
+Part Bankは次をsupportする方向です。
 
 - exact checksum dedup
 - perceptual duplicate grouping
 - embedding-neighbor inspection
 
-For MVP, exact checksum dedup is sufficient.
+MVPではexact checksum dedupで十分です。
 
-Near-duplicate grouping can be added before serious train/test evaluation to avoid leakage.
+本格的なtrain/test評価前にはnear-duplicate groupingを追加してdata leakageを防ぎます。
 
-## 12. Dataset split rules
+## 12. Dataset split rule
 
-Avoid leakage between source images that are near-duplicates or part of the same sequence.
+near-duplicateや同一sequence由来のsource imageがsplitを跨がないようにします。
 
-Preferred split order:
+推奨順:
 
-1. group related images
-2. assign group to split
-3. extract parts
+1. related imageをgroup化
+2. group単位でsplit割当
+3. Part抽出
 
-Do not randomly split extracted Parts independently if their source images are related.
+関連source image由来のPartを個別にrandom splitしません。
 
 ## 13. Provenance
 
-Every Part must remain traceable to:
+すべてのPartから次を追跡できるようにします。
 
 - source image
 - extraction method/version
 - embedding model/version
 - preprocessing configuration
 
-This is required for debugging and experiment reproducibility.
+debugとexperiment reproducibilityに必須です。
 
-## 14. Initial Python interfaces
-
-Suggested interfaces:
+## 14. 初期Python interface
 
     class PartRepository:
         def get(self, part_id): ...
@@ -440,9 +440,9 @@ Suggested interfaces:
         def add(self, part_id, vector): ...
         def search(self, vector, top_k, filters=None): ...
 
-Avoid coupling the workflow runtime directly to FAISS or another concrete vector database.
+Workflow RuntimeをFAISS等の具体vector databaseへ直接coupleしません。
 
-## 15. Suggested package structure
+## 15. Package構成案
 
     image_drawer/
       part_bank/
@@ -460,20 +460,20 @@ Avoid coupling the workflow runtime directly to FAISS or another concrete vector
         compose.py
         refine.py
 
-## 16. MVP acceptance criteria
+## 16. MVP受け入れ条件
 
-Part Bank v0 is complete when:
+Part Bank v0は次を満たせば完了とします。
 
-1. a folder of source images can be ingested;
-2. each image receives a stable SourceImage record;
-3. at least one extractor creates Parts;
-4. Parts are stored with source provenance;
-5. embeddings can be generated;
-6. text/category query returns a ranked PartSet;
-7. GUI/runtime can execute RETRIEVE_PARTS;
-8. selected Part IDs are written into the run Trajectory;
-9. rerunning with the same dataset/index version is reproducible enough for experiments.
+1. source image folderをingestできる。
+2. 各画像にstable SourceImage recordが作られる。
+3. 最低1種類のextractorがPartを作る。
+4. source provenance付きでPartを保存する。
+5. embeddingを生成できる。
+6. text/category queryからranked PartSetを返せる。
+7. GUI/RuntimeからRETRIEVE_PARTSを実行できる。
+8. selected Part IDをrun Trajectoryへ記録する。
+9. 同じdataset/index versionで再実行した際にexperiment用途として十分な再現性がある。
 
-High extraction quality is not required for v0.
+v0では高品質なPart抽出は必須ではありません。
 
-The main goal is a stable interface.
+主目的はinterfaceの安定化です。
