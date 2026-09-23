@@ -1,4 +1,4 @@
-"""Vector index abstraction and dependency-free local cosine backend."""
+"""vector index abstractionとdependency-freeなlocal cosine backend。"""
 
 from __future__ import annotations
 
@@ -60,7 +60,7 @@ def _validate_vector(vector: Sequence[float], dimensions: int) -> tuple[float, .
 
 
 class BruteForceCosineIndex:
-    """Small local index used until a vector database backend is warranted."""
+    """vector database backendが必要になるまで使用する小規模local index。"""
 
     identity = IndexIdentity(backend="bruteforce-cosine", version="v1")
 
