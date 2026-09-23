@@ -1,4 +1,4 @@
-"""Local Part Bank ingest, embeddings, indexing, and retrieval."""
+"""local Part Bankのingest、embedding、index、retrieval機能。"""
 
 from image_drawer.part_bank.embedding import (
     EmbeddingIdentity,
