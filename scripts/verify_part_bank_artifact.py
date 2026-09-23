@@ -83,11 +83,15 @@ with SQLitePartRepository(bank / 'metadata.sqlite3') as repo:
     assert len(repo.list_embeddings(embedder.identity)) == 1
 
     registry = create_part_bank_registry(repo, embedder, bank_dir=bank)
+    dsl = chr(10).join([
+        'INPUT prompt: Text',
+        'parts = RETRIEVE_PARTS(prompt, category="generic", top=1)',
+        'draft = COMPOSE(parts, canvas_width=2, canvas_height=1)',
+        'OUTPUT draft',
+        '',
+    ])
     workflow = parse_workflow(
-        'INPUT prompt: Text\n'
-        'parts = RETRIEVE_PARTS(prompt, category="generic", top=1)\n'
-        'draft = COMPOSE(parts, canvas_width=2, canvas_height=1)\n'
-        'OUTPUT draft\n',
+        dsl,
         registry,
         workflow_id='installed-compose',
     )
