@@ -1,55 +1,55 @@
-# Prior Art and Research Direction
+# 先行研究と技術方針
 
-Status: initial survey
-Date: 2026-09-20
+状態: 初期調査
+日付: 2026-09-20
 
-## 1. Executive summary
+## 1. 要約
 
-Image Drawer should aggressively reuse existing AI methods rather than training every component from scratch.
+Image Drawerでは、すべてのAI componentを独自に学習するのではなく、既存手法を積極的に再利用します。
 
-The parts that already have strong prior art are:
+先行研究が豊富な領域:
 
 - iterative / process-driven image generation
 - stroke-based neural painting
-- conditional image generation from line art and structure
-- human-preference reward models
+- line artやstructureを条件としたimage generation
+- human-preference reward model
 - best-of-N ranking
 - diffusion preference optimization
-- reinforcement learning over generation trajectories
-- differentiable or learned renderers
+- generation trajectoryに対するreinforcement learning
+- differentiable / learned renderer
 
-The project-specific core should be the orchestration layer:
+Image Drawer固有の中心はorchestration layerです。
 
-1. represent a drawing procedure as an editable workflow,
-2. expose it through a GUI,
-3. store intermediate visual states and decisions,
-4. combine heterogeneous generators and evaluators,
-5. learn from successful trajectories,
-6. eventually search or optimize workflow structure itself.
+1. 制作手順を編集可能なWorkflowとして表現する。
+2. GUIから操作できるようにする。
+3. 中間視覚状態と判断を保存する。
+4. 異なるgeneratorとEvaluatorを組み合わせる。
+5. 良いTrajectoryから学習する。
+6. 最終的にWorkflow構造そのものを探索・最適化する。
 
-## 2. Closest research direction: process-driven image generation
+## 2. 最も近い方向: Process-driven image generation
 
 ### Think in Strokes, Not Pixels: Process-Driven Image Generation via Interleaved Reasoning
 Zhang et al., 2026. arXiv:2604.04746
 
-This is currently one of the closest references to the Image Drawer concept.
+Image Drawerの構想にかなり近い研究です。
 
-It decomposes generation into repeated stages:
+生成を次の反復段階へ分解します。
 
     textual planning
     -> visual drafting
     -> textual reflection
     -> visual refinement
 
-Key ideas:
+重要な点:
 
-- intermediate visual states are explicit;
-- later reasoning is conditioned on intermediate images;
-- step-wise supervision is used instead of supervising only the final image;
-- intermediate-state evaluation is treated as a central problem;
-- the generation process becomes an interpretable trajectory.
+- 中間視覚状態を明示する。
+- 後続reasoningが中間画像を条件にする。
+- final imageだけでなくstep-wise supervisionを使う。
+- 中間状態評価を中心課題として扱う。
+- 生成全体を解釈可能なTrajectoryとして扱える。
 
-Image Drawer differs in emphasis. The paper proposes a particular unified multimodal training approach, while Image Drawer aims to build a model-agnostic workflow/runtime where multiple generation and evaluation methods can be swapped, combined and reordered.
+違いとして、この論文は特定のunified multimodal trainingを提案します。Image Drawerは複数の生成・評価手法を交換、混在、並べ替えできるmodel-agnosticなWorkflow/Runtimeを目指します。
 
 Reference:
 https://arxiv.org/abs/2604.04746
@@ -57,16 +57,16 @@ https://arxiv.org/abs/2604.04746
 ### Self-Reflective Reinforcement Learning for Diffusion-based Image Reasoning Generation
 Pan et al., 2025. arXiv:2505.22407
 
-This work introduces reflective iterations over diffusion-generation trajectories.
+Diffusion generation trajectoryにreflectionを挟む研究です。
 
-Relevant ideas:
+関連点:
 
-- reflection across generation trajectories;
-- iterative correction;
-- trajectory-level optimization;
-- difficulty of evaluating noisy intermediate diffusion states.
+- generation trajectoryを跨いだreflection
+- iterative correction
+- trajectory-level optimization
+- noisy intermediate diffusion stateの評価難易度
 
-Image Drawer can make semantic intermediate states such as sketch, line art and color draft explicit, which may make evaluation easier than scoring noisy latent states.
+Image Drawerではsketch、line art、color draftなど意味のある中間状態をArtifactとして明示することで、noisy latentを直接評価するより扱いやすくできる可能性があります。
 
 Reference:
 https://arxiv.org/abs/2505.22407
@@ -74,9 +74,9 @@ https://arxiv.org/abs/2505.22407
 ### Fine-grained Multimodal Reasoning
 Kim et al., 2026. arXiv:2604.13491
 
-This approach decomposes a prompt into semantic units, verifies them using visual question answering and performs targeted refinements.
+promptを細かいsemantic unitへ分解し、VQAで検証してtargeted refinementを行う方向です。
 
-This suggests EVALUATE should eventually support structured outputs such as:
+EVALUATEは将来的に次のようなstructured outputを持つべきです。
 
     entity_presence
     attribute_binding
@@ -85,27 +85,25 @@ This suggests EVALUATE should eventually support structured outputs such as:
     style
     overall
 
-rather than one scalar score.
+単一scalarだけにしないことが重要です。
 
 Reference:
 https://arxiv.org/abs/2604.13491
 
 ## 3. Stroke-based neural painting
 
-This family is directly relevant if Image Drawer represents drawing as strokes or renderer commands.
+Image Drawerで描画をstrokeやrenderer commandとして表現する場合に直接関係します。
 
 ### SPIRAL
 Ganin et al., 2018. arXiv:1804.01118
 
-SPIRAL trains an agent to emit graphics-program actions that are executed by a renderer.
-
-Conceptually:
+Agentがgraphics-program actionを出力し、rendererが画像化します。
 
     agent -> program/actions -> renderer -> image -> reward
 
-This is very close to the separation between procedure and image proposed for Image Drawer.
+手順と画像を分離するImage Drawerの考えに近い構成です。
 
-SPIRAL also demonstrates that the renderer itself does not need to be differentiable when policy learning is done with reinforcement learning.
+policyをreinforcement learningで最適化する場合、rendererそのものがdifferentiableでなくても成立することを示しています。
 
 Reference:
 https://arxiv.org/abs/1804.01118
@@ -113,15 +111,15 @@ https://arxiv.org/abs/1804.01118
 ### Learning to Paint With Model-Based Deep Reinforcement Learning
 Huang et al., ICCV 2019. arXiv:1903.04411
 
-The model learns parameters such as stroke position, shape, color and transparency.
+stroke位置、形状、色、透明度などを学習します。
 
-Important reusable ideas:
+再利用候補:
 
-- parameterized stroke action space;
-- Bezier curves;
-- neural differentiable stroke renderer;
-- canvas-as-state representation;
-- sequential policy optimization.
+- parameterized stroke action space
+- Bezier curve
+- neural differentiable stroke renderer
+- canvas-as-state
+- sequential policy optimization
 
 Reference:
 https://arxiv.org/abs/1903.04411
@@ -129,15 +127,15 @@ https://arxiv.org/abs/1903.04411
 ### Stylized Neural Painting
 Zou et al., CVPR 2021
 
-This work formulates painting as vector-stroke optimization rather than pixel-wise generation.
+pixel生成ではなくvector stroke optimizationとしてpaintingを定式化します。
 
-Relevant techniques:
+関連技術:
 
-- vectorized strokes;
-- differentiable neural renderer;
-- separate rasterization and shading;
-- coarse-to-fine rendering;
-- optimal-transport-inspired optimization.
+- vectorized stroke
+- differentiable neural renderer
+- rasterizationとshadingの分離
+- coarse-to-fine rendering
+- optimal-transport-inspired optimization
 
 Reference:
 https://openaccess.thecvf.com/content/CVPR2021/html/Zou_Stylized_Neural_Painting_CVPR_2021_paper.html
@@ -145,19 +143,17 @@ https://openaccess.thecvf.com/content/CVPR2021/html/Zou_Stylized_Neural_Painting
 ### Paint Transformer
 Liu et al., ICCV 2021. arXiv:2108.03798
 
-Paint Transformer predicts a set of strokes with a Transformer instead of generating every stroke through RL.
+1 strokeずつRLで出す代わりにTransformerでstroke setを予測します。
 
-Important lesson:
-
-RL should not automatically be the default for every drawing stage.
-
-Some operators may be better expressed as:
+重要な示唆は、すべての描画StepにRLを使う必要はないことです。
 
     state -> stroke set
 
-rather than:
+が適切なStepもあれば、
 
     state -> stroke -> state -> stroke -> ...
+
+が適切なStepもあります。
 
 Reference:
 https://arxiv.org/abs/2108.03798
@@ -165,42 +161,44 @@ https://arxiv.org/abs/2108.03798
 ### Differentiable Stroke Planning with Dual Parameterization
 Liu et al., CVPR 2026
 
-This work combines discrete structural stroke proposals with continuous Bezier optimization.
+discreteなstructural stroke proposalとcontinuousなBezier optimizationを組み合わせます。
 
-This suggests a future hybrid approach for Image Drawer:
+将来的なImage Drawerでも、
 
     discrete structural planning
     +
     continuous parameter optimization
 
+のhybrid方式が候補になります。
+
 Reference:
 https://openaccess.thecvf.com/content/CVPR2026/html/Liu_Differentiable_Stroke_Planning_with_Dual_Parameterization_for_Efficient_and_High-Fidelity_CVPR_2026_paper.html
 
-## 4. Reusing pretrained image generators
+## 4. Pretrained image generatorの再利用
 
-The first versions of Image Drawer should not train a complete image generator.
+初期Image Drawerでは完全な画像生成modelを新規学習しません。
 
-Existing image-generation models can be wrapped as workflow operators.
+既存modelをWorkflow operatorとしてwrapします。
 
 ### ControlNet
 Zhang et al., ICCV 2023. arXiv:2302.05543
 
-ControlNet adds spatial conditioning to a pretrained text-to-image diffusion model.
+pretrained text-to-image diffusionへspatial conditionを追加します。
 
-Typical control inputs include:
+代表的なcondition:
 
-- edges
+- edge
 - depth
 - segmentation
 - pose
 
-For Image Drawer this gives a direct path for operations such as:
+Image Drawerでは例えば次の実装に使えます。
 
     line_art -> COLOR
     structure -> DETAIL
     pose -> RENDER
 
-without training the base image model from scratch.
+base image modelを最初から学習せずに済みます。
 
 Reference:
 https://arxiv.org/abs/2302.05543
@@ -208,31 +206,31 @@ https://arxiv.org/abs/2302.05543
 ### T2I-Adapter
 Mou et al., AAAI 2024. arXiv:2302.08453
 
-T2I-Adapter adds lightweight control modules while freezing the large pretrained image model.
+大規模pretrained image modelをfreezeしたまま、軽量control moduleを追加します。
 
-It is relevant because it supports structural and color control and is cheaper to experiment with than full-model fine-tuning.
+structureやcolor controlに利用でき、full-model fine-tuningより初期実験に向いています。
 
 Reference:
 https://arxiv.org/abs/2302.08453
 
-## 5. Evaluation and human preference models
+## 5. 評価とHuman Preference Model
 
-The evaluator should be a subsystem, not one fixed metric.
+Evaluatorは固定metric 1個ではなくsubsystemとして扱います。
 
 ### CLIP / CLIPScore
 
-Useful as a cheap baseline for text-image semantic compatibility.
+text-image semantic compatibilityの安価なbaselineです。
 
-Good for:
+向いている用途:
 
-- rough prompt alignment;
-- fast filtering.
+- rough prompt alignment
+- fast filtering
 
-Not sufficient for:
+不十分な用途:
 
-- aesthetics;
-- fine-grained spatial relationships;
-- drawing quality.
+- aesthetics
+- 細かいspatial relation
+- drawing quality
 
 Reference:
 https://arxiv.org/abs/2104.08718
@@ -240,15 +238,13 @@ https://arxiv.org/abs/2104.08718
 ### ImageReward
 Xu et al., NeurIPS 2023. arXiv:2304.05977
 
-ImageReward is trained from expert text-to-image preference comparisons.
+expertのtext-to-image preference comparisonから学習したreward modelです。Reward Feedback Learningも提案しています。
 
-It also introduces Reward Feedback Learning for optimizing diffusion models against a scorer.
+Image Drawerでの候補用途:
 
-Potential Image Drawer use:
-
-- final-image reward;
-- best-of-N candidate ranking;
-- baseline preference model.
+- final-image reward
+- best-of-N candidate ranking
+- preference baseline
 
 Reference:
 https://arxiv.org/abs/2304.05977
@@ -256,14 +252,13 @@ https://arxiv.org/abs/2304.05977
 ### PickScore / Pick-a-Pic
 Kirstain et al., 2023. arXiv:2305.01569
 
-Pick-a-Pic is an open dataset of real user pairwise preferences.
-PickScore predicts those preferences.
+Pick-a-Picは実ユーザーのpairwise preference datasetで、PickScoreはその選好を予測します。
 
-Potential use:
+候補用途:
 
-- candidate ranking;
-- pairwise preference training;
-- user-facing A/B feedback format.
+- candidate ranking
+- pairwise preference training
+- GUI上のA/B feedback
 
 Reference:
 https://arxiv.org/abs/2305.01569
@@ -271,9 +266,9 @@ https://arxiv.org/abs/2305.01569
 ### HPS v2
 Wu et al., 2023. arXiv:2306.09341
 
-HPS v2 is trained from a large-scale human preference dataset and is useful as another independent preference model.
+大規模human preference datasetから学習した別系統の評価signalです。
 
-It should be treated as an independent signal rather than replacing all other evaluators.
+他Evaluatorを置き換えるのではなく、独立signalとして扱います。
 
 Reference:
 https://arxiv.org/abs/2306.09341
@@ -281,14 +276,14 @@ https://arxiv.org/abs/2306.09341
 ### Multi-dimensional Preference Score
 Zhang et al., CVPR 2024. arXiv:2405.14705
 
-MPS explicitly models several preference dimensions including:
+MPSは複数のpreference dimensionを明示的に扱います。
 
-- aesthetics;
-- semantic alignment;
-- detail quality;
-- overall preference.
+- aesthetics
+- semantic alignment
+- detail quality
+- overall preference
 
-This strongly supports making Image Drawer's score representation structured rather than scalar-only.
+Image DrawerのScoreをscalar-onlyではなくstructured dataにする根拠になります。
 
 Reference:
 https://arxiv.org/abs/2405.14705
@@ -296,9 +291,9 @@ https://arxiv.org/abs/2405.14705
 ### VisionReward
 Xu et al., AAAI 2026
 
-VisionReward extends visual reward modeling toward hierarchical and fine-grained multi-dimensional preference evaluation.
+hierarchicalかつfine-grainedなmulti-dimensional visual preference evaluationを扱います。
 
-This is especially relevant to stage-specific evaluation.
+特にstage-specific evaluationと相性があります。
 
 Reference:
 https://ojs.aaai.org/index.php/AAAI/article/view/38107
@@ -306,28 +301,25 @@ https://ojs.aaai.org/index.php/AAAI/article/view/38107
 ### DreamSim
 Fu et al., NeurIPS 2023. arXiv:2306.09344
 
-DreamSim models human perceptual similarity including layout, pose and semantic content.
+layout、pose、semantic contentを含むhuman perceptual similarityを扱います。
 
-Potential use:
+候補用途:
 
-- measure structure preservation between stages;
-- detect excessive drift during refinement;
-- compare alternate intermediate states.
+- stage間のstructure preservation
+- refinementによる過度なdrift検出
+- 中間candidate同士の比較
 
 Reference:
 https://arxiv.org/abs/2306.09344
 
-## 6. Preference optimization and reinforcement learning
+## 6. Preference optimizationとRL
 
 ### DDPO
 Black et al., 2023. arXiv:2305.13301
 
-DDPO models diffusion denoising as a multi-step decision process and applies policy-gradient optimization against arbitrary rewards.
+diffusion denoisingをmulti-step decision processとして扱い、任意rewardに対してpolicy-gradient optimizationを行います。
 
-This validates reward-driven image-generator optimization.
-
-Recommendation for Image Drawer:
-do not begin with DDPO. First collect trajectories and validate evaluators, because otherwise model optimization and reward failure become difficult to distinguish.
+Image Drawerでは最初から使いません。まずTrajectoryを収集しEvaluatorを検証しないと、model optimization失敗とreward failureを切り分けにくいためです。
 
 Reference:
 https://arxiv.org/abs/2305.13301
@@ -335,15 +327,15 @@ https://arxiv.org/abs/2305.13301
 ### Diffusion-DPO
 Wallace et al., CVPR 2024. arXiv:2311.12908
 
-Diffusion-DPO learns directly from preferred/rejected image pairs without requiring a separately trained reward model.
+別Reward Modelを学習せず、preferred/rejected image pairから直接学習します。
 
-Once Image Drawer accumulates records like:
+Image Drawerに
 
     prompt
     preferred candidate
     rejected candidate
 
-individual image operators could be preference-tuned with this class of method.
+が蓄積した段階で、個別image operatorのpreference tuningに利用できる候補です。
 
 Reference:
 https://arxiv.org/abs/2311.12908
@@ -351,62 +343,55 @@ https://arxiv.org/abs/2311.12908
 ### Dense Reward View
 Yang et al., ICML 2024
 
-This work argues that treating preference only as a terminal reward ignores the sequential structure of diffusion generation.
+terminal rewardだけではdiffusion generationのsequential structureを無視すると論じています。
 
-This supports evaluating intermediate Image Drawer states rather than only the final image.
+final imageだけでなく中間Artifactも評価するImage Drawerの方向と一致します。
 
 Reference:
 https://proceedings.mlr.press/v235/yang24e.html
 
-## 7. Recommended reuse map
+## 7. 推奨reuse map
 
 ### SKETCH
 
-First implementation:
+初期:
+- existing pretrained image generator
+- ControlNet / T2I-Adapterによるsketch / line conditioning
 
-- existing pretrained image generator;
-- sketch / line conditioning through ControlNet or T2I-Adapter.
-
-Later:
-
-- learned stroke generator;
-- Paint Transformer-style predictor;
-- sequential stroke policy.
+将来:
+- learned stroke generator
+- Paint Transformer-style predictor
+- sequential stroke policy
 
 ### LINE
 
-First implementation:
+初期:
+- image-to-line preprocessing / model
+- line-controlled generation / editing
 
-- image-to-line preprocessing/model;
-- line-controlled generation or editing.
-
-Later:
-
-- vector-stroke representation.
+将来:
+- vector-stroke representation
 
 ### COLOR
 
-First implementation:
+初期:
+- line art conditioned ControlNet / T2I-Adapter
+- pretrained diffusion / flow backbone
 
-- ControlNet or T2I-Adapter conditioned on line art;
-- pretrained diffusion/flow backbone.
-
-Do not train a full color model initially.
+初期段階ではfull color modelを独自学習しません。
 
 ### REFINE
 
-First implementation:
+初期:
+- pretrained image-to-image / editor model
 
-- pretrained image-to-image/editor model.
-
-Later:
-
-- reflective multimodal refinement;
-- localized correction agent.
+将来:
+- reflective multimodal refinement
+- localized correction agent
 
 ### EVALUATE
 
-Use multiple independent signals:
+複数の独立signalを利用します。
 
     semantic_alignment: CLIP or VLM
     preference: ImageReward / PickScore / HPSv2
@@ -417,56 +402,50 @@ Use multiple independent signals:
 
 ### SELECT
 
-Initially:
+初期:
+- weighted top-k
+- best-of-N
 
-- weighted top-k;
-- best-of-N.
-
-Later:
-
-- diversity-aware selection;
-- Pareto selection;
-- learned selection policy.
+将来:
+- diversity-aware selection
+- Pareto selection
+- learned selection policy
 
 ### TRAIN
 
-Initially:
+初期:
+- preferred/rejected trajectory保存
+- supervised imitation / fine-tuning
+- pairwise preference data
 
-- save preferred/rejected trajectories;
-- supervised imitation / fine-tuning;
-- pairwise preference data.
+将来:
+- Diffusion-DPO
+- DDPO
+- evolutionary / search-based workflow optimization
 
-Later:
+## 8. Reward hackingとEvaluator bias
 
-- Diffusion-DPO;
-- DDPO;
-- evolutionary/search-based workflow optimization.
+Preference Modelはproxyでありground truthではありません。
 
-## 8. Reward hacking and evaluator bias
+1個のEvaluatorへ過剰最適化すると弱点を利用する可能性があります。
 
-Preference models are proxies, not ground truth.
+設計要件:
 
-Optimizing one evaluator too aggressively can exploit its weaknesses.
+1. raw component scoreを保存する。
+2. 複数の独立Evaluatorを使えるようにする。
+3. human pairwise evaluationをsupportする。
+4. held-out evaluation promptを持つ。
+5. training rewardとbenchmark metricを分離する。
+6. diversityを監視する。
+7. 1個のglobal aesthetic scoreを品質定義にしない。
 
-Design requirements:
+aesthetic / preference modelにはdatasetや文化的biasも含まれ得ます。
 
-1. store raw component scores;
-2. keep multiple independent evaluators;
-3. support human pairwise evaluation;
-4. keep held-out evaluation prompts;
-5. separate training rewards from benchmark metrics;
-6. monitor diversity;
-7. do not define quality through one global aesthetic model.
+そのため品質はmulti-objectiveかつEvaluator-specificとして扱います。
 
-Aesthetic/preference models can also encode dataset and cultural biases.
+## 9. Researchから反映するArchitecture変更
 
-Therefore Image Drawer should treat quality as multi-objective and evaluator-specific.
-
-## 9. Research-informed architecture changes
-
-### Score should not be a float
-
-Use something conceptually like:
+### Scoreはfloatだけにしない
 
     Score:
       evaluator
@@ -475,11 +454,9 @@ Use something conceptually like:
       components
       metadata
 
-A candidate may own many scores from different evaluators.
+1 candidateに複数EvaluatorのScoreを持たせます。
 
-### Artifact should be first-class
-
-Recommended fields:
+### Artifactを第一級objectにする
 
     Artifact:
       id
@@ -491,7 +468,7 @@ Recommended fields:
       seed
       metadata
 
-Useful artifact types:
+有用なArtifact type:
 
 - Text
 - Image
@@ -504,9 +481,7 @@ Useful artifact types:
 - ScoreSet
 - Selection
 
-### Trajectory should be first-class
-
-Recommended structure:
+### Trajectoryを第一級objectにする
 
     Trajectory:
       workflow_id
@@ -517,129 +492,74 @@ Recommended structure:
       human_feedback
       final_artifacts
 
-Each execution should record:
+各executionに記録するもの:
 
-- step type;
-- parameters;
-- input artifact IDs;
-- output artifact IDs;
-- model/checkpoint;
-- random seed;
-- duration/error information.
+- step type
+- parameters
+- input artifact IDs
+- output artifact IDs
+- model/checkpoint
+- random seed
+- duration / error
 
-This trajectory store is likely to become the project's most valuable training dataset.
+長期的には、このTrajectory storeが最も重要な学習datasetになります。
 
-## 10. Recommended development stages
+## 10. 推奨研究段階
 
-### R0: runtime validation
+### R0: Runtime validation
+mock stepでGUI <-> DSL round trip、Artifact tracking、branch、score、provenanceを検証します。
 
-Use mock steps.
+### R1: Existing-model pipeline
+pretrained componentのみで prompt -> sketch/structure -> controlled color -> evaluate -> select を動かします。
 
-Prove:
+### R2: Evaluator study
+ImageReward、PickScore、HPSv2、MPS/VisionReward、semantic metric、人間評価の一致・不一致を比較します。
 
-- GUI <-> DSL round trip;
-- artifact tracking;
-- candidate branching;
-- scores;
-- provenance.
+### R3: Trajectory dataset
+中間Artifact、accepted/rejected branch、Evaluator output、人間choice、Workflow configを収集します。
 
-### R1: existing-model pipeline
+### R4: 1 Operatorだけ学習
+例: sketch selector、refinement policy、color operator、stroke predictor。
 
-Run a real pipeline such as:
+### R5: Workflow optimization
+operation order、branch count、candidate count、Evaluator配置、model/operator choice、refinement countを探索します。
 
-    prompt
-    -> sketch/structure
-    -> controlled color
-    -> evaluate
-    -> select
+初期はRLより先に次を使います。
 
-Use pretrained components only.
+- grid search
+- random search
+- Bayesian optimization
+- evolutionary search
 
-### R2: evaluator study
+## 11. 主研究仮説
 
-Compare several evaluators against human A/B choices.
-
-Study disagreement between:
-
-- ImageReward;
-- PickScore;
-- HPSv2;
-- MPS / VisionReward where practical;
-- semantic metrics;
-- human preference.
-
-### R3: trajectory dataset
-
-Collect:
-
-- intermediate artifacts;
-- rejected and accepted branches;
-- evaluator outputs;
-- human choices;
-- workflow configuration.
-
-### R4: learn one operator
-
-Train only one component first.
-
-Candidates:
-
-- sketch selector;
-- refinement policy;
-- color operator;
-- stroke predictor.
-
-### R5: workflow optimization
-
-Search over:
-
-- operation order;
-- branch count;
-- candidate count;
-- evaluator placement;
-- model/operator choice;
-- refinement count.
-
-Start with simple search algorithms before RL:
-
-- grid search;
-- random search;
-- Bayesian optimization;
-- evolutionary search.
-
-## 11. Main research hypothesis
-
-A workflow W maps an initial state into a trajectory:
+Workflow W は初期状態からTrajectoryを生成します。
 
     tau = (s0, a0, s1, a1, ..., sT)
 
-Each action is an operator invocation.
+各actionはoperator invocationです。
 
-The objective is not only final-image reward.
+目的はfinal-image rewardだけではありません。
 
-Possible objectives include:
+- final quality
+- prompt alignment
+- controllability
+- editability
+- efficiency
+- diversity
+- intermediate consistency
 
-- final quality;
-- prompt alignment;
-- controllability;
-- editability;
-- efficiency;
-- diversity;
-- intermediate consistency.
+したがってImage Drawerはmulti-objective procedural-generation systemとして扱います。
 
-This makes Image Drawer naturally a multi-objective procedural-generation system.
+## 12. 現時点の推奨方針
 
-## 12. Current recommendation
+1. DSL / Runtimeをmodel-agnosticに保つ。
+2. ArtifactとTrajectoryを第一級objectにする。
+3. Scoreをmulti-dimensionalかつEvaluator-specificにする。
+4. plugin-style operator registryを使う。
+5. 既存generation/evaluation methodを先に統合する。
+6. 学習algorithmを固定する前にTrajectoryを収集する。
+7. RLより先にBest-of-N / rankingを使う。
+8. Workflow optimizationを独立research layerとして扱う。
 
-For implementation after the specification phase:
-
-1. keep the DSL/runtime model-agnostic;
-2. make artifacts and trajectories first-class;
-3. make scores multi-dimensional and evaluator-specific;
-4. use a plugin-style operator registry;
-5. integrate existing generation/evaluation methods first;
-6. collect trajectories before choosing a training algorithm;
-7. use Best-of-N / ranking before RL;
-8. treat workflow optimization as a separate research layer.
-
-The AI components will change quickly. The durable value of Image Drawer should be the workflow, provenance, evaluation and experimentation infrastructure around them.
+AI componentは速く変化します。Image Drawerで長く価値を持つ部分は、Workflow、provenance、evaluation、experiment infrastructureです。
