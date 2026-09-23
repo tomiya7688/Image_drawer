@@ -8,12 +8,15 @@ import json
 import math
 import random
 from dataclasses import dataclass, field
+from pathlib import Path
 from typing import Any, Mapping, Sequence
 
 from image_drawer.core import SerializableModel, WorkflowSpec
+from image_drawer.dsl import serialize_workflow
 from image_drawer.runtime import validate_workflow
 from image_drawer.search.experiment import ExperimentRunner
 from image_drawer.search.models import ExperimentResult, ExperimentSpec
+from image_drawer.search.results import export_experiment
 from image_drawer.steps import StepRegistry
 
 
@@ -397,3 +400,84 @@ def reconstruct_best_workflow(
         }
     )
     return workflow
+
+
+def export_parameter_search(
+    result: ParameterSearchResult,
+    directory: str | Path,
+    registry: StepRegistry,
+) -> Path:
+    """Persist search result, candidate configs/workflows, and experiment data."""
+    root = Path(directory)
+    root.mkdir(parents=True, exist_ok=True)
+
+    (root / "search.json").write_text(
+        result.to_json(indent=2) + "\n",
+        encoding="utf-8",
+    )
+
+    candidates_dir = root / "candidates"
+    candidates_dir.mkdir(parents=True, exist_ok=True)
+    for candidate in result.candidates:
+        (candidates_dir / f"{candidate.key}.json").write_text(
+            json.dumps(
+                {
+                    "key": candidate.key,
+                    "parameters": candidate.parameters,
+                    "valid": candidate.valid,
+                    "validation_error": candidate.validation_error,
+                    "objective_value": candidate.objective_value,
+                    "objective_components": candidate.objective_components,
+                    "metadata": candidate.metadata,
+                },
+                ensure_ascii=False,
+                indent=2,
+                sort_keys=True,
+            )
+            + "\n",
+            encoding="utf-8",
+        )
+        if candidate.valid:
+            (candidates_dir / f"{candidate.key}.dsl").write_text(
+                serialize_workflow(candidate.workflow, registry),
+                encoding="utf-8",
+            )
+
+    best = result.best_candidate()
+    if best is not None:
+        best_workflow = reconstruct_best_workflow(result)
+        (root / "best_workflow.dsl").write_text(
+            serialize_workflow(best_workflow, registry),
+            encoding="utf-8",
+        )
+        (root / "best_configuration.json").write_text(
+            json.dumps(
+                {
+                    "candidate_key": best.key,
+                    "parameters": best.parameters,
+                    "objective_value": best.objective_value,
+                    "objective_components": best.objective_components,
+                },
+                ensure_ascii=False,
+                indent=2,
+                sort_keys=True,
+            )
+            + "\n",
+            encoding="utf-8",
+        )
+
+    if result.experiment_result is not None:
+        export_experiment(
+            result.experiment_result,
+            root / "experiment",
+        )
+    return root
+
+
+def load_parameter_search(path: str | Path) -> ParameterSearchResult:
+    source = Path(path)
+    if source.is_dir():
+        source = source / "search.json"
+    return ParameterSearchResult.from_json(
+        source.read_text(encoding="utf-8")
+    )
