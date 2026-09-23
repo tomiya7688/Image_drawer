@@ -53,7 +53,10 @@ import sys
 from pathlib import Path
 from PIL import Image
 import image_drawer
+from image_drawer.dsl import parse_workflow
 from image_drawer.part_bank import MetadataHashEmbedder, SQLitePartRepository
+from image_drawer.runtime import WorkflowRuntime
+from image_drawer.steps import create_part_bank_registry
 assert Path(image_drawer.__file__).resolve().is_relative_to(Path(sys.prefix).resolve())
 bank, original_path = Path(sys.argv[1]), Path(sys.argv[2])
 with SQLitePartRepository(bank / 'metadata.sqlite3') as repo:
@@ -78,9 +81,42 @@ with SQLitePartRepository(bank / 'metadata.sqlite3') as repo:
     assert result.metadata['embedding']['key'] == embedder.identity.key
     assert result.metadata['index'] == {'backend': 'bruteforce-cosine', 'version': 'v1'}
     assert len(repo.list_embeddings(embedder.identity)) == 1
-print('installed Part Bank outputs and retrieval verified')
+
+    registry = create_part_bank_registry(repo, embedder, bank_dir=bank)
+    workflow = parse_workflow(
+        'INPUT prompt: Text\n'
+        'parts = RETRIEVE_PARTS(prompt, category="generic", top=1)\n'
+        'draft = COMPOSE(parts, canvas_width=2, canvas_height=1)\n'
+        'OUTPUT draft\n',
+        registry,
+        workflow_id='installed-compose',
+    )
+    runtime_result = WorkflowRuntime(registry).execute(
+        workflow,
+        external_inputs={'prompt': 'generic'},
+        run_id='installed-compose-run',
+    )
+    compose_artifacts = [
+        artifact for artifact in runtime_result.trajectory.artifacts
+        if artifact.producing_step_id == 'draft'
+    ]
+    draft = next(
+        artifact for artifact in compose_artifacts
+        if artifact.artifact_type == 'Image'
+    )
+    structure = next(
+        artifact for artifact in compose_artifacts
+        if artifact.artifact_type == 'Composition'
+    )
+    assert draft.parent_artifact_ids == [structure.id]
+    assert structure.metadata['selected_part_ids'] == [part.id]
+    with Image.open(bank / draft.uri) as rendered:
+        rendered.load()
+        assert rendered.size == (2, 1)
+        assert rendered.tobytes() == bytes([255, 0, 0, 255, 0, 255, 0, 255])
+print('installed Part Bank retrieval and COMPOSE verified')
 """, str(bank), str(source / "fixture.ppm"))
-        assert "outputs and retrieval verified" in inspection.stdout
+        assert "retrieval and COMPOSE verified" in inspection.stdout
         (source / "broken.png").write_bytes(b"not an image")
         partial = run(cli, *args, expected_code=1)
         payload = json.loads(partial.stdout)
