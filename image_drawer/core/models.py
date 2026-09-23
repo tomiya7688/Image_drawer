@@ -1,4 +1,4 @@
-"""Serializable core records shared by runtime, Part Bank, and experiments."""
+"""Runtime、Part Bank、experimentで共有するserialize可能なcore record。"""
 
 from __future__ import annotations
 
