@@ -1,4 +1,4 @@
-"""Static WorkflowSpec validation and dependency resolution."""
+"""WorkflowSpecのstatic validationとdependency resolution。"""
 
 from __future__ import annotations
 
@@ -10,7 +10,7 @@ from image_drawer.steps import ParameterSpec, StepRegistry
 
 
 class WorkflowValidationError(ValueError):
-    """Raised when a workflow cannot be executed safely."""
+    """Workflowを安全に実行できない場合に送出する。"""
 
 
 @dataclass(frozen=True, slots=True)
@@ -36,7 +36,7 @@ def _parameter_matches(value: Any, spec: ParameterSpec) -> bool:
 
 
 def resolve_parameters(step: StepSpec, registry: StepRegistry) -> dict[str, Any]:
-    """Validate supplied parameters and apply schema defaults."""
+    """指定parameterをvalidateし、schema defaultを適用する。"""
     implementation = registry.resolve(step.type, step.backend)
     schema = implementation.schema
 
@@ -82,7 +82,7 @@ def validate_workflow(
     workflow: WorkflowSpec,
     registry: StepRegistry,
 ) -> ExecutionPlan:
-    """Validate graph structure, Step contracts, types, and parameters."""
+    """graph構造、Step contract、type、parameterをvalidateする。"""
     nodes: dict[str, StepSpec] = {}
     declaration_index: dict[str, int] = {}
     for index, node in enumerate(workflow.nodes):
