@@ -1,118 +1,116 @@
-# MVP Scope
+# MVP範囲
 
-## 1. Goal
+## 1. 目標
 
-The first MVP should prove that the architecture can execute and inspect an editable procedural image workflow.
+最初のMVPでは、編集可能な手順型画像Workflowを実行し、中間状態まで観察できることを証明します。
 
-It does not need to produce high-quality artwork.
+高品質な画像生成は必須ではありません。
 
-## 2. Required components
+## 2. 必須component
 
 ### DSL parser
 
-Parse the initial workflow format.
+初期Workflow formatをparseします。
 
 ### Runtime
 
-Execute a linear/dependency-based workflow and track artifacts.
+線形またはdependency-based Workflowを実行し、Artifactを追跡します。
 
 ### Step registry
 
-Register operations by name and expose their schemas.
+operationを名前で登録し、schemaを公開します。
 
-### Mock drawing steps
+### Mock drawing step
 
-Provide deterministic/simple implementations for:
+決定的または単純な実装を用意します。
 
 - SKETCH
 - COLOR
 
-These can initially generate placeholder images or transform simple test images.
+最初はplaceholder画像生成や単純なtest image変換でも構いません。
 
 ### Mock evaluator
 
-Return reproducible scores so selection logic can be tested.
+Selection logicをtestできるよう、再現可能なscoreを返します。
 
 ### SELECT
 
-Support top-k selection.
+top-k selectionをsupportします。
 
 ### GUI
 
-Support:
+最低限次をsupportします。
 
-- workflow step editing
-- parameter editing
+- Workflow Step編集
+- parameter編集
 - run
-- intermediate artifact display
-- score display
-- DSL view/edit
-- validation errors
+- intermediate Artifact表示
+- score表示
+- DSL表示・編集
+- validation error表示
 
-## 3. Proposed repository structure
+## 3. Repository構成案
 
-```text
-Image_drawer/
-├─ README.md
-├─ docs/
-├─ pyproject.toml
-├─ image_drawer/
-│  ├─ dsl/
-│  │  ├─ parser.py
-│  │  ├─ runtime.py
-│  │  └─ types.py
-│  ├─ steps/
-│  │  ├─ base.py
-│  │  ├─ registry.py
-│  │  ├─ sketch.py
-│  │  ├─ color.py
-│  │  ├─ evaluate.py
-│  │  └─ select.py
-│  ├─ training/
-│  │  ├─ runner.py
-│  │  └─ config.py
-│  └─ gui/
-│     └─ app.py
-├─ workflows/
-│  └─ basic.idraw
-└─ tests/
-```
+    Image_drawer/
+    ├─ README.md
+    ├─ docs/
+    ├─ pyproject.toml
+    ├─ image_drawer/
+    │  ├─ dsl/
+    │  │  ├─ parser.py
+    │  │  ├─ runtime.py
+    │  │  └─ types.py
+    │  ├─ steps/
+    │  │  ├─ base.py
+    │  │  ├─ registry.py
+    │  │  ├─ sketch.py
+    │  │  ├─ color.py
+    │  │  ├─ evaluate.py
+    │  │  └─ select.py
+    │  ├─ training/
+    │  │  ├─ runner.py
+    │  │  └─ config.py
+    │  └─ gui/
+    │     └─ app.py
+    ├─ workflows/
+    │  └─ basic.idraw
+    └─ tests/
 
-## 4. First end-to-end workflow
+実装が進んだ場合は実際の構成を優先し、この図は概念上の目安として扱います。
 
-```text
-INPUT prompt: Text
+## 4. 最初のEnd-to-End Workflow
 
-sketches = SKETCH(prompt, count=4)
-scores = EVALUATE(sketches, evaluator="mock")
-best = SELECT(sketches, scores=scores, top=1)
-colored = COLOR(best, prompt=prompt)
+    INPUT prompt: Text
 
-OUTPUT colored
-```
+    sketches = SKETCH(prompt, count=4)
+    scores = EVALUATE(sketches, evaluator="mock")
+    best = SELECT(sketches, scores=scores, top=1)
+    colored = COLOR(best, prompt=prompt)
 
-Successful MVP behavior:
+    OUTPUT colored
 
-1. GUI loads this workflow.
-2. User changes `count` from GUI.
-3. DSL reflects the change.
-4. Runtime executes each step.
-5. Intermediate candidates appear.
-6. Evaluator scores appear.
-7. SELECT highlights the chosen candidate.
-8. Final output is visible.
-9. Run history is stored locally.
+成功条件:
 
-## 5. Non-goals for MVP
+1. GUIがWorkflowをloadできる。
+2. GUIからcountを変更できる。
+3. DSLへ変更が反映される。
+4. Runtimeが各Stepを実行する。
+5. 中間candidateを表示できる。
+6. Evaluator scoreを表示できる。
+7. SELECTが採用candidateを示す。
+8. final outputを確認できる。
+9. run historyをlocalへ保存する。
 
-Not required initially:
+## 5. MVP非目標
 
-- high-quality image models
+初期段階では必須ではありません。
+
+- 高品質なimage foundation model
 - distributed training
 - reinforcement learning
 - automatic workflow discovery
 - arbitrary DSL programming
-- multi-user/server architecture
+- multi-user / server architecture
 - production deployment
 
-The MVP is primarily an architecture and experiment-loop validation.
+MVPの主目的はアーキテクチャと実験loopの検証です。
