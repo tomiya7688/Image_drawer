@@ -72,7 +72,12 @@ def _flatten_text(value: Any) -> list[str]:
             output.append(str(key))
             output.extend(_flatten_text(value[key]))
         return output
-    if isinstance(value, (list, tuple, set)):
+    if isinstance(value, set):
+        output: list[str] = []
+        for item in sorted(value, key=str):
+            output.extend(_flatten_text(item))
+        return output
+    if isinstance(value, (list, tuple)):
         output = []
         for item in value:
             output.extend(_flatten_text(item))
