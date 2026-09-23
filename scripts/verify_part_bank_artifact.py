@@ -1,4 +1,4 @@
-"""Exercise the installed M3 wheel, outside the source checkout, end to end."""
+"""source checkout外からinstall済みM3 wheelをEnd-to-Endで検証する。"""
 
 from __future__ import annotations
 
@@ -15,7 +15,7 @@ FIXTURE = b"P3\n2 1\n255\n255 0 0   0 255 0\n"
 def main() -> int:
     if len(sys.argv) != 3:
         raise SystemExit("usage: verify_part_bank_artifact.py <venv-python> <part-bank-cli>")
-    # Do not resolve the Python symlink: doing so would bypass the venv.
+    # Python symlinkをresolveするとvenvを迂回するため、そのまま使用する。
     python, cli = (os.path.abspath(value) for value in sys.argv[1:])
     env = dict(os.environ)
     for key in ("PYTHONPATH", "PYTHONHOME", "PYTHONOPTIMIZE"):
@@ -46,7 +46,7 @@ def main() -> int:
         assert json.loads(second.stdout) == dict(
             processed=1, skipped=0, sources_added=0, parts_added=0, duplicates=1, errors=[],
         )
-        # Import from site-packages and reopen the actual SQLite/crop outputs.
+        # site-packagesからimportし、実際に生成されたSQLite/crop outputを再度openして検証する。
         inspection = run(python, "-I", "-c", """
 import hashlib
 import sys
