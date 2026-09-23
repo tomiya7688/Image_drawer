@@ -15,7 +15,7 @@ from image_drawer.core import (
     new_id,
 )
 from image_drawer.runtime.validation import resolve_parameters, validate_workflow
-from image_drawer.steps import StepContext, StepRegistry
+from image_drawer.steps import StepContext, StepRegistry, StepResult
 
 
 class ArtifactRegistry:
@@ -112,7 +112,19 @@ class WorkflowRuntime:
             )
 
             try:
-                artifact = implementation.run(input_artifacts, params, context)
+                step_result = implementation.run(input_artifacts, params, context)
+                if isinstance(step_result, StepResult):
+                    artifact = step_result.primary
+                    produced_artifacts = step_result.all_artifacts()
+                elif isinstance(step_result, Artifact):
+                    artifact = step_result
+                    produced_artifacts = [artifact]
+                else:
+                    raise TypeError(
+                        f"{node_id}: Step returned unsupported value "
+                        f"{type(step_result).__name__}"
+                    )
+
                 expected_output = implementation.schema.output_type
                 if (
                     expected_output != "*"
@@ -123,11 +135,15 @@ class WorkflowRuntime:
                         f"expected {expected_output}"
                     )
 
-                artifact_registry.add(artifact)
+                for produced in produced_artifacts:
+                    artifact_registry.add(produced)
                 artifacts_by_step[node_id] = artifact
-                execution.output_artifact_ids = [artifact.id]
-                trajectory.artifacts.append(artifact)
-                trajectory.evaluations.extend(artifact.scores)
+                execution.output_artifact_ids = [
+                    produced.id for produced in produced_artifacts
+                ]
+                trajectory.artifacts.extend(produced_artifacts)
+                for produced in produced_artifacts:
+                    trajectory.evaluations.extend(produced.scores)
 
                 execution_identity = artifact.metadata.get("execution_identity")
                 if isinstance(execution_identity, dict):
