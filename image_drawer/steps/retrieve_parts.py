@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from pathlib import Path
 from typing import Mapping
 
 from image_drawer.part_bank.embedding import PartEmbedder
@@ -104,11 +105,19 @@ def create_part_bank_registry(
     embedder: PartEmbedder,
     *,
     index: PartIndex | None = None,
+    bank_dir: str | Path | None = None,
 ) -> StepRegistry:
-    """Create the standard registry with real retrieval as the default backend."""
+    """Create the standard registry with real Part Bank runtime backends."""
     registry = create_mock_registry()
     registry.register(
         PartBankRetrievePartsStep(repository, embedder, index=index),
         default=True,
     )
+    if bank_dir is not None:
+        from image_drawer.steps.compose import PartBankComposeStep
+
+        registry.register(
+            PartBankComposeStep(repository, bank_dir),
+            default=True,
+        )
     return registry

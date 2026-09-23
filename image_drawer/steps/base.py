@@ -79,6 +79,21 @@ class StepContext:
         )
 
 
+@dataclass(slots=True)
+class StepResult:
+    """Primary dataflow Artifact plus optional inspectable side Artifacts."""
+
+    primary: Artifact
+    additional_artifacts: list[Artifact] = field(default_factory=list)
+
+    def all_artifacts(self) -> list[Artifact]:
+        artifacts = [self.primary, *self.additional_artifacts]
+        ids = [artifact.id for artifact in artifacts]
+        if len(ids) != len(set(ids)):
+            raise ValueError("StepResult contains duplicate Artifact IDs")
+        return artifacts
+
+
 class Step(ABC):
     """Model/backend-independent runtime operation."""
 
@@ -91,5 +106,10 @@ class Step(ABC):
         inputs: list[Artifact],
         params: dict[str, Any],
         context: StepContext,
-    ) -> Artifact:
-        """Execute the Step and return its single M2 output Artifact."""
+    ) -> Artifact | StepResult:
+        """Execute the Step.
+
+        Plain Artifact returns remain supported. StepResult allows operations
+        such as COMPOSE to expose structured side artifacts while preserving
+        one primary artifact for normal workflow dataflow.
+        """
