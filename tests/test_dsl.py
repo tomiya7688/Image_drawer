@@ -192,14 +192,14 @@ OUTPUT best
 
 def test_comments_are_accepted_and_removed_by_canonical_formatting():
     registry = create_mock_registry()
-    source = """# before
-INPUT prompt: Text  # input
+    source = """# 前
+INPUT prompt: Text  # input宣言
 
 parts = RETRIEVE_PARTS(
   prompt,  # dependency
   top=1,   # parameter
 )
-# after call
+# call後
 OUTPUT parts
 """
 
