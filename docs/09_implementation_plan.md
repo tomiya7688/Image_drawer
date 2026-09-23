@@ -1,19 +1,19 @@
-# Implementation Plan
+# 実装計画
 
-Status: adopted
-Date: 2026-09-20
+状態: 採用済み
+日付: 2026-09-20
 
-## 1. Goal
+## 1. 目標
 
-This document converts the current design into an implementation order.
+現在の設計を実装順へ落とします。
 
-The first target is an end-to-end research workbench, not image quality.
+最初の目標は高品質画像ではなく、End-to-Endで動く研究workbenchです。
 
-The first useful loop is:
+最初の有用loop:
 
     dataset
       -> Part Bank
-      -> GUI/DSL workflow
+      -> GUI/DSL Workflow
       -> retrieval
       -> selection
       -> composition
@@ -21,9 +21,9 @@ The first useful loop is:
       -> trajectory storage
       -> workflow comparison
 
-## 2. Milestone M0: project skeleton
+## 2. M0: Project skeleton
 
-Create:
+作成:
 
     image_drawer/
       core/
@@ -39,7 +39,7 @@ Create:
     workflows/
     data/
 
-Deliverables:
+deliverable:
 
 - Python package
 - config loading
@@ -48,9 +48,9 @@ Deliverables:
 - CLI entrypoint
 - GUI entrypoint
 
-## 3. Milestone M1: core models
+## 3. M1: Core model
 
-Implement first:
+最初に実装:
 
     Artifact
     Score
@@ -64,32 +64,32 @@ Implement first:
     StepExecution
     Trajectory
 
-Rules:
+規則:
 
-- use stable string IDs;
-- all records should be serializable;
-- model/backend/version metadata must be explicit;
-- avoid storing large image bytes directly in JSON records; use URIs/paths.
+- stable string IDを使う。
+- 全recordをserialize可能にする。
+- model/backend/version metadataを明示する。
+- 大きなimage byteをJSONへ直接入れずURI/path参照にする。
 
-Acceptance:
+受け入れ条件:
 
-- round-trip serialization tests pass;
-- old records can be loaded after minor schema additions where practical.
+- serialization round-trip testが通る。
+- minor schema追加後も可能な範囲で旧recordをloadできる。
 
-## 4. Milestone M2: runtime and DSL
+## 4. M2: RuntimeとDSL
 
-Implement:
+実装:
 
 - Step base interface
 - Step registry
 - Workflow validation
 - DSL parser
 - canonical DSL serializer
-- runtime execution
-- artifact registry
-- trajectory logger
+- Runtime execution
+- Artifact registry
+- Trajectory logger
 
-Initial Step set:
+初期Step:
 
 - INPUT
 - RETRIEVE_PARTS
@@ -99,46 +99,45 @@ Initial Step set:
 - SELECT
 - OUTPUT
 
-REFINE can initially be a pass-through/mock operator.
+REFINEは最初はpass-through/mockでも構いません。
 
-Acceptance:
+受け入れ条件:
 
-- GUI is not required yet;
-- a workflow file can run from CLI;
-- all Step inputs/outputs are recorded.
+- GUIなしでもWorkflow fileをCLIから実行できる。
+- 全Stepのinput/outputが記録される。
 
-## 5. Milestone M3: Part Bank v0
+## 5. M3: Part Bank v0
 
-Implement:
+実装:
 
 - filesystem ingest
-- SourceImage records
-- one simple extractor
-- Part records
-- one embedding backend
-- one vector index backend
+- SourceImage record
+- simple extractor 1種類
+- Part record
+- embedding backend 1種類
+- vector index backend 1種類
 - text/category retrieval
 
-For the first extractor, use the simplest dataset-compatible method available.
+最初のextractorはdatasetに適した最も単純な方法を使います。
 
-Do not block M3 on a perfect segmentation model.
+完璧なsegmentation model待ちでM3を止めません。
 
-Acceptance:
+受け入れ条件:
 
-- ingest a small development subset;
-- build index;
-- retrieve top-k Parts from a text/category query;
-- preserve source provenance.
+- 小さいdevelopment subsetをingestできる。
+- indexをbuildできる。
+- text/category queryからtop-k Partをretrieveできる。
+- source provenanceを保持する。
 
-## 6. Milestone M4: simple composition
+## 6. M4: Simple composition
 
-Implement:
+実装:
 
 - PartPlacement
 - Layout
 - COMPOSE renderer
 
-Initial renderer may support only:
+初期renderer support:
 
 - translation
 - scale
@@ -146,63 +145,63 @@ Initial renderer may support only:
 - z-order
 - alpha/mask
 
-Acceptance:
+受け入れ条件:
 
-- selected Parts can produce a deterministic draft image;
-- Composition is stored as an Artifact independently from the rasterized image.
+- selected Partからdeterministic draft imageを作れる。
+- Compositionをrasterized imageとは別Artifactとして保持する。
 
-## 7. Milestone M5: evaluator subsystem
+## 7. M5: Evaluator subsystem
 
-Implement evaluator interface:
+interface:
 
     class Evaluator:
         def evaluate(self, artifacts, context) -> ScoreSet:
             ...
 
-At least one baseline evaluator must work.
+最低1種類のbaseline Evaluatorを実装します。
 
-Support:
+support:
 
 - evaluator name/version
 - multiple component scores
 - aggregate score
 - batch evaluation
 
-Acceptance:
+受け入れ条件:
 
-- EVALUATE can score ImageSet;
-- SELECT can choose top-k from ScoreSet;
-- raw evaluator outputs are preserved.
+- EVALUATEでImageSetをscoreできる。
+- SELECTでScoreSetからtop-kを選べる。
+- raw evaluator outputを保持する。
 
-## 8. Milestone M6: GUI v0
+## 8. M6: GUI v0
 
-Build a workbench, not a polished editor.
+完成品Editorではなくworkbenchを作ります。
 
-Required:
+必須:
 
-- load/save workflow
+- Workflow load/save
 - ordered Step list
-- add/delete/reorder Step
-- parameter editor generated from Step schema
+- Step add/delete/reorder
+- Step schema由来parameter editor
 - DSL text view
 - Run button
 - intermediate Artifact viewer
 - candidate thumbnails
 - score table
-- selected/rejected indication
+- selected/rejected表示
 - run history list
 
-A vertical editor is preferred before implementing a free-form node graph.
+free-form node graphより縦型editorを先に実装します。
 
-Acceptance:
+受け入れ条件:
 
-- changing a parameter in GUI changes serialized DSL;
-- loading DSL reconstructs GUI state;
-- a full Part retrieval workflow can run from GUI.
+- GUI parameter変更がserialized DSLへ反映される。
+- DSL loadでGUI stateを再構築できる。
+- Part retrievalを含むWorkflowをGUIから実行できる。
 
-## 9. Milestone M7: experiment runner
+## 9. M7: Experiment runner
 
-Implement:
+実装:
 
 - prompt-set loader
 - repeated run execution
@@ -211,95 +210,93 @@ Implement:
 - aggregate metrics
 - results export
 
-Acceptance:
+受け入れ条件:
 
-- compare at least two workflows on the same prompt set;
-- persist all Trajectories and experiment metadata.
+- 同じprompt setで最低2 Workflowを比較できる。
+- 全Trajectoryとexperiment metadataを保存する。
 
-## 10. Milestone M8: parameter search
+## 10. M8: Parameter search
 
-Implement:
+実装:
 
 - grid search
 - random search
 
-Initial searchable parameters:
+初期search parameter:
 
 - retrieval top-k
 - selected top-k
-- number of composed candidates
+- composed candidate count
 - evaluator weights
 
-Acceptance:
+受け入れ条件:
 
-- search can reproduce best configuration from saved result metadata.
+- 保存result metadataからbest configurationを再現できる。
 
-## 11. Milestone M9: real model integration
+## 11. M9: Real model integration
 
-Only after the architecture works.
+Architectureが動いた後に行います。
 
-Candidate integrations:
+候補:
 
 - pretrained image editing/refinement model
-- ControlNet/T2I-Adapter-like conditioned generation
+- ControlNet / T2I-Adapter系conditioned generation
 - preference evaluator
-- perceptual/structure evaluator
+- perceptual / structure evaluator
 
-Each integration must be an adapter behind an existing Step/Evaluator interface.
+各integrationは既存Step/Evaluator interfaceの背後にadapterとして実装します。
 
-Do not change DSL syntax just to support one model.
+1 modelのためだけにDSL syntaxを変更しません。
 
-## 12. Milestone M10: learning
+## 12. M10: Learning
 
-Use collected trajectories.
+保存Trajectoryを使います。
 
-First learning targets:
+最初の学習target:
 
 1. PartSelector
 2. prompt -> WorkflowSelector
-3. refinement decision/gating
+3. refinement decision / gating
 
-Do not attempt end-to-end RL first.
+最初からEnd-to-End RLは行いません。
 
-Recommended progression:
+推奨順:
 
     logged data
     -> supervised ranking
     -> pairwise preference learning
     -> workflow selector
     -> constrained structural search
-    -> RL only when necessary
+    -> 必要な場合のみRL
 
-## 13. Testing strategy
+## 13. Test strategy
 
-### Unit tests
+### Unit test
 
 - DSL parsing
 - serialization
 - type validation
-- Step schemas
+- Step schema
 - Part repository
 - retrieval
 - selection
 - score aggregation
-- workflow mutations
+- workflow mutation
 
-### Golden workflow tests
+### Golden Workflow test
 
-Maintain tiny deterministic workflows using mock backends.
+小さいdeterministic mock Workflowを維持します。
 
-They must verify:
+検証内容:
 
-- exact execution order
-- artifact lineage
+- execution order
+- Artifact lineage
 - selection result
-- trajectory serialization
+- Trajectory serialization
 
-### Integration tests
+### Integration test
 
-Use a tiny fixture dataset.
-
-Test:
+小さいfixture datasetを使います。
 
     ingest
     -> extract
@@ -312,7 +309,7 @@ Test:
 
 ## 14. Configuration
 
-Separate configuration into:
+設定を分離します。
 
     project config
     dataset config
@@ -321,11 +318,11 @@ Separate configuration into:
     workflow config
     experiment config
 
-Secrets/API keys must never be embedded in workflow DSL or committed configs.
+secret/API keyをWorkflow DSLやcommit対象configへ埋め込みません。
 
 ## 15. Versioning
 
-Track versions for:
+記録対象:
 
 - dataset
 - Part extraction method
@@ -336,23 +333,19 @@ Track versions for:
 - evaluator
 - trained selector/policy
 
-Experiment results without these versions should be treated as non-reproducible.
+これらのversionがないexperiment resultは再現不能として扱います。
 
-## 16. Non-goals for the first implementation
-
-Do not initially build:
+## 16. 初期実装の非目標
 
 - distributed training
 - large-scale orchestration cluster
-- arbitrary programming language features in DSL
+- DSLへの任意programming language機能
 - end-to-end RL
-- automatic unrestricted graph generation
+- unrestricted automatic graph generation
 - polished node-editor UX
 - custom foundation image model
 
-## 17. First executable target
-
-The first end-to-end workflow should be:
+## 17. 最初の実行target
 
     INPUT prompt
 
@@ -378,25 +371,23 @@ The first end-to-end workflow should be:
 
     OUTPUT draft
 
-Then expand to multiple drafts:
+次に複数draftへ拡張:
 
     drafts = COMPOSE(selected, count=4)
     scores = EVALUATE(drafts)
     best = SELECT(drafts, scores=scores, top=1)
     OUTPUT best
 
-This gives the first complete retrieval-selection-composition-evaluation loop.
+これが最初の retrieval-selection-composition-evaluation loopです。
 
-## 18. Definition of done for architecture phase
+## 18. Architecture phase完了条件
 
-The architecture phase is done when:
+- Runtime coreを変更せず新しいStepを追加できる。
+- SELECTを変更せず新しいEvaluatorを追加できる。
+- DSLを変えずvector-index backendを差し替えられる。
+- GUIとDSLがround-tripする。
+- 保存metadataからrunを実験用途として十分に再現できる。
+- final imageから使用Part、selection、Stepまで追跡できる。
+- 2 Workflowをexperimentとして比較できる。
 
-- a developer can add a new Step without editing the runtime core;
-- a developer can add a new evaluator without editing SELECT;
-- a developer can swap vector-index backend without changing DSL;
-- GUI and DSL round-trip;
-- every run is reproducible from saved metadata to a reasonable experimental standard;
-- every final image can be traced back through Parts, selections and Steps;
-- two workflows can be compared experimentally.
-
-At that point, further work should focus on model quality and learning rather than plumbing.
+ここまで完成したら、以後はplumbingよりmodel qualityとlearningへ重点を移します。
