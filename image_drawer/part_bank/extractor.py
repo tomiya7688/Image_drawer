@@ -1,4 +1,4 @@
-"""Replaceable, model-free region extraction contract."""
+"""交換可能でmodel-freeなregion extraction contract。"""
 
 from __future__ import annotations
 
@@ -13,14 +13,14 @@ if TYPE_CHECKING:
 
 @dataclass(frozen=True, slots=True)
 class Region:
-    """A crop in stored-pixel coordinates: x, y, width, height."""
+    """stored-pixel coordinateで表したcrop: x, y, width, height。"""
 
     bbox: tuple[int, int, int, int]
     category: str = "generic"
 
 
 class PartExtractor(Protocol):
-    """Implementations must bump version when extraction behavior changes."""
+    """extraction挙動を変更した実装はversionを更新しなければならない。"""
 
     method: str
     version: str
@@ -30,7 +30,7 @@ class PartExtractor(Protocol):
 
 @dataclass(frozen=True, slots=True)
 class WholeImageExtractor:
-    """Development baseline: one full-image region, not semantic segmentation."""
+    """development baselineとして画像全体を1 regionにする。semantic segmentationではない。"""
 
     category: str = "generic"
     method: str = "whole_image"
