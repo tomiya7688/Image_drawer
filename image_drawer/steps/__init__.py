@@ -5,6 +5,7 @@ from image_drawer.steps.base import (
     ParameterSpec,
     Step,
     StepContext,
+    StepResult,
     StepSchema,
 )
 from image_drawer.steps.mock import create_mock_registry
@@ -21,6 +22,7 @@ __all__ = [
     "Step",
     "StepContext",
     "StepRegistry",
+    "StepResult",
     "StepSchema",
     "create_mock_registry",
     "create_part_bank_registry",
