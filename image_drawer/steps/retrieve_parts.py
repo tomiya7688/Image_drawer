@@ -1,4 +1,4 @@
-"""Real RETRIEVE_PARTS Step backed by the local Part Bank."""
+"""local Part Bankをbackendに使う実RETRIEVE_PARTS Step。"""
 
 from __future__ import annotations
 
@@ -29,7 +29,7 @@ def _parse_filters(values: list[str]) -> dict[str, str]:
 
 
 class PartBankRetrievePartsStep(Step):
-    """Search persisted Part embeddings without exposing index implementation."""
+    """index実装を外部へ露出せず、永続化済みPart embeddingを検索する。"""
 
     backend = "part-bank"
     schema = StepSchema(
@@ -105,7 +105,7 @@ def create_part_bank_registry(
     *,
     index: PartIndex | None = None,
 ) -> StepRegistry:
-    """Create the standard registry with real retrieval as the default backend."""
+    """real retrievalをdefault backendにしたstandard registryを生成する。"""
     registry = create_mock_registry()
     registry.register(
         PartBankRetrievePartsStep(repository, embedder, index=index),
