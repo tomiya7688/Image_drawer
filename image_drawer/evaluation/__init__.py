@@ -1,1 +1,1 @@
-"""Evaluator and scoring package."""
+"""Evaluatorとscoringを扱うpackage。"""
