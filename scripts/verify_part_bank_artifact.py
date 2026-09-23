@@ -80,7 +80,7 @@ with SQLitePartRepository(bank / 'metadata.sqlite3') as repo:
     assert len(repo.list_embeddings(embedder.identity)) == 1
 print('installed Part Bank outputs and retrieval verified')
 """, str(bank), str(source / "fixture.ppm"))
-        assert "outputs verified" in inspection.stdout
+        assert "outputs and retrieval verified" in inspection.stdout
         (source / "broken.png").write_bytes(b"not an image")
         partial = run(cli, *args, expected_code=1)
         payload = json.loads(partial.stdout)
