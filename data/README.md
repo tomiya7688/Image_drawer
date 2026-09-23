@@ -1,7 +1,7 @@
 # Local development data
 
-This directory is reserved for local development datasets, extracted parts,
-indexes, generated artifacts, and other large reproducibility inputs.
+このdirectoryは、local developmentで使用するdataset、抽出Part、index、生成Artifact、再現性に必要な大型入力を置くために予約します。
 
-Repository-level `.gitignore` excludes the directory contents by default.
-Do not commit datasets, generated images, model checkpoints, or secrets here.
+repository levelの.gitignoreで、このdirectoryの内容はdefaultで除外します。
+
+dataset、生成画像、model checkpoint、secretはcommitしないでください。
