@@ -1,4 +1,4 @@
-"""Canonical serializer for Image Drawer WorkflowSpec records."""
+"""Image Drawer WorkflowSpec record向けcanonical serializer。"""
 
 from __future__ import annotations
 
@@ -35,7 +35,7 @@ def serialize_workflow(
     workflow: WorkflowSpec,
     registry: StepRegistry,
 ) -> str:
-    """Serialize a validated WorkflowSpec into stable canonical DSL text."""
+    """validation済みWorkflowSpecをstable canonical DSL textへserializeする。"""
     plan = validate_workflow(workflow, registry)
     node_by_id = {node.id: node for node in workflow.nodes}
     lines: list[str] = []
