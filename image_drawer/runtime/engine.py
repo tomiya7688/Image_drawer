@@ -1,4 +1,4 @@
-"""Model-agnostic workflow execution engine."""
+"""model-agnosticなWorkflow execution engine。"""
 
 from __future__ import annotations
 
@@ -19,7 +19,7 @@ from image_drawer.steps import StepContext, StepRegistry
 
 
 class ArtifactRegistry:
-    """In-memory artifact index for one workflow run."""
+    """1回のWorkflow runで使用するin-memory Artifact index。"""
 
     def __init__(self) -> None:
         self._artifacts: dict[str, Artifact] = {}
@@ -43,7 +43,7 @@ class RuntimeResult:
 
 
 class RuntimeExecutionError(RuntimeError):
-    """Execution failure carrying the partially recorded trajectory."""
+    """途中まで記録したTrajectoryを保持するexecution failure。"""
 
     def __init__(self, message: str, trajectory: Trajectory) -> None:
         super().__init__(message)
