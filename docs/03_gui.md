@@ -1,135 +1,124 @@
 # GUI
 
-## 1. Purpose
+## 1. 目的
 
-The GUI is an experiment workbench for building, running, and inspecting drawing workflows.
+GUIは、描画Workflowを構築・実行・観察するための実験workbenchです。
 
-The DSL is an implementation/persistence layer underneath the GUI, not the primary interface users must write manually.
+DSLはGUIの下にある実装・永続化層であり、ユーザーが必ず手書きする主interfaceではありません。
 
-## 2. Initial layout
+## 2. 初期layout
 
-Suggested layout:
+推奨layout:
 
-```text
-+----------------+---------------------------+
-| Parameters     | Workflow                  |
-|                |                           |
-| run settings   | [SKETCH]                  |
-| model settings |    |                      |
-| train settings | [EVALUATE]                |
-|                |    |                      |
-|                | [SELECT]                  |
-|                |    |                      |
-|                | [COLOR]                   |
-+----------------+---------------------------+
-| Results / Intermediate artifacts           |
-| candidate thumbnails / scores / history    |
-+--------------------------------------------+
-```
+    +----------------+---------------------------+
+    | Parameters     | Workflow                  |
+    |                |                           |
+    | run settings   | [SKETCH]                  |
+    | model settings |    |                      |
+    | train settings | [EVALUATE]                |
+    |                |    |                      |
+    |                | [SELECT]                  |
+    |                |    |                      |
+    |                | [COLOR]                   |
+    +----------------+---------------------------+
+    | Results / Intermediate artifacts           |
+    | candidate thumbnails / scores / history    |
+    +--------------------------------------------+
 
 ## 3. Workflow editor
 
-Version 1 needs:
+version 1で必要な操作:
 
-- add step
-- delete step
-- reorder step
-- connect step outputs to inputs
-- edit parameters
-- enable/disable step
-- inspect generated DSL
-- load/save workflow
+- Step追加
+- Step削除
+- Step並べ替え
+- outputからinputへの接続
+- parameter編集
+- Step有効/無効
+- 生成DSLの確認
+- Workflowのload/save
 
-A full free-form node editor is optional for the first MVP.
+最初のMVPでは自由配置Node Editorは必須ではありません。
 
-A vertical step list with connection selectors may be significantly easier to implement and debug.
+縦方向のStep list + 接続selectorの方が実装・debugしやすいため、最初はこちらを優先します。
 
 ## 4. Parameter editor
 
-Parameters should come from each step's schema.
+parameter UIは各Stepのschemaから生成します。
 
-Example:
+例:
 
-```text
-SKETCH
+    SKETCH
 
-model      [mock        v]
-count      [8            ]
-temperature[0.8          ]
-seed       [random       ]
-```
+    model       [mock        v]
+    count       [8            ]
+    temperature [0.8          ]
+    seed        [random       ]
 
-This implies every step should expose metadata such as:
+各Stepは最低限次のmetadataを公開します。
 
-```text
-name
-description
-input schema
-output schema
-parameter schema
-default values
-```
+    name
+    description
+    input schema
+    output schema
+    parameter schema
+    default values
 
-The GUI should be schema-driven rather than manually implementing a form for every step.
+Stepごとに専用formを手書きせず、schema-driven GUIとします。
 
 ## 5. Result inspector
 
-For each run, users should be able to inspect:
+各runについて次を確認できるようにします。
 
-- intermediate images
-- candidate groups
-- scores
-- selected/rejected candidates
-- step parameters
-- execution history
+- 中間画像
+- candidate group
+- score
+- selected / rejected candidate
+- Step parameter
+- 実行履歴
 - final output
 
-Selection decisions should be visually traceable.
+どのcandidateがなぜ選ばれたかを視覚的に追跡できることを重視します。
 
 ## 6. Evaluator view
 
-Scores should not be limited to one scalar.
+scoreは1個のscalarに限定しません。
 
-Example:
+例:
 
-```text
-overall        0.84
-composition    0.91
-line_quality   0.79
-color          0.87
-prompt_match   0.82
-```
+    overall        0.84
+    composition    0.91
+    line_quality   0.79
+    color          0.87
+    prompt_match   0.82
 
-The GUI should support both:
-
-- aggregate score
-- component scores
+GUIはaggregate scoreとcomponent scoreの両方を表示できるようにします。
 
 ## 7. Training view
 
-The initial training panel should expose only parameters needed by the chosen training/search strategy.
+初期training panelでは、選択中の学習・探索戦略に必要なparameterだけを表示します。
 
-Examples:
+例:
 
 - candidate count
 - top-k
-- epochs/iterations
+- epochs / iterations
 - learning rate
 - batch size
 - evaluator weights
 - checkpoint interval
 
-Avoid showing parameters that are irrelevant to the active strategy.
+現在の戦略で使わないparameterを大量に表示しないことを原則とします。
 
-## 8. DSL editor/view
+## 8. DSL editor / view
 
-The GUI should provide a text view of the generated DSL.
+GUIに生成DSLのtext viewを持たせます。
 
-Version 1 can support:
+version 1で必要な機能:
 
-- read/edit text
+- 表示・編集
 - parse
-- validation errors
-- apply back to GUI
+- validation error表示
+- GUIへの反映
 
-Canonical formatting should keep GUI-generated workflows stable in Git diffs.
+canonical formattingにより、GUI生成WorkflowのGit diffを安定させます。
