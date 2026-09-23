@@ -14,6 +14,13 @@ from image_drawer.part_bank.index import (
     SearchHit,
 )
 from image_drawer.part_bank.ingest import IngestFailure, IngestReport, ingest_directory
+from image_drawer.part_bank.rendering import (
+    build_composition,
+    fixed_grid_layout,
+    placements_from_layout,
+    render_composition,
+    save_png_atomic,
+)
 from image_drawer.part_bank.repository import ProvenanceConflict, SQLitePartRepository
 
 __all__ = [
@@ -32,5 +39,10 @@ __all__ = [
     "SQLitePartRepository",
     "SearchHit",
     "WholeImageExtractor",
+    "build_composition",
+    "fixed_grid_layout",
     "ingest_directory",
+    "placements_from_layout",
+    "render_composition",
+    "save_png_atomic",
 ]
