@@ -255,3 +255,45 @@ def test_runtime_records_step_failure_in_partial_trajectory():
         assert trajectory.errors == [trajectory.executions[0].error]
     else:
         raise AssertionError("runtime failure should surface with trajectory")
+
+
+def test_generic_evaluation_records_raw_score_and_selection_decision_once():
+    registry = create_mock_registry()
+    workflow = build_full_mock_workflow()
+
+    result = WorkflowRuntime(registry).execute(
+        workflow,
+        external_inputs={"prompt": "cat"},
+        run_id="evaluation-runtime-test",
+    )
+
+    trajectory = result.trajectory
+    assert len(trajectory.evaluations) == 1
+    score = trajectory.evaluations[0]
+    assert score.evaluator == "mock"
+    assert score.evaluator_version == "v1"
+    assert set(score.components) == {
+        "quality",
+        "prompt_alignment",
+        "determinism",
+    }
+
+    select_record = next(
+        item for item in trajectory.selections
+        if item["step_id"] == "select"
+    )
+    decision = select_record["decision"]
+    assert decision["strategy"] == "best"
+    assert decision["selected_artifact_ids"] == [
+        "artifact:evaluation-runtime-test:compose"
+    ]
+    assert decision["evaluator"] == "mock"
+    assert decision["evaluator_version"] == "v1"
+
+    evaluate_execution = next(
+        item for item in trajectory.executions
+        if item.step_id == "evaluate"
+    )
+    assert evaluate_execution.metadata["execution_identity"] == {
+        "evaluator": {"name": "mock", "version": "v1"}
+    }
