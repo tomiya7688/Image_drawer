@@ -129,6 +129,13 @@ class WorkflowRuntime:
                 trajectory.artifacts.append(artifact)
                 trajectory.evaluations.extend(artifact.scores)
 
+                execution_identity = artifact.metadata.get("execution_identity")
+                if isinstance(execution_identity, dict):
+                    execution.metadata["execution_identity"] = execution_identity
+                    trajectory.metadata.setdefault("execution_identity", {})[
+                        node_id
+                    ] = execution_identity
+
                 if node.type in {"SELECT", "SELECT_PARTS"}:
                     trajectory.selections.append(
                         {

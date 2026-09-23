@@ -53,7 +53,7 @@ import sys
 from pathlib import Path
 from PIL import Image
 import image_drawer
-from image_drawer.part_bank import SQLitePartRepository
+from image_drawer.part_bank import MetadataHashEmbedder, SQLitePartRepository
 assert Path(image_drawer.__file__).resolve().is_relative_to(Path(sys.prefix).resolve())
 bank, original_path = Path(sys.argv[1]), Path(sys.argv[2])
 with SQLitePartRepository(bank / 'metadata.sqlite3') as repo:
@@ -71,9 +71,16 @@ with SQLitePartRepository(bank / 'metadata.sqlite3') as repo:
     with Image.open(bank / part.crop_uri) as crop:
         assert crop.mode == 'RGBA' and crop.size == (2, 1)
         assert crop.tobytes() == bytes([255, 0, 0, 255, 0, 255, 0, 255])
-print('installed Part Bank outputs verified')
+    embedder = MetadataHashEmbedder(dimensions=64)
+    result = repo.query('generic', embedder=embedder, category='generic', top_k=1)
+    assert result.part_ids == [part.id]
+    assert len(result.retrieval_scores) == 1
+    assert result.metadata['embedding']['key'] == embedder.identity.key
+    assert result.metadata['index'] == {'backend': 'bruteforce-cosine', 'version': 'v1'}
+    assert len(repo.list_embeddings(embedder.identity)) == 1
+print('installed Part Bank outputs and retrieval verified')
 """, str(bank), str(source / "fixture.ppm"))
-        assert "outputs verified" in inspection.stdout
+        assert "outputs and retrieval verified" in inspection.stdout
         (source / "broken.png").write_bytes(b"not an image")
         partial = run(cli, *args, expected_code=1)
         payload = json.loads(partial.stdout)
