@@ -56,6 +56,7 @@ import image_drawer
 from image_drawer.dsl import parse_workflow
 from image_drawer.part_bank import MetadataHashEmbedder, SQLitePartRepository
 from image_drawer.runtime import WorkflowRuntime
+from image_drawer.search import ExperimentRunner, ExperimentSpec, PromptCase
 from image_drawer.steps import create_part_bank_registry
 assert Path(image_drawer.__file__).resolve().is_relative_to(Path(sys.prefix).resolve())
 bank, original_path = Path(sys.argv[1]), Path(sys.argv[2])
@@ -133,9 +134,48 @@ with SQLitePartRepository(bank / 'metadata.sqlite3') as repo:
     final_output = next(iter(runtime_result.outputs.values()))
     assert final_output.artifact_type == 'Image'
     assert final_output.uri == draft.uri
-print('installed Part Bank retrieval, COMPOSE, EVALUATE and SELECT verified')
+
+    direct_dsl = chr(10).join([
+        'INPUT prompt: Text',
+        'parts = RETRIEVE_PARTS(prompt, category="generic", top=1)',
+        'draft = COMPOSE(parts, canvas_width=2, canvas_height=1)',
+        'scores = EVALUATE(draft, evaluator="mock")',
+        'OUTPUT draft',
+        '',
+    ])
+    direct_workflow = parse_workflow(
+        direct_dsl,
+        registry,
+        workflow_id='installed-direct',
+    )
+    experiment = ExperimentRunner(
+        registry,
+        environment_metadata={'dataset_version': 'artifact-fixture'},
+    ).run(
+        ExperimentSpec(
+            id='installed-experiment',
+            prompt_set=[PromptCase(id='generic', prompt='generic')],
+            repeats=1,
+            seed_policy='paired_increment',
+            base_seed=41,
+        ),
+        {
+            'selected': workflow,
+            'direct': direct_workflow,
+        },
+    )
+    assert len(experiment.runs) == 2
+    assert all(run.status == 'success' for run in experiment.runs)
+    assert {run.seed for run in experiment.runs} == {41}
+    assert set(experiment.aggregate_metrics) == {'selected', 'direct'}
+    assert all(
+        metric.failure_rate == 0.0
+        for metric in experiment.aggregate_metrics.values()
+    )
+    assert experiment.metadata['environment']['dataset_version'] == 'artifact-fixture'
+print('installed Part Bank pipeline and experiment comparison verified')
 """, str(bank), str(source / "fixture.ppm"))
-        assert "COMPOSE, EVALUATE and SELECT verified" in inspection.stdout
+        assert "pipeline and experiment comparison verified" in inspection.stdout
         (source / "broken.png").write_bytes(b"not an image")
         partial = run(cli, *args, expected_code=1)
         payload = json.loads(partial.stdout)

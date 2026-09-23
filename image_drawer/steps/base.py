@@ -45,6 +45,7 @@ class StepContext:
     step_id: str
     backend: str
     external_inputs: dict[str, Any]
+    seed: int | None = None
 
     def artifact_id(self) -> str:
         return f"artifact:{self.run_id}:{self.step_id}"
