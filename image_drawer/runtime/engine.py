@@ -61,6 +61,7 @@ class WorkflowRuntime:
         external_inputs: dict[str, Any],
         run_id: str | None = None,
         prompt: str | None = None,
+        seed: int | None = None,
     ) -> RuntimeResult:
         plan = validate_workflow(workflow, self.registry)
         actual_run_id = run_id or new_id("run")
@@ -83,7 +84,10 @@ class WorkflowRuntime:
             workflow_id=workflow.id,
             workflow_version=workflow.version,
             prompt=prompt,
-            input_metadata={"external_input_ids": sorted(external_inputs)},
+            input_metadata={
+                "external_input_ids": sorted(external_inputs),
+                "seed": seed,
+            },
         )
 
         for node_id in plan.order:
@@ -98,6 +102,7 @@ class WorkflowRuntime:
                 step_id=node_id,
                 backend=backend,
                 external_inputs=external_inputs,
+                seed=seed,
             )
             started_at = datetime.now(timezone.utc)
             started_counter = perf_counter()
@@ -108,6 +113,7 @@ class WorkflowRuntime:
                 backend=backend,
                 parameters=params,
                 input_artifact_ids=[artifact.id for artifact in input_artifacts],
+                seed=seed,
                 start_time=started_at.isoformat(),
             )
 
