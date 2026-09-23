@@ -66,6 +66,7 @@ class CandidateRow:
     status: str
     score_overall: float | None
     components: dict[str, float]
+    uri: str | None = None
 
 
 @dataclass(slots=True)
@@ -121,6 +122,27 @@ class RunRecord:
                         value for value in values if isinstance(value, str)
                     )
 
+        candidate_artifacts: dict[str, Artifact] = {
+            artifact.id: artifact
+            for artifact in result.trajectory.artifacts
+            if artifact.artifact_type == "Image"
+        }
+        for artifact in result.trajectory.artifacts:
+            if artifact.artifact_type != "ImageSet":
+                continue
+            payload = artifact.metadata.get("candidates")
+            if not isinstance(payload, list):
+                continue
+            for item in payload:
+                if not isinstance(item, dict):
+                    continue
+                try:
+                    candidate = Artifact.from_dict(item)
+                except Exception:
+                    continue
+                if candidate.artifact_type == "Image":
+                    candidate_artifacts.setdefault(candidate.id, candidate)
+
         scored_ids: list[str] = []
         score_by_artifact: dict[str, ScoreRow] = {}
         for artifact in result.trajectory.artifacts:
@@ -167,6 +189,11 @@ class RunRecord:
                     ),
                     score_overall=score.overall if score else None,
                     components=dict(score.components) if score else {},
+                    uri=(
+                        candidate_artifacts[candidate_id].uri
+                        if candidate_id in candidate_artifacts
+                        else None
+                    ),
                 )
             )
         return cls(
