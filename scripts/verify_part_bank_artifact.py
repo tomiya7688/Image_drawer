@@ -56,7 +56,16 @@ import image_drawer
 from image_drawer.dsl import parse_workflow
 from image_drawer.part_bank import MetadataHashEmbedder, SQLitePartRepository
 from image_drawer.runtime import WorkflowRuntime
-from image_drawer.search import ExperimentRunner, ExperimentSpec, PromptCase
+from image_drawer.search import (
+    ExperimentRunner,
+    ExperimentSpec,
+    ObjectiveSpec,
+    ParameterDimension,
+    ParameterSearchRunner,
+    PromptCase,
+    SearchSpec,
+    reconstruct_best_workflow,
+)
 from image_drawer.steps import create_part_bank_registry
 assert Path(image_drawer.__file__).resolve().is_relative_to(Path(sys.prefix).resolve())
 bank, original_path = Path(sys.argv[1]), Path(sys.argv[2])
@@ -173,9 +182,39 @@ with SQLitePartRepository(bank / 'metadata.sqlite3') as repo:
         for metric in experiment.aggregate_metrics.values()
     )
     assert experiment.metadata['environment']['dataset_version'] == 'artifact-fixture'
-print('installed Part Bank pipeline and experiment comparison verified')
+
+    search_result = ParameterSearchRunner(registry).run(
+        direct_workflow,
+        SearchSpec(
+            id='installed-grid-search',
+            strategy='grid',
+            dimensions=[
+                ParameterDimension('parts', 'top', [1, 2]),
+            ],
+            objective=ObjectiveSpec(
+                weights={'score_overall_mean': 1.0},
+            ),
+        ),
+        ExperimentSpec(
+            id='installed-search-experiment',
+            prompt_set=[PromptCase(id='generic', prompt='generic')],
+            repeats=1,
+            seed_policy='paired_increment',
+            base_seed=73,
+        ),
+    )
+    assert len(search_result.candidates) == 2
+    assert len(search_result.ranking) == 2
+    assert search_result.best_candidate_key in search_result.ranking
+    best = reconstruct_best_workflow(search_result)
+    best_parts = next(node for node in best.nodes if node.id == 'parts')
+    assert best_parts.parameters['top'] in {1, 2}
+    assert search_result.metadata['best_configuration'] == {
+        'parts.top': best_parts.parameters['top'],
+    }
+print('installed Part Bank pipeline, experiment and parameter search verified')
 """, str(bank), str(source / "fixture.ppm"))
-        assert "pipeline and experiment comparison verified" in inspection.stdout
+        assert "experiment and parameter search verified" in inspection.stdout
         (source / "broken.png").write_bytes(b"not an image")
         partial = run(cli, *args, expected_code=1)
         payload = json.loads(partial.stdout)
