@@ -66,7 +66,15 @@ from image_drawer.search import (
     SearchSpec,
     reconstruct_best_workflow,
 )
-from image_drawer.steps import create_part_bank_registry
+from image_drawer.steps import create_mock_registry, create_part_bank_registry
+from image_drawer.training import (
+    DatasetBuildConfig,
+    SplitConfig,
+    build_part_selector_dataset,
+    build_workflow_selector_dataset,
+    export_training_dataset,
+    load_training_dataset,
+)
 assert Path(image_drawer.__file__).resolve().is_relative_to(Path(sys.prefix).resolve())
 bank, original_path = Path(sys.argv[1]), Path(sys.argv[2])
 with SQLitePartRepository(bank / 'metadata.sqlite3') as repo:
@@ -212,9 +220,86 @@ with SQLitePartRepository(bank / 'metadata.sqlite3') as repo:
     assert search_result.metadata['best_configuration'] == {
         'parts.top': best_parts.parameters['top'],
     }
-print('installed Part Bank pipeline, experiment and parameter search verified')
+
+    mock_registry = create_mock_registry()
+    training_dsl = chr(10).join([
+        'INPUT prompt: Text',
+        'parts = RETRIEVE_PARTS(prompt, category="generic", top=3)',
+        'selected = SELECT_PARTS(parts, top=1)',
+        'draft = COMPOSE(selected)',
+        'scores = EVALUATE(draft, evaluator="mock")',
+        'OUTPUT draft',
+        '',
+    ])
+    training_workflow = parse_workflow(
+        training_dsl,
+        mock_registry,
+        workflow_id='installed-training',
+    )
+    training_run = WorkflowRuntime(mock_registry).execute(
+        training_workflow,
+        external_inputs={'prompt': 'generic'},
+        run_id='installed-training-run',
+        seed=91,
+    )
+    build_config = DatasetBuildConfig(
+        id='installed-training-build',
+        split=SplitConfig(
+            train=0.8,
+            validation=0.1,
+            test=0.1,
+            seed=11,
+        ),
+        part_example_mode='both',
+    )
+    part_dataset = build_part_selector_dataset(
+        [training_run.trajectory],
+        build_config,
+        source_metadata={'dataset_version': 'artifact-fixture'},
+        generated_at='fixed',
+    )
+    assert part_dataset.task == 'part_selector'
+    assert len(part_dataset.examples) == 5
+    assert part_dataset.source_ids == [
+        training_run.trajectory.id,
+    ]
+
+    workflow_dataset = build_workflow_selector_dataset(
+        experiment,
+        DatasetBuildConfig(
+            id='installed-workflow-training-build',
+            split=SplitConfig(
+                train=0.8,
+                validation=0.1,
+                test=0.1,
+                seed=11,
+            ),
+        ),
+        ObjectiveSpec(
+            weights={'component:determinism': 1.0},
+        ),
+        generated_at='fixed',
+    )
+    assert workflow_dataset.task == 'workflow_selector'
+    assert len(workflow_dataset.examples) == 1
+    assert len(workflow_dataset.examples[0]['candidates']) == 2
+
+    training_root = bank / 'training-smoke'
+    part_root = export_training_dataset(
+        part_dataset,
+        training_root / 'part',
+    )
+    workflow_root = export_training_dataset(
+        workflow_dataset,
+        training_root / 'workflow',
+    )
+    assert load_training_dataset(part_root) == part_dataset
+    assert load_training_dataset(workflow_root) == workflow_dataset
+    assert (part_root / 'manifest.json').is_file()
+    assert (workflow_root / 'train.jsonl').is_file()
+print('installed pipeline, search and training dataset builders verified')
 """, str(bank), str(source / "fixture.ppm"))
-        assert "experiment and parameter search verified" in inspection.stdout
+        assert "search and training dataset builders verified" in inspection.stdout
         (source / "broken.png").write_bytes(b"not an image")
         partial = run(cli, *args, expected_code=1)
         payload = json.loads(partial.stdout)
