@@ -12,7 +12,7 @@ permissions:
 jobs:
   test-build-smoke:
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 20
 
     steps:
       - name: Check out repository
@@ -57,3 +57,17 @@ jobs:
           python scripts/verify_part_bank_artifact.py \
             "$PWD/.ci-venv/bin/python" \
             "$PWD/.ci-venv/bin/image-drawer-part-bank"
+
+      - name: Verify installed PartSelector training and held-out evaluation
+        shell: bash
+        run: |
+          set -euo pipefail
+          wheel=("$PWD"/dist/*.whl)
+          .ci-venv/bin/python -m pip install \
+            --index-url https://download.pytorch.org/whl/cpu \
+            "torch>=2.6,<3"
+          .ci-venv/bin/python -m pip install --no-deps "${wheel[0]}[training]"
+          .ci-venv/bin/python -m pip check
+          python scripts/verify_part_selector_training.py \
+            "$PWD/.ci-venv/bin/python" \
+            "$PWD/.ci-venv/bin/image-drawer-train-part-selector"
