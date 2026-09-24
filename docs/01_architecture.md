@@ -1,99 +1,95 @@
-# Architecture
+# アーキテクチャ
 
-## 1. High-level components
+## 1. 全体構成
 
-```text
-+-------------------+
-|       GUI         |
-| workflow editor   |
-| params / results  |
-+---------+---------+
-          |
-          v
-+-------------------+
-|   Workflow DSL    |
-| serialized graph  |
-+---------+---------+
-          |
-          v
-+-------------------+
-|     Runtime       |
-| validation        |
-| scheduling        |
-| state/history     |
-+----+---------+----+
-     |         |
-     v         v
-+---------+ +-----------+
-| Steps   | | Evaluator |
-| drawing | | / Critic  |
-+----+----+ +-----+-----+
-     |            |
-     +------+-----+
-            v
-      +-----------+
-      | Selection |
-      | / Trainer |
-      +-----------+
-```
+    +-------------------+
+    |       GUI         |
+    | Workflow editor   |
+    | parameter/result  |
+    +---------+---------+
+              |
+              v
+    +-------------------+
+    |   Workflow DSL    |
+    | serialized graph  |
+    +---------+---------+
+              |
+              v
+    +-------------------+
+    |      Runtime      |
+    | validation        |
+    | scheduling        |
+    | state/history     |
+    +----+---------+----+
+         |         |
+         v         v
+    +---------+ +-----------+
+    | Steps   | | Evaluator |
+    | drawing | | / Critic  |
+    +----+----+ +-----+-----+
+         |            |
+         +------+-----+
+                v
+          +-----------+
+          | Selection |
+          | / Trainer |
+          +-----------+
 
 ## 2. GUI
 
-The GUI is the primary workflow authoring surface.
+GUIをWorkflow作成の主画面とします。
 
-It should allow users to:
+GUIから次を操作できるようにします。
 
-- add/remove steps
-- reorder steps
-- connect inputs and outputs
-- edit step parameters
-- configure training/search parameters
-- run workflows
-- inspect intermediate outputs
-- compare candidate scores
-- save/load workflows
+- Stepの追加・削除
+- Step順序の変更
+- 入出力接続
+- Step parameter編集
+- 学習・探索parameter設定
+- Workflow実行
+- 中間成果物の確認
+- 候補score比較
+- Workflow保存・読込
 
-The DSL is the persisted representation of the workflow.
+DSLはGUI上のWorkflowを永続化する表現です。
 
-## 3. Workflow runtime
+## 3. Workflow Runtime
 
-The runtime is responsible for:
+Runtimeの責務:
 
-- parsing workflow definitions
-- validating type/input/output compatibility
-- constructing the execution graph
-- invoking steps
-- tracking artifacts
-- recording scores
-- recording provenance/history
-- handling candidate sets
-- handling failures
+- Workflow定義のparse
+- 型・入出力互換性のvalidation
+- 実行graph構築
+- Step呼び出し
+- Artifact追跡
+- score記録
+- provenance / history記録
+- candidate set管理
+- error処理
 
-The runtime should not depend on a specific model implementation.
+Runtimeは特定のモデル実装へ依存しないようにします。
 
 ## 4. Step interface
 
-Every operation exposed to the workflow should implement a common conceptual interface:
+Workflowから実行できる操作は共通interfaceを実装します。
 
-```python
-class Step:
-    def run(self, inputs, params, context):
-        ...
-```
+    class Step:
+        def run(self, inputs, params, context):
+            ...
 
-A step receives:
+Stepが受け取るもの:
 
-- named inputs
-- serializable parameters
+- 名前付きinput
+- serialize可能なparameter
 - execution context
 
-A step returns one or more named outputs.
+Stepは1個以上の名前付きoutputを返します。
 
 ## 5. Artifact model
 
-The runtime should treat intermediate values as typed artifacts.
+中間値は型付きArtifactとして扱います。
 
-Initial artifact types:
+初期Artifact候補:
 
 - Text
 - Image
@@ -105,7 +101,7 @@ Initial artifact types:
 - ScoreSet
 - Metadata
 
-Later candidates:
+将来候補:
 
 - Layer
 - StrokeSequence
@@ -113,50 +109,44 @@ Later candidates:
 - Embedding
 - ActionSequence
 
-Each artifact should carry provenance where possible:
+可能な限り各Artifactへ次のprovenanceを保持します。
 
-- producing step
-- parent artifacts
-- model/config used
+- 生成したStep
+- 親Artifact
+- 使用したmodel/config
 - random seed
-- scores
-- timestamp/run id
+- score
+- timestamp / run id
 
-## 6. Model adapters
+## 6. Model adapter
 
-Drawing models and evaluators should be connected through adapters.
+描画モデルとEvaluatorはadapter経由で接続します。
 
-This keeps workflow definitions independent from concrete implementations.
+これによりWorkflow定義を具体的な実装から分離します。
 
-Examples:
+    SKETCH(model="mock")
+    SKETCH(model="local_model_a")
+    SKETCH(model="remote_model_b")
 
-```text
-SKETCH(model="mock")
-SKETCH(model="local_model_a")
-SKETCH(model="remote_model_b")
-```
+Workflow上の操作名はSKETCHのまま、backendだけを差し替えます。
 
-The workflow-level operation remains `SKETCH`; only the adapter changes.
+## 7. 実行履歴
 
-## 7. Execution history
+すべてのrunを追跡可能にします。
 
-Every run should be inspectable.
+最低限の履歴:
 
-Minimum history record:
+    Run
+     |- workflow version
+     |- global parameters
+     |- step execution
+     |   |- input artifact ids
+     |   |- parameters
+     |   |- output artifact ids
+     |   |- duration
+     |   |- errors
+     |- evaluations
+     |- selected candidates
+     |- final outputs
 
-```text
-Run
- |- workflow version
- |- global parameters
- |- step execution
- |   |- input artifact ids
- |   |- parameters
- |   |- output artifact ids
- |   |- duration
- |   |- errors
- |- evaluations
- |- selected candidates
- |- final outputs
-```
-
-This history later becomes training/search data.
+この履歴を将来の学習・探索データに利用します。

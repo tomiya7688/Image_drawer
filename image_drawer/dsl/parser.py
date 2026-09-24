@@ -1,4 +1,4 @@
-"""Parser for the deliberately small Image Drawer workflow DSL."""
+"""意図的に小さく保ったImage Drawer Workflow DSLのparser。"""
 
 from __future__ import annotations
 
@@ -22,7 +22,7 @@ _STEP_TYPE_RE = re.compile(r"^[A-Z][A-Z0-9_]*$")
 
 
 class DslError(ValueError):
-    """Base class for parse and DSL validation failures."""
+    """parse失敗とDSL validation失敗の基底class。"""
 
 
 @dataclass(eq=False)
@@ -42,13 +42,13 @@ class DslSyntaxError(DslError):
 
 
 class DslValidationError(DslError):
-    """Raised when parsed syntax violates workflow/Step contracts."""
+    """parse済み構文がWorkflow/Step contractへ違反した場合に送出する。"""
 
 
 def _preprocess(source: str) -> str:
-    """Translate INPUT/OUTPUT declarations into Python-shaped sentinel calls.
+    """INPUT/OUTPUT宣言をPython形式のsentinel callへ変換する。
 
-    Line count is preserved so AST diagnostics map directly back to DSL lines.
+    AST診断を元DSL行へ直接対応させるため、行数は維持する。
     """
     transformed: list[str] = []
     for line_number, line in enumerate(source.splitlines(), start=1):
@@ -85,7 +85,7 @@ def _preprocess(source: str) -> str:
 
 
 def _literal(node: ast.AST) -> Any:
-    """Decode only the primitive parameter surface supported by DSL v1."""
+    """DSL v1がsupportするprimitive parameterだけをdecodeする。"""
     if isinstance(node, ast.Constant):
         if isinstance(node.value, (str, int, float, bool)):
             return node.value
@@ -144,11 +144,11 @@ def parse_workflow(
     workflow_id: str = "dsl-workflow",
     version: str = "v1",
 ) -> WorkflowSpec:
-    """Parse DSL text into a validated WorkflowSpec.
+    """DSL textをparseし、validation済みWorkflowSpecへ変換する。
 
-    Positional call arguments are artifact dependencies. Named arguments that
-    match a Step parameter are literal parameters. Other named arguments may
-    bind a dependency by name, for example scores=line_scores.
+    positional call argumentはArtifact dependencyとして扱う。
+    Step parameter名と一致するnamed argumentはliteral parameterとする。
+    その他のnamed argumentはscores=line_scoresのような名前付きdependencyとしてbindingできる。
     """
     try:
         tree = ast.parse(_preprocess(source), mode="exec")

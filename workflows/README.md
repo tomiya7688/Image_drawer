@@ -1,6 +1,5 @@
 # Workflows
 
-Version-controlled Image Drawer workflow definitions will live here.
+version control対象のImage Drawer Workflow定義をこのdirectoryへ配置します。
 
-The canonical workflow format will be introduced by the DSL milestone. Until then,
-this directory is intentionally documentation-only.
+canonical Workflow formatはDSL milestoneで導入します。それまではこのdirectoryは文書用途のみとします。

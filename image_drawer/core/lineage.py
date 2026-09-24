@@ -1,4 +1,4 @@
-"""Artifact lineage reconstruction helpers."""
+"""Artifact lineageを再構築するhelper。"""
 
 from __future__ import annotations
 
@@ -11,11 +11,10 @@ def build_artifact_lineage(
     artifacts: Iterable[Artifact],
     artifact_id: str,
 ) -> dict[str, tuple[str, ...]]:
-    """Return the reachable parent graph for one artifact.
+    """1個のArtifactから到達可能な親graphを返す。
 
-    The returned mapping includes the requested artifact and every reachable
-    ancestor. Duplicate IDs, missing referenced parents, and cycles are treated
-    as invalid provenance and reported explicitly.
+    戻り値には指定Artifactと到達可能な全ancestorを含める。
+    duplicate ID、参照先parent欠損、cycleは不正なprovenanceとして明示的に報告する。
     """
     by_id: dict[str, Artifact] = {}
     for artifact in artifacts:

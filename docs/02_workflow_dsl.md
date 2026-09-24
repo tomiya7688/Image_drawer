@@ -1,193 +1,170 @@
 # Workflow DSL
 
-## 1. Role
+## 1. 役割
 
-The DSL is the serialized form of a workflow manipulated by the GUI.
+DSLはGUIで操作したWorkflowを保存するためのserialized representationです。
 
-It is deliberately small.
+意図的に小さく保ちます。
 
-The first version only needs to describe:
+最初のversionで表現するのは次だけです。
 
-- inputs
-- ordered steps
-- step inputs
-- parameters
-- outputs
+- input
+- 順序付きStep
+- Step input
+- parameter
+- output
 
-Branching and loops may be represented by dedicated steps rather than language-level control flow.
+分岐やloopは、言語レベルの制御構文ではなく専用Stepとして表現する方針です。
 
-## 2. Design goals
+## 2. 設計目標
 
-- easy to read
-- easy to generate from GUI state
-- easy to parse
-- stable diffs in Git
-- explicit data dependencies
-- simple validation
-- no hidden state
+- 人間が読める
+- GUI状態から生成しやすい
+- parseしやすい
+- Git diffが安定する
+- data dependencyが明示される
+- validationが単純
+- hidden stateを持たない
 
-## 3. Proposed syntax
+## 3. 構文案
 
-Example:
+    INPUT prompt: Text
 
-```text
-INPUT prompt: Text
+    sketches = SKETCH(
+      prompt,
+      count=8
+    )
 
-sketches = SKETCH(
-  prompt,
-  count=8
-)
+    line_scores = EVALUATE(
+      sketches,
+      evaluator="line"
+    )
 
-line_scores = EVALUATE(
-  sketches,
-  evaluator="line"
-)
+    lines = SELECT(
+      sketches,
+      scores=line_scores,
+      top=2
+    )
 
-lines = SELECT(
-  sketches,
-  scores=line_scores,
-  top=2
-)
+    colored = COLOR(
+      lines,
+      prompt=prompt,
+      count=4
+    )
 
-colored = COLOR(
-  lines,
-  prompt=prompt,
-  count=4
-)
+    final_scores = EVALUATE(
+      colored,
+      evaluator="final"
+    )
 
-final_scores = EVALUATE(
-  colored,
-  evaluator="final"
-)
+    final = SELECT(
+      colored,
+      scores=final_scores,
+      top=1
+    )
 
-final = SELECT(
-  colored,
-  scores=final_scores,
-  top=1
-)
+    OUTPUT final
 
-OUTPUT final
-```
+## 4. GUIとの対応
 
-## 4. GUI mapping
+1つの代入をGUI上の1 Nodeへ対応させます。
 
-Each assignment corresponds to one GUI node.
+例:
 
-For example:
+    colored = COLOR(lines, prompt=prompt, count=4)
 
-```text
-colored = COLOR(lines, prompt=prompt, count=4)
-```
+GUI上では次の意味になります。
 
-maps to:
+    Node type: COLOR
+    Node id: colored
 
-```text
-Node type: COLOR
-Node id: colored
+    Inputs:
+      image <- lines
+      prompt <- prompt
 
-Inputs:
-  image <- lines
-  prompt <- prompt
+    Parameters:
+      count = 4
 
-Parameters:
-  count = 4
+    Output:
+      colored
 
-Output:
-  colored
-```
+GUIはgraph状態からcanonical DSLを再生成できる必要があります。
 
-The GUI should be able to regenerate canonical DSL text from its graph.
-
-## 5. Initial built-in operations
+## 5. 初期built-in operation
 
 ### INPUT
-
-Declares an external workflow input.
+外部Workflow inputを宣言します。
 
 ### SKETCH
-
-Produces one or more sketch candidates.
+1個以上のsketch候補を生成します。
 
 ### LINE
-
-Converts or refines an image into line art.
+画像をline artへ変換、またはline artを改善します。
 
 ### COLOR
-
-Adds color using an image/line artifact and optional prompt/context.
+画像/line artと任意のprompt/contextを利用して着色します。
 
 ### EVALUATE
-
-Returns scores for one or more artifacts.
+1個以上のArtifactに対するscoreを返します。
 
 ### SELECT
-
-Selects artifacts by score or another selection strategy.
+scoreまたは他のselection strategyでArtifactを選びます。
 
 ### OUTPUT
+Workflow outputを宣言します。
 
-Declares workflow output.
+## 6. Candidate collection
 
-## 6. Candidate collections
+Candidate setを第一級の値として扱います。
 
-Candidate sets should be first-class values.
+    sketches = SKETCH(prompt, count=8)
+    scores = EVALUATE(sketches, evaluator="line")
+    best = SELECT(sketches, scores=scores, top=2)
 
-Example:
+Runtime内部ではImageSet + ScoreSetのように表現できます。
 
-```text
-sketches = SKETCH(prompt, count=8)
-scores = EVALUATE(sketches, evaluator="line")
-best = SELECT(sketches, scores=scores, top=2)
-```
+## 7. Parameter
 
-The runtime may internally represent this as `ImageSet` + `ScoreSet`.
-
-## 7. Parameters
-
-Step parameters should use simple serializable primitives:
+Step parameterは単純なserialize可能primitiveを基本とします。
 
 - string
 - integer
 - float
 - boolean
 - list
-- enum-like string
+- enum相当のstring
 
-Avoid arbitrary executable expressions in the first version.
+version 1では任意の実行可能expressionを許可しません。
 
 ## 8. Control flow
 
-Version 1 should avoid general `if`, `for`, or `while` syntax.
+version 1では汎用的な if / for / while を入れません。
 
-Instead, workflow operations can express behavior explicitly:
+代わりにWorkflow operationそのものに意図を持たせます。
 
-```text
-candidates = SKETCH(prompt, count=8)
-best = SELECT(candidates, top=2)
-```
+    candidates = SKETCH(prompt, count=8)
+    best = SELECT(candidates, top=2)
 
-Later operations could include:
+将来候補:
 
-```text
-RETRY
-BRANCH
-MERGE
-STOP_IF
-REFINE
-```
+    RETRY
+    BRANCH
+    MERGE
+    STOP_IF
+    REFINE
 
-If these prove insufficient, language-level control flow can be reconsidered.
+専用operationでは不足すると判明した時点で、言語レベルのcontrol flowを再検討します。
 
 ## 9. Validation
 
-Before execution, validate:
+実行前に最低限次を検証します。
 
-- referenced variables exist
-- required inputs are connected
-- parameter names are valid
-- parameter types are valid
-- artifact types are compatible
-- outputs are unique
-- required workflow outputs exist
+- 参照variableが存在する
+- required inputが接続されている
+- parameter名が正しい
+- parameter型が正しい
+- Artifact型に互換性がある
+- output名が重複しない
+- required workflow outputが存在する
 
-The GUI should surface these errors before Run is enabled where possible.
+可能な範囲でGUIはRunを有効化する前にerrorを表示します。

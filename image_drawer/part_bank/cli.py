@@ -1,4 +1,4 @@
-"""Part Bank CLI; the original M0 CLI contract remains unchanged."""
+"""Part Bank CLI。既存M0 CLI contractは変更しない。"""
 
 from __future__ import annotations
 

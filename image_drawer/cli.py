@@ -1,4 +1,4 @@
-"""Command-line entrypoint for the Image Drawer plumbing layer."""
+"""Image Drawer plumbing layer向けcommand-line entrypoint。"""
 
 from __future__ import annotations
 
@@ -9,7 +9,7 @@ from typing import Sequence
 
 
 def build_payload(input_value: str) -> dict[str, str]:
-    """Return the deterministic M0 input/output contract payload."""
+    """deterministicなM0 input/output contract payloadを返す。"""
     return {"input": input_value, "status": "ok"}
 
 

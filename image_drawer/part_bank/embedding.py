@@ -1,4 +1,4 @@
-"""Part embedding abstractions and a deterministic local baseline."""
+"""Part embeddingの抽象化とdeterministic local baseline。"""
 
 from __future__ import annotations
 
@@ -43,7 +43,7 @@ class EmbeddingRecord:
 
 
 class PartEmbedder(Protocol):
-    """Cross-query/Part embedding contract used by retrieval."""
+    """retrievalで使用するquery/Part共通embedding contract。"""
 
     identity: EmbeddingIdentity
 
@@ -86,12 +86,11 @@ def _flatten_text(value: Any) -> list[str]:
 
 
 class MetadataHashEmbedder:
-    """Dependency-free feature-hashing baseline.
+    """dependency-freeなfeature-hashing baseline。
 
-    It embeds query text and textual Part metadata into the same vector space.
-    This is intentionally a plumbing/search baseline, not a semantic vision
-    encoder. Richer embedders can replace it without changing repository,
-    index, DSL, or runtime contracts.
+    query textとPartのtext metadataを同じvector spaceへembeddingする。
+    これはsemantic vision encoderではなく、plumbing/search検証用baselineとして意図している。
+    より高性能なembedderへ差し替えてもrepository、index、DSL、Runtime contractは変更しない。
     """
 
     def __init__(self, dimensions: int = 128) -> None:

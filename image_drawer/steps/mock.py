@@ -1,4 +1,4 @@
-"""Deterministic mock Steps used to exercise the runtime without models."""
+"""modelなしでRuntimeを検証するためのdeterministic mock Step。"""
 
 from __future__ import annotations
 

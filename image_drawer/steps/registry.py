@@ -1,4 +1,4 @@
-"""Step implementation registry."""
+"""Step implementation registry。"""
 
 from __future__ import annotations
 
@@ -6,7 +6,7 @@ from image_drawer.steps.base import Step
 
 
 class StepRegistry:
-    """Resolve logical Step types to independently registered backends."""
+    """logical Step typeを独立登録されたbackendへresolveする。"""
 
     def __init__(self) -> None:
         self._steps: dict[tuple[str, str], Step] = {}

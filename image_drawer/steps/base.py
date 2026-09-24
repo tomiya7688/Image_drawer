@@ -1,4 +1,4 @@
-"""Common Step interface and declarative Step schema."""
+"""共通Step interfaceと宣言的Step schema。"""
 
 from __future__ import annotations
 
@@ -14,7 +14,7 @@ _MISSING = object()
 
 @dataclass(frozen=True, slots=True)
 class ParameterSpec:
-    """Validation rules for one serializable Step parameter."""
+    """1個のserialize可能Step parameterに対するvalidation rule。"""
 
     value_type: type | tuple[type, ...]
     required: bool = False
@@ -28,7 +28,7 @@ class ParameterSpec:
 
 @dataclass(frozen=True, slots=True)
 class StepSchema:
-    """Static contract used by the validator and GUI/DSL layers."""
+    """validatorとGUI/DSL layerが使用するstatic contract。"""
 
     step_type: str
     input_types: tuple[ArtifactTypeSpec, ...]
@@ -39,7 +39,7 @@ class StepSchema:
 
 @dataclass(slots=True)
 class StepContext:
-    """Execution context supplied by the runtime to a Step implementation."""
+    """RuntimeからStep実装へ渡すexecution context。"""
 
     run_id: str
     step_id: str
@@ -80,7 +80,7 @@ class StepContext:
 
 
 class Step(ABC):
-    """Model/backend-independent runtime operation."""
+    """model/backendから独立したRuntime operation。"""
 
     schema: StepSchema
     backend: str = "default"
@@ -92,4 +92,4 @@ class Step(ABC):
         params: dict[str, Any],
         context: StepContext,
     ) -> Artifact:
-        """Execute the Step and return its single M2 output Artifact."""
+        """Stepを実行し、M2で定義する単一output Artifactを返す。"""

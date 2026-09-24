@@ -1,4 +1,4 @@
-"""Logging configuration helpers."""
+"""logging configuration helper。"""
 
 from __future__ import annotations
 
@@ -6,7 +6,7 @@ import logging
 
 
 def configure_logging(level: str | int = "INFO") -> None:
-    """Configure process-wide logging with a small stable default format."""
+    """小さく安定したdefault formatでprocess-wide loggingを設定する。"""
     logging.basicConfig(
         level=level,
         format="%(asctime)s %(levelname)s %(name)s: %(message)s",

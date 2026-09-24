@@ -1,4 +1,4 @@
-"""Small JSON serialization layer for stable Image Drawer records."""
+"""安定したImage Drawer record向けの小さなJSON serialization layer。"""
 
 from __future__ import annotations
 
@@ -11,7 +11,7 @@ T = TypeVar("T", bound="SerializableModel")
 
 
 class SerializableModel:
-    """Mixin for dataclass records that round-trip through JSON-compatible dicts."""
+    """JSON互換dictとのround-tripを行うdataclass record向けMixin。"""
 
     def to_dict(self) -> dict[str, Any]:
         if not is_dataclass(self):

@@ -1,4 +1,4 @@
-"""Workflow validation and execution runtime."""
+"""Workflow validationとexecutionを担当するRuntime。"""
 
 from image_drawer.runtime.engine import (
     ArtifactRegistry,

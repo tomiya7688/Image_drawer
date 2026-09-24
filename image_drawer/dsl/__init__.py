@@ -1,4 +1,4 @@
-"""Workflow DSL parser and canonical serializer."""
+"""Workflow DSL parserとcanonical serializer。"""
 
 from image_drawer.dsl.parser import (
     DslError,

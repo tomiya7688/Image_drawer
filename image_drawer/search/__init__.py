@@ -1,1 +1,1 @@
-"""Workflow and parameter search package."""
+"""Workflowとparameter searchを扱うpackage。"""

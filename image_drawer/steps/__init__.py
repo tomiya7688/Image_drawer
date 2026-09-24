@@ -1,4 +1,4 @@
-"""Workflow Step contracts, registries, and retrieval backends."""
+"""Workflow Step contract、registry、retrieval backend。"""
 
 from image_drawer.steps.base import (
     ArtifactTypeSpec,

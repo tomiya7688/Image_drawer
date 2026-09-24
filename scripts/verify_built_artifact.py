@@ -1,4 +1,4 @@
-"""Verify installed entrypoints from a freshly built wheel."""
+"""新規buildしたwheelからinstall済みentrypointを検証する。"""
 
 from __future__ import annotations
 

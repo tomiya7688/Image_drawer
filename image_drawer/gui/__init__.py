@@ -1,6 +1,6 @@
-"""GUI entrypoint.
+"""GUI entrypoint。
 
-M0 intentionally keeps this headless. The real workbench arrives in M6.
+M0では意図的にheadlessのまま保ち、実際のworkbenchはM6で導入する。
 """
 
 from __future__ import annotations
