@@ -1,0 +1,16 @@
+# baseline WorkflowSelector学習設定例
+[training]
+id = "workflow-selector-baseline-v1"
+dataset_path = "../data/training/workflow-selector/dataset.json"
+output_dir = "../runs/workflow-selector-baseline-v1"
+seed = 42
+epochs = 20
+batch_size = 32
+learning_rate = 0.01
+weight_decay = 0.0001
+hidden_dimensions = [64, 32]
+text_dimensions = 32
+top_k = 2
+tie_tolerance = 0.01
+selection_metric = "top1_accuracy"
+final_quality_metric = "component:quality"

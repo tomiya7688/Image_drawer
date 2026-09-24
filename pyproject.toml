@@ -24,6 +24,7 @@ image-drawer = "image_drawer.cli:main"
 image-drawer-gui = "image_drawer.gui:main"
 image-drawer-part-bank = "image_drawer.part_bank.cli:main"
 image-drawer-train-part-selector = "image_drawer.training.part_selector_cli:main"
+image-drawer-train-workflow-selector = "image_drawer.training.workflow_selector_cli:main"
 
 [tool.setuptools.packages.find]
 where = ["."]
