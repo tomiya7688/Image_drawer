@@ -71,3 +71,11 @@ jobs:
           python scripts/verify_part_selector_training.py \
             "$PWD/.ci-venv/bin/python" \
             "$PWD/.ci-venv/bin/image-drawer-train-part-selector"
+
+      - name: Verify installed WorkflowSelector training and prompt scoring
+        shell: bash
+        run: |
+          set -euo pipefail
+          python scripts/verify_workflow_selector_training.py \
+            "$PWD/.ci-venv/bin/python" \
+            "$PWD/.ci-venv/bin/image-drawer-train-workflow-selector"
