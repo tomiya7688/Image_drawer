@@ -1,0 +1,15 @@
+# baseline PartSelector学習設定例
+[training]
+id = "part-selector-baseline-v1"
+dataset_path = "../data/training/part-selector/dataset.json"
+output_dir = "../runs/part-selector-baseline-v1"
+seed = 42
+epochs = 20
+batch_size = 32
+learning_rate = 0.01
+weight_decay = 0.0001
+hidden_dimensions = [64, 32]
+objective = "pairwise"
+text_dimensions = 32
+top_k = 3
+selection_metric = "mrr"
