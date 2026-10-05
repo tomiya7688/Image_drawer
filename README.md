@@ -85,6 +85,7 @@ Apache-2.0 本文や第三者ライセンスなど、原文自体に法的意味
 - [実装計画](docs/09_implementation_plan.md)
 - [Part Bank v0実装仕様](docs/10_part_bank_v0.md)
 - [言語運用方針](docs/11_language_policy.md)
+- [ソースコードガイド](docs/12_source_code_guide.md)
 
 ## 実装の入口
 
