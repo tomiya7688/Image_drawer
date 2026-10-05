@@ -22,6 +22,45 @@ Image Drawer は、**完成画像そのものを直接学習するだけでな�
 - Runtime、Evaluator、GUI、探索アルゴリズム、モデルを疎結合に保つ。
 - 既存の画像生成、制御、検索、Reward Model、Preference Learning手法を利用できる箇所では積極的に再利用する。
 
+## ソースコードを読む入口
+
+コードレビューを始める場合は、まず **[tests/test_runtime.py](tests/test_runtime.py)** を読むのがおすすめです。
+
+このtestには、現在の中核である
+
+```text
+WorkflowSpecを組む
+-> validate_workflow()
+-> WorkflowRuntime.execute()
+-> Artifact / Trajectoryを確認する
+```
+
+までの最小End-to-End例があります。
+
+次に読む順番:
+
+1. [image_drawer/runtime/engine.py](image_drawer/runtime/engine.py) — Workflow実行本体
+2. [image_drawer/core/models.py](image_drawer/core/models.py) — Artifact / Score / WorkflowSpec / Trajectoryなどの中心data model
+3. [image_drawer/steps/base.py](image_drawer/steps/base.py) — Step interfaceとschema
+4. [image_drawer/steps/registry.py](image_drawer/steps/registry.py) — Step backend登録・解決
+5. [image_drawer/runtime/validation.py](image_drawer/runtime/validation.py) — Workflowの型・依存関係validation
+6. [image_drawer/dsl/parser.py](image_drawer/dsl/parser.py) — DSLからWorkflowSpecへの変換
+7. [image_drawer/part_bank/](image_drawer/part_bank/) — 画像ingest、Part保存、embedding、検索
+
+詳しいコード地図と「何を変更したい場合にどこを見るか」は [ソースコードガイド](docs/12_source_code_guide.md) にまとめています。
+
+### 現在の実行入口について
+
+`pyproject.toml` では次のentrypointを公開しています。
+
+- `image-drawer` -> [image_drawer/cli.py](image_drawer/cli.py)
+- `image-drawer-gui` -> [image_drawer/gui/](image_drawer/gui/)
+- `image-drawer-part-bank` -> [image_drawer/part_bank/cli.py](image_drawer/part_bank/cli.py)
+
+ただし、現時点の `image-drawer` は **M0のsmoke用CLI** で、Workflow Runtime本体を操作する完成CLIではありません。
+
+Workflow実行の中核は [image_drawer/runtime/engine.py](image_drawer/runtime/engine.py) の `WorkflowRuntime` です。現在はtestや内部APIから利用しています。
+
 ## 言語方針
 
 仕様・設計文書・README・docstring・コードコメントは**日本語を正本**とします。
