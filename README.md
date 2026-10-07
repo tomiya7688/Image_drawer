@@ -1,119 +1,52 @@
 # Image Drawer
 
-Image Drawer は、**完成画像そのものを直接学習するだけでなく、画像を制作する手順を学習する**ことを目的とした実験的な画像生成プロジェクトです。
+Image Drawer は、**完成画像そのものだけでなく、画像を制作する手順を学習する**ことを目指す実験的な画像生成プロジェクトです。
 
-基本ループは次の通りです。
-
-    状態 -> 描画/制作Step -> 中間成果物 -> 評価 -> 選択 / 次のStep
-
-画像生成を単一のブラックボックスとして扱わず、スケッチ、パーツ検索、構図、着色、評価、修正、選択などを編集可能なWorkflowとして分解します。
-
-現在の設計では大量の画像データを再利用可能な Part Bank として扱い、どのパーツを選びどう組み合わせるかだけでなく、最終的には「どの制作工程を採用するべきか」まで学習・探索対象にします。
-
-## プロジェクト目標
-
-- 制作工程を可視化・編集可能にする。
-- GUIから描画・学習Stepを追加、削除、並べ替えできるようにする。
-- GUI上のWorkflowを小さなDSLとして保存・実行する。
-- 大量画像データから再利用可能な視覚パーツを検索する。
-- 中間成果物と最終画像を評価し、探索・選択・学習に利用する。
-- 採用候補だけでなく不採用候補も含め、完全なTrajectoryを保存する。
-- パーツ選択、構図判断、Workflow選択・順序を学習対象にする。
-- Runtime、Evaluator、GUI、探索アルゴリズム、モデルを疎結合に保つ。
-- 既存の画像生成、制御、検索、Reward Model、Preference Learning手法を利用できる箇所では積極的に再利用する。
-
-## ソースコードを読む入口
-
-コードレビューを始める場合は、まず **[tests/test_runtime.py](tests/test_runtime.py)** を読むのがおすすめです。
-
-このtestには、現在の中核である
+基本ループ:
 
 ```text
-WorkflowSpecを組む
--> validate_workflow()
--> WorkflowRuntime.execute()
--> Artifact / Trajectoryを確認する
+状態 -> 制作Step -> 中間成果物 -> 評価 -> 選択 / 次のStep
 ```
 
-までの最小End-to-End例があります。
+大量の画像データをPart Bankとして再利用し、パーツ選択・合成・評価に加えて、最終的には「どの制作工程を採用するべきか」まで探索・学習対象にします。
 
-次に読む順番:
+## 文書は読者別に分かれています
 
-1. [image_drawer/runtime/engine.py](image_drawer/runtime/engine.py) — Workflow実行本体
-2. [image_drawer/core/models.py](image_drawer/core/models.py) — Artifact / Score / WorkflowSpec / Trajectoryなどの中心data model
-3. [image_drawer/steps/base.py](image_drawer/steps/base.py) — Step interfaceとschema
-4. [image_drawer/steps/registry.py](image_drawer/steps/registry.py) — Step backend登録・解決
-5. [image_drawer/runtime/validation.py](image_drawer/runtime/validation.py) — Workflowの型・依存関係validation
-6. [image_drawer/dsl/parser.py](image_drawer/dsl/parser.py) — DSLからWorkflowSpecへの変換
-7. [image_drawer/part_bank/](image_drawer/part_bank/) — 画像ingest、Part保存、embedding、検索
+詳しい文書一覧は [docs/README.md](docs/README.md) にあります。
 
-詳しいコード地図と「何を変更したい場合にどこを見るか」は [ソースコードガイド](docs/12_source_code_guide.md) にまとめています。
+### Image Drawerを使いたい
 
-### 現在の実行入口について
+→ [利用者向け文書](docs/users/)
 
-`pyproject.toml` では次のentrypointを公開しています。
+現在使える機能、起動方法、CLI/GUIの使い方を確認します。
 
-- `image-drawer` -> [image_drawer/cli.py](image_drawer/cli.py)
-- `image-drawer-gui` -> [image_drawer/gui/](image_drawer/gui/)
-- `image-drawer-part-bank` -> [image_drawer/part_bank/cli.py](image_drawer/part_bank/cli.py)
+### コードを読みたい・実装したい
 
-ただし、現時点の `image-drawer` は **M0のsmoke用CLI** で、Workflow Runtime本体を操作する完成CLIではありません。
+→ [開発者向け文書](docs/developers/)  
+→ [ソースコードガイド](docs/developers/source_code_guide.md)
 
-Workflow実行の中核は [image_drawer/runtime/engine.py](image_drawer/runtime/engine.py) の `WorkflowRuntime` です。現在はtestや内部APIから利用しています。
+architecture、DSL、Part Bank、学習/評価、コードレビューの入口を確認します。
 
-## 言語方針
+### Kadokaが方針・実装順を確認したい
 
-仕様・設計文書・README・docstring・コードコメントは**日本語を正本**とします。
+→ [Kadoka向け文書](docs/kadoka/)
 
-識別子、API名、DSLキーワード、CLIコマンド、クラス名、論文名、固有名詞は必要に応じて英語のまま使用します。英訳が存在する場合は参考訳扱いです。
+プロジェクトのコンセプト、優先順位、実装計画を確認します。
 
-Apache-2.0 本文や第三者ライセンスなど、原文自体に法的意味がある文書は例外として公式原文を正本とします。
+### KadokaのCodexが実装作業をする
 
-詳細は docs/11_language_policy.md を参照してください。
+→ [KadokaのCodex向け作業規約](docs/kadoka-codex/)
 
-## 文書
+Issue/PR運用、参照すべき正本、test/build要件、禁止事項を確認します。
 
-- [コンセプト](docs/00_concept.md)
-- [アーキテクチャ](docs/01_architecture.md)
-- [Workflow DSL](docs/02_workflow_dsl.md)
-- [GUI](docs/03_gui.md)
-- [学習と評価](docs/04_training_and_evaluation.md)
-- [MVP範囲](docs/05_mvp.md)
-- [先行研究・技術調査](docs/06_prior_art_and_research.md)
-- [Part Bank仕様](docs/07_part_bank.md)
-- [Workflow Search仕様](docs/08_workflow_search.md)
-- [実装計画](docs/09_implementation_plan.md)
-- [Part Bank v0実装仕様](docs/10_part_bank_v0.md)
-- [言語運用方針](docs/11_language_policy.md)
-- [ソースコードガイド](docs/12_source_code_guide.md)
+## 現在の状態
 
-## 実装の入口
+現在は基盤実装段階です。Workflow Runtime、DSL、Part BankなどをIssue / Pull Request単位で実装しています。
 
-実装順は docs/09_implementation_plan.md を正本とします。
+完成した画像制作GUIはまだ提供していません。利用可能なentrypointは [利用者向けの「はじめに」](docs/users/getting_started.md) を参照してください。
 
-最初のEnd-to-End目標は次です。
+## 言語
 
-    dataset
-      -> Part Bank
-      -> RETRIEVE_PARTS
-      -> SELECT_PARTS
-      -> COMPOSE
-      -> EVALUATE
-      -> Trajectory
-      -> Workflow比較
+プロジェクト独自の説明文は日本語を正本とします。詳細は [言語運用方針](docs/developers/language_policy.md) を参照してください。
 
-最初のアーキテクチャ検証では高品質な生成モデルを必須にしません。Workflow、Artifact、provenance、実験基盤が安定するまでは mock / simple backend を使用します。
-
-## 開発
-
-M0のプロジェクト骨格は依存を小さく保ち、Python 3.11+ を前提とします。
-
-    python -m pip install -e ".[dev]"
-    python -m pytest
-    python -m build
-    python -m image_drawer --input hello
-    image-drawer-gui --check
-
-CIではPull Requestおよび main へのpushごとに、入力/出力テスト、package build、生成wheelを新規virtual environmentで実行する確認を行います。
-
-実装はGitHub IssueとPull Requestを単位に進めます。
+Apache-2.0や第三者ライセンスなど、原文自体に法的意味がある文書は公式原文を正本とします。
