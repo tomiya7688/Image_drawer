@@ -1,3 +1,6 @@
+> **対象読者:** 開発者  
+> **目的:** GUIから操作するWorkflow DSLの構文・制約・validation方針を実装する。
+
 # Workflow DSL
 
 ## 1. 役割

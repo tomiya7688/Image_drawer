@@ -1,3 +1,6 @@
+> **対象読者:** 開発者  
+> **目的:** Workflow構造・parameter・backendを探索/学習するためのsearch layer仕様を実装する。
+
 # Workflow Search仕様
 
 状態: 採用済み設計

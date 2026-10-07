@@ -1,3 +1,6 @@
+> **対象読者:** 開発者  
+> **目的:** Part Bankのdata model・storage・retrieval interfaceを実装するための正本とする。
+
 # Part Bank仕様
 
 状態: 採用済み設計
