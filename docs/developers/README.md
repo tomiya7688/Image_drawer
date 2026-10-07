@@ -30,3 +30,17 @@
 - [言語運用方針](language_policy.md)
 
 プロジェクト全体の方向性や実装優先順位は [Kadoka向け文書](../kadoka/) を参照してください。
+
+## 開発開始
+
+最初に [ソースコードガイド](source_code_guide.md) を読み、対象Issueに対応する仕様文書とtestを確認してください。
+
+基本的なlocal確認:
+
+```bash
+python -m pip install -e ".[dev]"
+python -m pytest
+python -m build
+```
+
+実装順・優先順位は [Kadoka向けの実装計画](../kadoka/implementation_plan.md) が正本です。
