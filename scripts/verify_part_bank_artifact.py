@@ -54,6 +54,10 @@ from pathlib import Path
 from PIL import Image
 import image_drawer
 from image_drawer.part_bank import MetadataHashEmbedder, SQLitePartRepository
+from image_drawer.core import WorkflowSpec, StepSpec, build_artifact_lineage
+from image_drawer.runtime import WorkflowRuntime
+from image_drawer.steps import create_part_bank_registry
+from urllib.parse import urlsplit, unquote
 assert Path(image_drawer.__file__).resolve().is_relative_to(Path(sys.prefix).resolve())
 bank, original_path = Path(sys.argv[1]), Path(sys.argv[2])
 with SQLitePartRepository(bank / 'metadata.sqlite3') as repo:
@@ -78,7 +82,38 @@ with SQLitePartRepository(bank / 'metadata.sqlite3') as repo:
     assert result.metadata['embedding']['key'] == embedder.identity.key
     assert result.metadata['index'] == {'backend': 'bruteforce-cosine', 'version': 'v1'}
     assert len(repo.list_embeddings(embedder.identity)) == 1
-print('installed Part Bank outputs and retrieval verified')
+    registry = create_part_bank_registry(repo, embedder)
+    workflow = WorkflowSpec(
+        id='wheel-m4-smoke', version='v1',
+        nodes=[
+            StepSpec(id='prompt', type='INPUT'),
+            StepSpec(id='retrieve', type='RETRIEVE_PARTS',
+                     parameters={'category': 'generic', 'top': 1}),
+            StepSpec(id='select', type='SELECT_PARTS', parameters={'top': 1}),
+            StepSpec(id='compose', type='COMPOSE',
+                     parameters={'canvas_width': 2, 'canvas_height': 1}),
+            StepSpec(id='output', type='OUTPUT'),
+        ],
+        edges=[('prompt', 'retrieve'), ('retrieve', 'select'),
+               ('select', 'compose'), ('compose', 'output')],
+        inputs=['prompt'], outputs=['output'],
+    )
+    completed = WorkflowRuntime(registry).execute(
+        workflow, external_inputs={'prompt': 'generic'}, run_id='wheel-smoke',
+    )
+    output = completed.outputs['output']
+    assert output.metadata['part_ids'] == [part.id]
+    assert len(completed.trajectory.artifacts) == 6
+    composition = next(a for a in completed.trajectory.artifacts
+                       if a.artifact_type == 'Composition')
+    assert composition.metadata['part_ids'] == [part.id]
+    assert composition.id in build_artifact_lineage(completed.trajectory.artifacts, output.id)
+    render = Path(unquote(urlsplit(output.uri).path))
+    assert output.metadata['checksum'] == 'sha256:' + hashlib.sha256(render.read_bytes()).hexdigest()
+    with Image.open(render) as raster:
+        assert raster.mode == 'RGBA' and raster.size == (2, 1)
+        assert raster.tobytes() == bytes([255, 0, 0, 255, 0, 255, 0, 255])
+print('installed Part Bank outputs, retrieval and COMPOSE verified')
 """, str(bank), str(source / "fixture.ppm"))
         assert "outputs and retrieval verified" in inspection.stdout
         (source / "broken.png").write_bytes(b"not an image")
