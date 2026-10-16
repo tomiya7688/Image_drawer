@@ -21,8 +21,15 @@ def _format_value(value: Any) -> str:
         return repr(value)
     if isinstance(value, list):
         return "[" + ", ".join(_format_value(item) for item in value) + "]"
+    if isinstance(value, dict):
+        if any(not isinstance(key, str) for key in value):
+            raise TypeError("DSL dictionary keys must be strings")
+        return "{" + ", ".join(
+            f"{_format_value(key)}: {_format_value(value[key])}"
+            for key in sorted(value)
+        ) + "}"
     raise TypeError(
-        "DSL parameters support only string, integer, float, boolean, and list"
+        "DSL parameters support only string, integer, float, boolean, list, and dictionary"
     )
 
 
