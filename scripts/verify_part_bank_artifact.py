@@ -115,7 +115,7 @@ with SQLitePartRepository(bank / 'metadata.sqlite3') as repo:
         assert raster.tobytes() == bytes([255, 0, 0, 255, 0, 255, 0, 255])
 print('installed Part Bank outputs, retrieval and COMPOSE verified')
 """, str(bank), str(source / "fixture.ppm"))
-        assert "outputs and retrieval verified" in inspection.stdout
+        assert "outputs, retrieval and COMPOSE verified" in inspection.stdout
         (source / "broken.png").write_bytes(b"not an image")
         partial = run(cli, *args, expected_code=1)
         payload = json.loads(partial.stdout)
