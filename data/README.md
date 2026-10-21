@@ -1,7 +1,21 @@
-# Local development data
+# ローカルデータの保存場所
 
-このdirectoryは、local developmentで使用するdataset、抽出Part、index、生成Artifact、再現性に必要な大型入力を置くために予約します。
+この文書は、画像データやモデルを用意してImage Drawerを動かす利用者向けです。個人の入力画像や大きな生成物をリポジトリへ誤登録しないため、保存場所とGit管理の範囲を説明します。
 
-repository levelの.gitignoreで、このdirectoryの内容はdefaultで除外します。
+## 保存先
 
-dataset、生成画像、model checkpoint、secretはcommitしないでください。
+- 元画像、抽出Part、検索インデックス、生成画像は `data/` に保存してください。
+- 学習用データは `datasets/`、`learning-data/` に保存してください。
+- モデルの重みは `models/`、学習途中の重みは `checkpoints/` に保存してください。
+- 実験結果は `experiments/`、確認用のレポートは `reports/` に保存してください。
+- 一時的な出力は `.tmp/`、その他の生成物は `artifacts/` に保存してください。
+
+アプリや学習ツールが出力先を選べる場合は、上のディレクトリを指定してください。`.gitignore`は保存先を変更する機能を持たないため、別の場所へ保存したファイルは自動では除外されません。
+
+## Git管理の範囲
+
+上のディレクトリの内容はGitignoreの対象です。`data/README.md`は手順書としてGit管理します。ソースコードやテストは、それぞれの既存ディレクトリで管理してください。共有用の小さなテスト画像を追加する場合は、内容と由来を確認したうえで `tests/fixtures/` に配置してください。
+
+コミット前に `git status --short` で対象を確認してください。すでにGit管理されているファイルは、Gitignoreを追加しても除外されません。モデル重み、個人の画像データ、秘密情報、生成レポートを `git add -f` で登録しないでください。
+
+Git管理されないデータは、リポジトリを複製しても復元されません。必要なデータとモデルは別途保管してください。
