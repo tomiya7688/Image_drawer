@@ -2,13 +2,29 @@ __pycache__/
 *.py[cod]
 *.egg-info/
 .pytest_cache/
+/.tmp/
+/.pytest-tmp/
+/pytest-cache-files-*/
 .venv/
 .venv*/
 build/
 dist/
 
-# Local datasets and generated artifacts are intentionally not committed.
+# ローカルの画像データと生成物をGit管理から除外します。
 data/*
 !data/README.md
 
+# 学習データ、モデル、実験結果はローカルに保存します。
+/artifacts/
+/checkpoints/
+/datasets/
+/experiments/
+/learning-data/
+/models/
+/reports/
+
 .DS_Store
+
+# ローカルのレビュー基準を除外し、コーディング規約はGit管理します。
+/レビュー基準.md
+/docs/kadoka-codex/review_criteria.md
