@@ -17,6 +17,7 @@
 
 ## 2. Issue / Pull Request運用
 
+- 複数のエージェントが共同作業する手順(毎回のpull、PRの優先処理、CI確認、自己レビュー、マージ)は [共同作業ルールとワークフロー](collaboration_workflow.md) に従う。
 - 原則として1 Issue = 1 Pull Requestで進める。
 - 実装前に対象Issueと依存Issueを確認する。
 - mainへ直接実装しない。作業branchを作る。
