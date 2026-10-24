@@ -1,3 +1,6 @@
+> **対象読者:** 開発者  
+> **目的:** Part Bank v0の実装済み挙動・制約・CI要件を確認する。
+
 # Part Bank v0（Issue #5）
 
 このmilestoneではsemantic segmentationやvector retrievalではなく、画像ingestとprovenance管理を実装します。既存M1のSourceImage / Part recordは変更せず使用します。
