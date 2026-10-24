@@ -25,6 +25,9 @@ jobs:
           cache: pip
           cache-dependency-path: pyproject.toml
 
+      - name: Check shared agent context
+        run: python scripts/check_agent_context.py
+
       - name: Install development tooling
         run: |
           python -m pip install --upgrade pip
