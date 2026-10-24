@@ -2,12 +2,14 @@
 
 from __future__ import annotations
 
+from pathlib import Path
 from typing import Mapping
 
 from image_drawer.part_bank.embedding import PartEmbedder
 from image_drawer.part_bank.index import PartIndex
 from image_drawer.part_bank.repository import SQLitePartRepository
 from image_drawer.steps.base import ParameterSpec, Step, StepContext, StepSchema
+from image_drawer.steps.compose import PartBankComposeStep
 from image_drawer.steps.mock import create_mock_registry
 from image_drawer.steps.registry import StepRegistry
 
@@ -104,6 +106,7 @@ def create_part_bank_registry(
     embedder: PartEmbedder,
     *,
     index: PartIndex | None = None,
+    output_dir: str | Path | None = None,
 ) -> StepRegistry:
     """real retrievalをdefault backendにしたstandard registryを生成する。"""
     registry = create_mock_registry()
@@ -111,4 +114,5 @@ def create_part_bank_registry(
         PartBankRetrievePartsStep(repository, embedder, index=index),
         default=True,
     )
+    registry.register(PartBankComposeStep(repository, output_dir=output_dir), default=True)
     return registry

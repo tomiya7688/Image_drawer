@@ -15,7 +15,7 @@ from image_drawer.core import (
     new_id,
 )
 from image_drawer.runtime.validation import resolve_parameters, validate_workflow
-from image_drawer.steps import StepContext, StepRegistry
+from image_drawer.steps import StepContext, StepRegistry, StepResult
 
 
 class ArtifactRegistry:
@@ -112,7 +112,15 @@ class WorkflowRuntime:
             )
 
             try:
-                artifact = implementation.run(input_artifacts, params, context)
+                step_result = implementation.run(input_artifacts, params, context)
+                if isinstance(step_result, StepResult):
+                    artifact = step_result.output
+                    produced = [*step_result.additional_artifacts, artifact]
+                else:
+                    artifact = step_result
+                    produced = [artifact]
+                if any(not isinstance(item, Artifact) for item in produced):
+                    raise TypeError(f"{node_id}: Step must return Artifact records")
                 expected_output = implementation.schema.output_type
                 if (
                     expected_output != "*"
@@ -123,11 +131,25 @@ class WorkflowRuntime:
                         f"expected {expected_output}"
                     )
 
-                artifact_registry.add(artifact)
+                produced_ids = [item.id for item in produced]
+                known_ids = {item.id for item in artifact_registry.all()}
+                if len(produced_ids) != len(set(produced_ids)):
+                    raise ValueError(f"{node_id}: duplicate output Artifact IDs")
+                if known_ids.intersection(produced_ids):
+                    raise ValueError(f"{node_id}: output Artifact ID already exists")
+                valid_ids = known_ids | set(produced_ids)
+                for item in produced:
+                    missing = set(item.parent_artifact_ids) - valid_ids
+                    if missing:
+                        raise ValueError(
+                            f"{node_id}: Artifact {item.id} has unknown parents: {sorted(missing)}"
+                        )
+                for item in produced:
+                    artifact_registry.add(item)
+                    trajectory.artifacts.append(item)
+                    trajectory.evaluations.extend(item.scores)
                 artifacts_by_step[node_id] = artifact
-                execution.output_artifact_ids = [artifact.id]
-                trajectory.artifacts.append(artifact)
-                trajectory.evaluations.extend(artifact.scores)
+                execution.output_artifact_ids = produced_ids
 
                 execution_identity = artifact.metadata.get("execution_identity")
                 if isinstance(execution_identity, dict):

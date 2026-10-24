@@ -46,8 +46,10 @@ class StepContext:
     backend: str
     external_inputs: dict[str, Any]
 
-    def artifact_id(self) -> str:
-        return f"artifact:{self.run_id}:{self.step_id}"
+    def artifact_id(self, suffix: str | None = None) -> str:
+        """追加Artifactには同一Stepに属する別IDを付ける。"""
+        result = f"artifact:{self.run_id}:{self.step_id}"
+        return f"{result}:{suffix}" if suffix else result
 
     def score_id(self, suffix: str = "0") -> str:
         return f"score:{self.run_id}:{self.step_id}:{suffix}"
@@ -56,6 +58,7 @@ class StepContext:
         self,
         artifact_type: str,
         *,
+        suffix: str | None = None,
         parent_artifact_ids: list[str] | None = None,
         uri: str | None = None,
         model: str | None = None,
@@ -65,7 +68,7 @@ class StepContext:
         metadata: dict[str, Any] | None = None,
     ) -> Artifact:
         return Artifact(
-            id=self.artifact_id(),
+            id=self.artifact_id(suffix),
             artifact_type=artifact_type,
             uri=uri,
             parent_artifact_ids=list(parent_artifact_ids or []),
@@ -77,6 +80,14 @@ class StepContext:
             scores=list(scores or []),
             metadata=dict(metadata or {}),
         )
+
+
+@dataclass(slots=True)
+class StepResult:
+    """主出力と、同じStepが生成した独立した補助Artifactを保持する。"""
+
+    output: Artifact
+    additional_artifacts: list[Artifact] = field(default_factory=list)
 
 
 class Step(ABC):
@@ -91,5 +102,5 @@ class Step(ABC):
         inputs: list[Artifact],
         params: dict[str, Any],
         context: StepContext,
-    ) -> Artifact:
-        """Stepを実行し、M2で定義する単一output Artifactを返す。"""
+    ) -> Artifact | StepResult:
+        """主出力1個、必要なら追加の独立Artifactを返す。"""

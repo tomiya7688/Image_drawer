@@ -90,7 +90,7 @@ def _literal(node: ast.AST) -> Any:
         if isinstance(node.value, (str, int, float, bool)):
             return node.value
         raise DslSyntaxError(
-            "parameters support only string, integer, float, boolean, and list",
+            "parameters support only string, integer, float, boolean, list, and dictionary",
             line=getattr(node, "lineno", None),
             column=getattr(node, "col_offset", None),
         )
@@ -108,6 +108,19 @@ def _literal(node: ast.AST) -> Any:
 
     if isinstance(node, ast.List):
         return [_literal(item) for item in node.elts]
+
+    if isinstance(node, ast.Dict):
+        result: dict[str, Any] = {}
+        for key, value in zip(node.keys, node.values):
+            if key is None:
+                raise DslSyntaxError("dictionary expansion is not allowed")
+            literal_key = _literal(key)
+            if not isinstance(literal_key, str):
+                raise DslSyntaxError("dictionary keys must be strings")
+            if literal_key in result:
+                raise DslSyntaxError(f"duplicate dictionary key: {literal_key}")
+            result[literal_key] = _literal(value)
+        return result
 
     if (
         isinstance(node, ast.UnaryOp)

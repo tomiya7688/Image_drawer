@@ -27,6 +27,7 @@ class SQLitePartRepository:
     def __init__(self, path: str | Path) -> None:
         path = Path(path)
         path.parent.mkdir(parents=True, exist_ok=True)
+        self.bank_dir = path.resolve().parent
         self._db = sqlite3.connect(path, timeout=30)
         try:
             self._db.execute("PRAGMA foreign_keys = ON")
