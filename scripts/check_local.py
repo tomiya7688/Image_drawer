@@ -115,18 +115,19 @@ class LocalCheck:
     #     shellを使わず固定argvを実行し、終了値を保存する
     #   ]
     #   引数: [
-    #     label: 検査名, command: 実行argv
+    #     label: 検査名, command: 実行argv, statuses: 終了値ごとの結果(0以外をWARN・SKIPにする場合)
     #   ]
     #   戻り値: [
     #     なし
     #   ]
     # }
-    def run(self, label: str, command: list[str]) -> None:
+    def run(self, label: str, command: list[str], statuses: dict[int, str] | None = None) -> None:
         print(f"\n--- {label} ---", flush=True)
         try:
             # 一つが失敗しても後続の検査を実行し、原因をまとめて表示する。
             result = subprocess.run(command, cwd=self.root, timeout=120, check=False)
-            status = "PASS" if result.returncode == 0 else "FAIL"
+            default = "PASS" if result.returncode == 0 else "FAIL"
+            status = (statuses or {}).get(result.returncode, default)
             detail = f"exit={result.returncode}"
         except (OSError, subprocess.TimeoutExpired) as exc:
             status, detail = "UNVERIFIED", str(exc)
@@ -178,6 +179,32 @@ def inspect_python_tools(checker: LocalCheck, paths: list[str]) -> None:
         [sys.executable, "-m", "ruff", "format", "--check", "--force-exclude", "--", *paths],
     )
     checker.run("lint", [sys.executable, "-m", "ruff", "check", "--force-exclude", "--", *paths])
+
+
+# {
+#   責務: [
+#     inspect_triage: 先に処理するPRと優先度の未設定Issueを表示する
+#   ]
+#   処理: [
+#     1: 対応が必要なPR・優先度なしはWARNとして表示し、失敗終了にはしない
+#     2: ghが使えない、または検査スクリプトがない場合は理由付きでSKIPにする
+#   ]
+#   引数: [
+#     checker: 結果の所有者
+#   ]
+#   戻り値: [
+#     なし
+#   ]
+# }
+def inspect_triage(checker: LocalCheck) -> None:
+    if not (checker.root / "scripts/check_triage.py").is_file():
+        checker.results.append(("triage", "SKIP", "scripts/check_triage.pyがありません"))
+        return
+    checker.run(
+        "triage",
+        [sys.executable, "scripts/check_triage.py"],
+        statuses={2: "SKIP", 3: "WARN"},
+    )
 
 
 # {
@@ -249,6 +276,7 @@ def main(argv: list[str] | None = None) -> int:
         return checker.summarize(started)
     inspect_python_tools(checker, paths)
     checker.run("context", [sys.executable, "scripts/check_agent_context.py"])
+    inspect_triage(checker)
     # 固有の一時パスを使い、他のpytest実行の所有権や既存ファイルに依存しない。
     temporary_root = ROOT / ".tmp"
     if temporary_root.is_symlink():
