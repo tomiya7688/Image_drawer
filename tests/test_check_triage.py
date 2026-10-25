@@ -95,3 +95,23 @@ def test_local_check_maps_warning(tmp_path, code, status):
     )
     assert checker.results[0][1] == status
     assert checker.summarize(0.0) == (1 if status == "FAIL" else 0)
+
+
+# {
+#   責務: [
+#     test_gh_output_is_decoded_as_utf8: Windowsの既定文字コードに依存せず、日本語を含むghの出力を読む
+#   ]
+#   処理: [
+#     subprocess.runへ渡される引数を捕捉し、UTF-8が明示されていることを確認する
+#   ]
+# }
+def test_gh_output_is_decoded_as_utf8(monkeypatch):
+    captured = {}
+
+    def fake_run(command, **options):
+        captured.update(options)
+        return check_triage.subprocess.CompletedProcess(command, 0, stdout="[]", stderr="")
+
+    monkeypatch.setattr(check_triage.subprocess, "run", fake_run)
+    assert check_triage.run_gh_json(["issue", "list"]) == []
+    assert captured["encoding"] == "utf-8"

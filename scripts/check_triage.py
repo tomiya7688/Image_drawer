@@ -67,14 +67,19 @@ def priority_of(issue: dict[str, Any]) -> str | None:
 def run_gh_json(arguments: list[str]) -> list[dict[str, Any]]:
     try:
         result = subprocess.run(
-            ["gh", *arguments], capture_output=True, text=True, timeout=60, check=False
+            ["gh", *arguments],
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            timeout=60,
+            check=False,
         )
     except (OSError, subprocess.TimeoutExpired) as exc:
         raise RuntimeError(f"ghを実行できません: {exc}") from exc
     if result.returncode != 0:
         raise RuntimeError(f"gh {' '.join(arguments[:2])} が失敗しました: {result.stderr.strip()}")
     try:
-        return json.loads(result.stdout)
+        return json.loads(result.stdout or "")
     except json.JSONDecodeError as exc:
         raise RuntimeError(f"ghの出力を読めません: {exc}") from exc
 
