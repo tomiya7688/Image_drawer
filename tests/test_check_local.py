@@ -112,7 +112,8 @@ def test_standard_entrypoint(git_repository, monkeypatch, capsys, case):
     assert ("SKIP: syntax" if case == "empty" else "ローカル検査") in output
     assert "再実行: python scripts/check_local.py" in output
     if case == "syntax":
-        assert "SKIP: tests" in output
+        for label in ("format", "lint", "context", "tests"):
+            assert f"SKIP: {label}: 対象探索または構文の失敗により未実行" in output
 
 
 # {
