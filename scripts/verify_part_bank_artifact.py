@@ -57,7 +57,8 @@ from image_drawer.part_bank import MetadataHashEmbedder, SQLitePartRepository
 from image_drawer.core import WorkflowSpec, StepSpec, build_artifact_lineage
 from image_drawer.runtime import WorkflowRuntime
 from image_drawer.steps import create_part_bank_registry
-from urllib.parse import urlsplit, unquote
+from urllib.parse import urlsplit
+from urllib.request import url2pathname
 assert Path(image_drawer.__file__).resolve().is_relative_to(Path(sys.prefix).resolve())
 bank, original_path = Path(sys.argv[1]), Path(sys.argv[2])
 with SQLitePartRepository(bank / 'metadata.sqlite3') as repo:
@@ -108,7 +109,7 @@ with SQLitePartRepository(bank / 'metadata.sqlite3') as repo:
                        if a.artifact_type == 'Composition')
     assert composition.metadata['part_ids'] == [part.id]
     assert composition.id in build_artifact_lineage(completed.trajectory.artifacts, output.id)
-    render = Path(unquote(urlsplit(output.uri).path))
+    render = Path(url2pathname(urlsplit(output.uri).path))
     assert output.metadata['checksum'] == 'sha256:' + hashlib.sha256(render.read_bytes()).hexdigest()
     with Image.open(render) as raster:
         assert raster.mode == 'RGBA' and raster.size == (2, 1)

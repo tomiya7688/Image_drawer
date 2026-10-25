@@ -4,7 +4,8 @@ from __future__ import annotations
 
 import hashlib
 from pathlib import Path
-from urllib.parse import unquote, urlsplit
+from urllib.parse import urlsplit
+from urllib.request import url2pathname
 
 import pytest
 from PIL import Image
@@ -20,10 +21,21 @@ from image_drawer.runtime import WorkflowRuntime
 from image_drawer.steps import PartBankComposeStep, StepContext, StepResult, create_part_bank_registry
 
 
+# {
+#   責務: [
+#     file_from_uri: file URIをOSのパスへ変換する。Windowsの"/C:/..."形式も正しく扱う
+#   ]
+#   引数: [
+#     uri: Artifactに記録された file:// のURI
+#   ]
+#   戻り値: [
+#     path: 実ファイルのパス
+#   ]
+# }
 def file_from_uri(uri: str) -> Path:
     parsed = urlsplit(uri)
     assert parsed.scheme == "file"
-    return Path(unquote(parsed.path))
+    return Path(url2pathname(parsed.path))
 
 
 @pytest.fixture
