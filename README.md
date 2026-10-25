@@ -50,3 +50,7 @@ Issue/PR運用、参照すべき正本、test/build要件、禁止事項を確�
 プロジェクト独自の説明文は日本語を正本とします。詳細は [言語運用方針](docs/developers/language_policy.md) を参照してください。
 
 Apache-2.0や第三者ライセンスなど、原文自体に法的意味がある文書は公式原文を正本とします。
+
+## PR前のローカル確認
+
+開発用依存を `python -m pip install -e ".[dev]"` で導入し、ルートで `python scripts/check_local.py` を実行してください。変更Pythonの構文・Ruff整形/lint、差分整合性、既存の文書検査・pytestを実行し、結果と未確認範囲を集約します。配布・GPU・実GUIの検証は別に行います。詳しくは[開発手順](docs/developers/local_checks.md)を参照してください。

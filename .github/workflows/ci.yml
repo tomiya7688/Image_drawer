@@ -17,6 +17,8 @@ jobs:
     steps:
       - name: Check out repository
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Set up Python
         uses: actions/setup-python@v5
@@ -34,8 +36,10 @@ jobs:
           python -m pip install -e ".[dev]"
           python scripts/check_python_tls.py
 
-      - name: Verify input/output contracts
-        run: python -m pytest
+      - name: Verify local checks and input/output contracts
+        env:
+          CHECK_BASE: ${{ github.event.pull_request.base.sha || github.event.before }}
+        run: python scripts/check_local.py --base "$CHECK_BASE"
 
       - name: Build distribution
         run: python -m build

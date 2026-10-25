@@ -13,6 +13,7 @@ dependencies = []
 [project.optional-dependencies]
 part-bank = ["Pillow>=12.3.0,<13"]
 dev = [
+  "ruff==0.15.22",
   "build>=1.2",
   "pytest>=8.0",
   "Pillow>=12.3.0,<13",
@@ -30,3 +31,11 @@ include = ["image_drawer*"]
 [tool.pytest.ini_options]
 addopts = "-q"
 testpaths = ["tests"]
+
+[tool.ruff]
+target-version = "py311"
+line-length = 100
+extend-exclude = ["data", "models", "reports", "artifacts", "datasets", "vendor", "tests/fixtures"]
+
+[tool.ruff.lint]
+select = ["E9", "F63", "F7", "F82"]

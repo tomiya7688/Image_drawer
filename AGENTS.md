@@ -6,7 +6,7 @@ Codex・Claude・ChatGPT・Copilot共通の短い入口です。手順や履歴�
 - ファイルが分かる修正は、その実装と関連テストから読んでください。不明なら `rg --files`、`rg -n` で候補を絞り、必要な定義と呼び出し元だけを確認してください。
 - 場所の再探索・引き継ぎ・保全実装の統合では、[image-drawer-context](.agents/skills/image-drawer-context/SKILL.md)から今回に合う参照先だけを開いてください。
 - コード変更では[コーディング規約](docs/kadoka-codex/coding_conventions.md)の対象となる節を参照してください。規約本文はこの入口へ複製しません。
-- 作業の開始・PR・マージの手順は[共同作業ルール](docs/kadoka-codex/collaboration_workflow.md)に従ってください。毎回pullし、オープン中のPRを先に処理します。
+- 作業前に更新を取り込み、オープンPRを先に処理してください。[共同作業ルール](docs/kadoka-codex/collaboration_workflow.md)に従い、PR前は `python scripts/check_local.py` を実行してください。
 - 要約は入口です。現在のコード・Git差分・実行結果を根拠にし、確認済みと未確認を分けてください。
 - モデル・個人画像・生成レポートはGit管理外に置きます。説明は日本語を正本にします。詳細は必要なときだけ[保存場所](data/README.md)と[言語方針](docs/developers/language_policy.md)を参照してください。
 
