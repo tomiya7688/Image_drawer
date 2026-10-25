@@ -1,0 +1,29 @@
+name: 作業Issue
+description: 実装・修正・調査などの作業を起票します。優先度は必須です。
+body:
+  - type: dropdown
+    id: priority
+    attributes:
+      label: 優先度
+      description: 起票時に必ず選んでください。選べない場合は作業側が割り振ります。作業は PR → P0 → P1 → P2 → P3 の順に進めます。
+      options:
+        - P0
+        - P1
+        - P2
+        - P3
+    validations:
+      required: true
+  - type: textarea
+    id: background
+    attributes:
+      label: 背景と目的
+      description: なぜ必要かを書いてください。
+    validations:
+      required: true
+  - type: textarea
+    id: acceptance
+    attributes:
+      label: 完了条件
+      description: 完了と判断できる条件を書いてください。
+    validations:
+      required: true

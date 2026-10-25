@@ -16,7 +16,9 @@ python scripts/check_local.py
 
 この入口はorigin/mainとの共通祖先からの変更（commit済み・stage済み・未stage）と未追跡ファイルを調べます。Git管理外の生成物は読みません。変更Pythonに構文、Ruff format/checkと軽いlintを適用し、既存の文書検査と全pytestを呼びます。現在のpytestは小規模のため全件を使い、変更とテストの対応表による漏れを防ぎます。Makefileのtestと同じpytestを利用し、テスト判定を再実装しません。
 
-結果はPASS / FAIL / SKIP / UNVERIFIEDと所要時間をまとめて表示します。Python変更がない検査はSKIPになりますが、文書・pytestは実行します。テスト収集0件はpytestの失敗終了として扱います。必須検査の失敗、依存不足、起動不能、120秒タイムアウトは失敗終了します。対象探索や構文が失敗した場合は、後続の検査をSKIPとして表示して中断します。結果と未確認範囲をPR本文に記載してください。
+`triage`は、`gh`で先に処理するPRと優先度が未設定のIssueを表示します。PRや未設定がある場合は`WARN`とし、失敗終了にはしません。`gh`を使えない場合は理由付きの`SKIP`です。同じ内容は`python scripts/check_triage.py`だけでも確認できます。
+
+結果はPASS / WARN / FAIL / SKIP / UNVERIFIEDと所要時間をまとめて表示します。Python変更がない検査はSKIPになりますが、文書・pytestは実行します。テスト収集0件はpytestの失敗終了として扱います。必須検査の失敗、依存不足、起動不能、120秒タイムアウトは失敗終了します。対象探索や構文が失敗した場合は、後続の検査をSKIPとして表示して中断します。結果と未確認範囲をPR本文に記載してください。
 
 ## 実装担当者の整形
 
