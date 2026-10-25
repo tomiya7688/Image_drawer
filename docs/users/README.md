@@ -6,6 +6,7 @@
 ## まず読む
 
 - [はじめに](getting_started.md)
+- [配布物の真正性を確認する](verify_release.md)
 
 ## このfolderに置く文書
 

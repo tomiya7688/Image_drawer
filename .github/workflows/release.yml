@@ -1,0 +1,86 @@
+name: release
+
+# vタグのpushでwheel/sdistを作成し、SHA-256とArtifact Attestationを付けてReleaseへ公開する。
+# workflow_dispatchでは署名と検証までを実行し、Releaseは作成しない。
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build-attest-release:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: write
+      id-token: write
+      attestations: write
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install build tooling
+        run: |
+          python -m pip install --upgrade "pip>=26.2.2" "certifi>=2026.10.19"
+          python -m pip install -e ".[dev]"
+          python scripts/check_python_tls.py
+
+      - name: Verify tag matches package version
+        if: startsWith(github.ref, 'refs/tags/')
+        run: |
+          python - <<'PY'
+          import os, tomllib
+          with open("pyproject.toml", "rb") as stream:
+              version = tomllib.load(stream)["project"]["version"]
+          tag = os.environ["GITHUB_REF_NAME"]
+          assert tag == f"v{version}", f"tag {tag} does not match version {version}"
+          PY
+
+      - name: Run tests
+        run: python -m pytest
+
+      - name: Build distribution
+        run: python -m build
+
+      - name: Write SHA-256 manifest
+        working-directory: dist
+        run: sha256sum -- *.whl *.tar.gz > SHA256SUMS
+
+      - name: Attest build provenance
+        uses: actions/attest-build-provenance@v4
+        with:
+          subject-path: |
+            dist/*.whl
+            dist/*.tar.gz
+            dist/SHA256SUMS
+
+      # 署名または検証に失敗した場合は、ここで止めてReleaseを作成しない。
+      - name: Verify attestations and checksums
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          (cd dist && sha256sum --check SHA256SUMS)
+          for artifact in dist/*.whl dist/*.tar.gz dist/SHA256SUMS; do
+            gh attestation verify "$artifact" --repo "$GITHUB_REPOSITORY"
+          done
+
+      - name: Create GitHub Release
+        if: startsWith(github.ref, 'refs/tags/')
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "$GITHUB_REF_NAME" \
+            dist/*.whl dist/*.tar.gz dist/SHA256SUMS \
+            --title "$GITHUB_REF_NAME" --generate-notes \
+            --verify-tag
