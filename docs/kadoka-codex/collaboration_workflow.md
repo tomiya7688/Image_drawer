@@ -68,7 +68,7 @@ PRが滞留すると、依存関係の把握が難しくなり、`main`との差
 1. 変更に応じたテストを実行してください。通常は次のコマンドを実行します。
 
    ```bash
-   python -m pytest -q
+   python scripts/check_local.py
    ```
 
 2. `git fetch origin`して`main`との競合を確認し、競合があれば解消して再テストしてください。
