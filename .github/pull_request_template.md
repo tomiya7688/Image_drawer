@@ -8,7 +8,7 @@
 
 ## 確認方法
 
-- [ ] `python -m pytest -q` を実行した(結果:)
+- [ ] `python scripts/check_local.py` を実行した(結果:)
 - 実行していない確認と理由:
 
 ## 自己レビュー
