@@ -5,12 +5,14 @@ body:
     id: priority
     attributes:
       label: 優先度
-      description: 起票時に必ず選んでください。選べない場合は作業側が割り振ります。作業は PR → P0 → P1 → P2 → P3 の順に進めます。
+      description: "P0は重大障害・セキュリティ事故など緊急専用。一般的な高優先はP1、通常はP2です。依存関係と未処理PRも確認してください。"
       options:
-        - P0
-        - P1
-        - P2
-        - P3
+        - "P0 - 緊急"
+        - "P1 - 高"
+        - "P2 - 通常"
+        - "P3 - 低"
+        - "P4 - 保留・長期"
+      default: 2
     validations:
       required: true
   - type: textarea
