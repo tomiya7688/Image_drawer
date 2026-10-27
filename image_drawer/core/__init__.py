@@ -16,6 +16,7 @@ from image_drawer.core.models import (
     Trajectory,
     WorkflowSpec,
 )
+from image_drawer.core.score_set import ScoreSet
 from image_drawer.core.serialization import SerializableModel
 
 __all__ = [
@@ -26,6 +27,7 @@ __all__ = [
     "PartPlacement",
     "PartSet",
     "Score",
+    "ScoreSet",
     "SerializableModel",
     "SourceImage",
     "StepExecution",

@@ -13,6 +13,7 @@
 - [Workflow DSL](workflow_dsl.md)
 - [GUI実装仕様](gui.md)
 - [学習と評価](training_and_evaluation.md)
+- [評価結果の保存形式](score_sets.md)
 - [MVP範囲](mvp.md)
 
 ## AI / 探索
