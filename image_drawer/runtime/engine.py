@@ -122,10 +122,7 @@ class WorkflowRuntime:
                 if any(not isinstance(item, Artifact) for item in produced):
                     raise TypeError(f"{node_id}: Step must return Artifact records")
                 expected_output = implementation.schema.output_type
-                if (
-                    expected_output != "*"
-                    and artifact.artifact_type != expected_output
-                ):
+                if expected_output != "*" and artifact.artifact_type != expected_output:
                     raise TypeError(
                         f"{node_id}: Step returned {artifact.artifact_type}, "
                         f"expected {expected_output}"
@@ -154,18 +151,20 @@ class WorkflowRuntime:
                 execution_identity = artifact.metadata.get("execution_identity")
                 if isinstance(execution_identity, dict):
                     execution.metadata["execution_identity"] = execution_identity
-                    trajectory.metadata.setdefault("execution_identity", {})[
-                        node_id
-                    ] = execution_identity
+                    trajectory.metadata.setdefault("execution_identity", {})[node_id] = (
+                        execution_identity
+                    )
 
                 if node.type in {"SELECT", "SELECT_PARTS"}:
-                    trajectory.selections.append(
-                        {
-                            "step_id": node_id,
-                            "input_artifact_ids": execution.input_artifact_ids,
-                            "output_artifact_id": artifact.id,
-                        }
-                    )
+                    selection_record = {
+                        "step_id": node_id,
+                        "input_artifact_ids": execution.input_artifact_ids,
+                        "output_artifact_id": artifact.id,
+                    }
+                    selection_details = artifact.metadata.get("selection")
+                    if node.type == "SELECT" and isinstance(selection_details, dict):
+                        selection_record.update(selection_details)
+                    trajectory.selections.append(selection_record)
             except Exception as exc:
                 execution.error = f"{type(exc).__name__}: {exc}"
                 trajectory.errors.append(execution.error)
@@ -179,18 +178,12 @@ class WorkflowRuntime:
             execution.duration_seconds = perf_counter() - started_counter
             trajectory.executions.append(execution)
 
-        outputs = {
-            output_id: artifacts_by_step[output_id]
-            for output_id in workflow.outputs
-        }
-        trajectory.final_output_ids = [
-            artifact.id for artifact in outputs.values()
-        ]
+        outputs = {output_id: artifacts_by_step[output_id] for output_id in workflow.outputs}
+        trajectory.final_output_ids = [artifact.id for artifact in outputs.values()]
         trajectory.timing = {
             "step_count": len(trajectory.executions),
             "total_duration_seconds": sum(
-                execution.duration_seconds or 0.0
-                for execution in trajectory.executions
+                execution.duration_seconds or 0.0 for execution in trajectory.executions
             ),
         }
         return RuntimeResult(trajectory=trajectory, outputs=outputs)

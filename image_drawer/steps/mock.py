@@ -7,6 +7,7 @@ from typing import Any
 from image_drawer.core import Artifact
 from image_drawer.evaluation.mock import MockEvaluator, image_candidates
 from image_drawer.evaluation.openclip_quality import OpenClipQualityEvaluator
+from image_drawer.evaluation.select_best import select_best_image
 from image_drawer.steps.base import ParameterSpec, Step, StepContext, StepSchema
 from image_drawer.steps.registry import StepRegistry
 
@@ -193,20 +194,38 @@ class SelectStep(Step):
         step_type="SELECT",
         input_types=(("Image", "ImageSet"), "ScoreSet"),
         output_type="Image",
-        parameters={"top": ParameterSpec(int, default=1)},
+        parameters={"top": ParameterSpec(int, default=1, choices=(1,))},
         capabilities=frozenset({"selection", "deterministic"}),
     )
 
     def run(self, inputs, params, context):
+        if type(params["top"]) is not int or params["top"] != 1:
+            raise ValueError("SELECT currently supports only top=1")
         candidates, scores = inputs
+        selected, score, score_set = select_best_image(candidates, scores)
+        metadata = dict(selected.metadata)
+        # 生成元の実行情報をSELECT自身の実行情報として記録しない。
+        metadata.pop("execution_identity", None)
+        metadata.update(
+            {
+                "selected": True,
+                "selection": {
+                    "candidate_artifact_id": selected.id,
+                    "score_id": score.id,
+                    "overall": score.overall,
+                    "evaluator": score_set.evaluator,
+                    "evaluator_version": score_set.evaluator_version,
+                },
+            }
+        )
         return context.make_artifact(
             "Image",
             parent_artifact_ids=[candidates.id, scores.id],
-            metadata={
-                "value": candidates.metadata.get("value"),
-                "top": params["top"],
-                "selected": True,
-            },
+            uri=selected.uri,
+            model=selected.model,
+            version=selected.version,
+            seed=selected.seed,
+            metadata=metadata,
         )
 
 
