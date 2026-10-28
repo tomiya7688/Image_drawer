@@ -12,6 +12,7 @@ dependencies = []
 
 [project.optional-dependencies]
 part-bank = ["Pillow>=12.3.0,<13"]
+openclip = ["open-clip-torch>=3.3,<4", "safetensors>=0.4", "Pillow>=12.3.0,<13"]
 dev = [
   "ruff==0.15.22",
   "build>=1.2",

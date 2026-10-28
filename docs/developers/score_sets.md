@@ -28,3 +28,11 @@ assert restored.score_for("image-1").components["quality"] == 0.8
 Runtimeのモック`EVALUATE`は、`Image`または`ImageSet`を受け取り、候補ごとに得点を生成します。`ImageSet`の`metadata.candidates`には、`Image`型のArtifactを`to_dict()`で変換した非空の配列を指定してください。出力Artifactの`metadata.score_set`から`ScoreSet.from_dict()`で得点集合を復元できます。Trajectoryとの互換性のため、同じ得点をArtifactの`scores`にも保持します。評価器名は`mock`のみを受け付け、それ以外はエラーになります。
 
 `SELECT`と重み付き選択にはまだ接続していません。モック得点は画像品質を測定するものではありません。
+
+## OpenCLIPによる相対評価
+
+`openclip_quality`バックエンドは、画像と「高品質なイラスト」「低品質なイラスト」の英文とのcosine類似度を計算し、その差を`overall`に保存します。数値は文章と画像の相対的な一致度であり、人間の評価に較正された品質点や確率ではありません。元の2つの類似度も`components`に保存します。
+
+利用者は`python -m pip install -e ".[openclip]"`を実行し、OpenCLIP ViT-B-32 `laion2b_s34b_b79k`のsafetensors重みをローカルの`models/`に用意してください。`EVALUATE`のbackendに`openclip_quality`、`weights_path`にそのファイルを指定します。評価対象のImage Artifactにはローカル画像のパスを`uri`として設定します。モデルや画像はGitへ追加しないでください。
+
+重みのSHA-256を評価器のバージョンとして記録します。透明部分は白背景に合成し、OpenCLIPの標準前処理で中央を切り出します。そのため、画像の端は評価に含まれない場合があります。
