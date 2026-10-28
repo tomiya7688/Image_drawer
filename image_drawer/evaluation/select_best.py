@@ -31,6 +31,9 @@ def select_best_image(
     if source.id not in scores_artifact.parent_artifact_ids:
         raise ValueError("ScoreSet does not originate from the input image artifact")
     score_set = ScoreSet.from_dict(scores_artifact.metadata.get("score_set"))
+    # Trajectoryに保存される得点と、選択に使う得点を一致させる。
+    if scores_artifact.scores != score_set.scores:
+        raise ValueError("ScoreSet artifact scores do not match metadata.score_set")
     candidates = image_candidates(source)
     candidates_by_id = {candidate.id: candidate for candidate in candidates}
     scores_by_id = score_set.scores_by_candidate()

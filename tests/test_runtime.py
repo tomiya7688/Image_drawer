@@ -66,9 +66,7 @@ def test_full_mock_workflow_validates_and_executes_end_to_end():
 
     trajectory = result.trajectory
     assert trajectory.prompt == "cat"
-    assert [execution.step_id for execution in trajectory.executions] == list(
-        plan.order
-    )
+    assert [execution.step_id for execution in trajectory.executions] == list(plan.order)
     assert len(trajectory.artifacts) == len(workflow.nodes)
     assert all(execution.error is None for execution in trajectory.executions)
     assert len(trajectory.evaluations) == 1
@@ -80,16 +78,18 @@ def test_full_mock_workflow_validates_and_executes_end_to_end():
 
     output = result.outputs["output"]
     assert output.artifact_type == "Image"
-    assert output.metadata["value"] == (
-        "mock-image[generic:cat:0|generic:cat:1]"
-    )
+    assert output.metadata["value"] == ("mock-image[generic:cat:0|generic:cat:1]")
     assert output.id == "artifact:runtime-test:output"
+    selection = next(item for item in trajectory.selections if item["step_id"] == "select")
+    assert selection["candidate_artifact_id"] == "artifact:runtime-test:compose"
+    assert selection["score_id"] == "score:runtime-test:evaluate:0"
+    assert (
+        selection["candidate_artifact_id"] == output.metadata["selection"]["candidate_artifact_id"]
+    )
+    assert selection["score_id"] == output.metadata["selection"]["score_id"]
     assert trajectory.final_output_ids == [output.id]
 
-    by_step = {
-        artifact.producing_step_id: artifact
-        for artifact in trajectory.artifacts
-    }
+    by_step = {artifact.producing_step_id: artifact for artifact in trajectory.artifacts}
     assert by_step["retrieve"].parent_artifact_ids == [by_step["prompt"].id]
     assert by_step["select"].parent_artifact_ids == [
         by_step["compose"].id,

@@ -36,6 +36,7 @@ def make_inputs():
         id="scores",
         artifact_type="ScoreSet",
         parent_artifact_ids=["set"],
+        scores=score_set.scores,
         metadata={"score_set": score_set.to_dict()},
     )
     return images, scores
@@ -55,9 +56,34 @@ def test_select_returns_highest_scored_image():
 def test_ties_are_resolved_by_candidate_id():
     images, scores = make_inputs()
     scores.metadata["score_set"]["scores"][0]["overall"] = 0.8
+    scores.scores[0].overall = 0.8
     context = StepContext(run_id="run", step_id="select", backend="mock", external_inputs={})
     result = SelectStep().run([images, scores], {"top": 1}, context)
     assert result.metadata["selection"]["candidate_artifact_id"] == "a"
+
+
+def test_select_rejects_disagreement_with_artifact_scores():
+    images, scores = make_inputs()
+    scores.scores = [Score(id="other", evaluator="mock", evaluator_version="v1", overall=0.1)]
+    context = StepContext(run_id="run", step_id="select", backend="mock", external_inputs={})
+    with pytest.raises(ValueError, match="artifact scores do not match"):
+        SelectStep().run([images, scores], {"top": 1}, context)
+
+
+def test_select_rejects_missing_artifact_scores():
+    images, scores = make_inputs()
+    scores.scores = []
+    context = StepContext(run_id="run", step_id="select", backend="mock", external_inputs={})
+    with pytest.raises(ValueError, match="artifact scores do not match"):
+        SelectStep().run([images, scores], {"top": 1}, context)
+
+
+def test_select_rejects_changed_score_value():
+    images, scores = make_inputs()
+    scores.scores[0].overall = 0.9
+    context = StepContext(run_id="run", step_id="select", backend="mock", external_inputs={})
+    with pytest.raises(ValueError, match="artifact scores do not match"):
+        SelectStep().run([images, scores], {"top": 1}, context)
 
 
 @pytest.mark.parametrize(
@@ -72,8 +98,10 @@ def test_select_rejects_inconsistent_inputs(case):
         scores.metadata["score_set"]["candidate_artifact_ids"][0] = "other"
     elif case == "misaligned":
         scores.metadata["score_set"]["scores"][0]["metadata"] = {"candidate_artifact_id": "a"}
+        scores.scores[0].metadata = {"candidate_artifact_id": "a"}
     elif case == "no_overall":
         scores.metadata["score_set"]["scores"][0]["overall"] = None
+        scores.scores[0].overall = None
     elif case == "bool_top":
         top = True
     else:
