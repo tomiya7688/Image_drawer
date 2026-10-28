@@ -4,7 +4,8 @@ from __future__ import annotations
 
 from typing import Any
 
-from image_drawer.core import Artifact, Score
+from image_drawer.core import Artifact
+from image_drawer.evaluation.mock import MockEvaluator, image_candidates
 from image_drawer.steps.base import ParameterSpec, Step, StepContext, StepSchema
 from image_drawer.steps.registry import StepRegistry
 
@@ -122,25 +123,17 @@ class EvaluateStep(Step):
     )
 
     def run(self, inputs, params, context):
-        rendered = str(inputs[0].metadata.get("value", ""))
-        quality = round((sum(rendered.encode("utf-8")) % 1000) / 1000, 6)
-        score = Score(
-            id=context.score_id(),
-            evaluator=params["evaluator"],
-            evaluator_version="v1",
-            overall=quality,
-            components={
-                "quality": quality,
-                "determinism": 1.0,
-            },
-        )
+        if params["evaluator"] != MockEvaluator.name:
+            raise ValueError(f"unknown mock evaluator: {params['evaluator']}")
+        score_set = MockEvaluator().evaluate(image_candidates(inputs[0]), context)
         return context.make_artifact(
             "ScoreSet",
             parent_artifact_ids=[inputs[0].id],
-            scores=[score],
+            scores=score_set.scores,
             metadata={
-                "value": [quality],
-                "scored_artifact_ids": [inputs[0].id],
+                "value": [score.overall for score in score_set.scores],
+                "scored_artifact_ids": score_set.candidate_artifact_ids,
+                "score_set": score_set.to_dict(),
             },
         )
 
