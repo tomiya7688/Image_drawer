@@ -6,6 +6,7 @@ from typing import Any
 
 from image_drawer.core import Artifact
 from image_drawer.evaluation.mock import MockEvaluator, image_candidates
+from image_drawer.evaluation.openclip_quality import OpenClipQualityEvaluator
 from image_drawer.steps.base import ParameterSpec, Step, StepContext, StepSchema
 from image_drawer.steps.registry import StepRegistry
 
@@ -138,6 +139,54 @@ class EvaluateStep(Step):
         )
 
 
+# {
+#   責務: [
+#     OpenClipQualityStep: OpenCLIP品質評価をRuntimeから呼び出す
+#   ]
+#   フィールド: [
+#     schema: 入出力とローカル重みの指定
+#   ]
+#   処理: [
+#     候補ごとの相対得点をScoreSet Artifactへ保存する
+#   ]
+# }
+class OpenClipQualityStep(Step):
+    backend = "openclip_quality"
+    schema = StepSchema(
+        step_type="EVALUATE",
+        input_types=(("Image", "ImageSet"),),
+        output_type="ScoreSet",
+        parameters={"weights_path": ParameterSpec(str, required=True)},
+        capabilities=frozenset({"evaluation", "local-model"}),
+    )
+
+    # {
+    #   責務: [
+    #     run: 指定された画像候補を評価する
+    #   ]
+    #   処理: [
+    #     ローカル重みを読み、得点集合と由来を記録する
+    #   ]
+    #   引数: [
+    #     inputs: 画像または画像集合
+    #     params: 重みの保存場所
+    #     context: 実行時の識別子
+    #   ]
+    #   戻り値: [
+    #     artifact: 得点集合のArtifact
+    #   ]
+    # }
+    def run(self, inputs, params, context):
+        evaluator = OpenClipQualityEvaluator(params["weights_path"])
+        score_set = evaluator.evaluate(image_candidates(inputs[0]), context)
+        return context.make_artifact(
+            "ScoreSet",
+            parent_artifact_ids=[inputs[0].id],
+            scores=score_set.scores,
+            metadata={"score_set": score_set.to_dict()},
+        )
+
+
 class SelectStep(Step):
     backend = "mock"
     schema = StepSchema(
@@ -196,4 +245,5 @@ def create_mock_registry() -> StepRegistry:
         OutputStep(),
     ):
         registry.register(step, default=True)
+    registry.register(OpenClipQualityStep())
     return registry
