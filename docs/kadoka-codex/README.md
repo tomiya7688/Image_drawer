@@ -26,15 +26,17 @@
 
 ## 3. 実装前に読む順番
 
-コード変更の場合:
+**描画・Workflow・評価・学習に関する変更の場合は、Issueを読む前に目的を必ず確認する。**
 
-1. 対象Issue
-2. [ソースコードガイド](../developers/source_code_guide.md)
-3. 対象componentのdeveloper文書
-4. 関連test
-5. 実装本体
+1. [コンセプト](../kadoka/concept.md)（最上位の目的）
+2. [制作過程v1](../developers/drawing_process_v1.md)（状態・行動の契約）
+3. [描画受け入れ試験](../developers/drawing_process_acceptance.md)（合否）
+4. [実装計画](../kadoka/implementation_plan.md)（優先順位）
+5. 対象Issueと依存Issue
+6. [ソースコードガイド](../developers/source_code_guide.md)、対象componentの開発者文書と関連test
+7. 実装本体
 
-大きな方針判断が含まれる場合は [コンセプト](../kadoka/concept.md) と [実装計画](../kadoka/implementation_plan.md) も確認する。
+**Part Bankだけの変更でも、それをプロジェクトの主目的と呼ばない。** 説明が古い文書と矛盾する場合は、推測実装せず設計Issueへ報告する。
 
 ## 4. 品質要件
 
@@ -63,6 +65,9 @@ entrypointやbuilt artifactへ影響する変更では、生成したwheelをfre
 - provenance、version、seedなど再現性情報を理由なく落とす。
 - test/buildが壊れた状態を完成として扱う。
 - dataset、model checkpoint、secretをrepositoryへcommitする。
+- 画像部品の配置や完成画像の変換を「人間の筆跡・制作過程の学習」と偽って実装完了にする。
+- `COLOR` を意味確認なしにbucket fill・画像の塗りつぶしと同義にする。
+- 固定256色パレットの番号対応を独断で変える。
 
 ## 7. 完了報告
 
