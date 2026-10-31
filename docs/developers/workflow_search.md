@@ -1,5 +1,5 @@
-> **対象読者:** Workflow Search・実験基盤の開発者  
-> **目的:** 画像制作の**描画行動Policy**を優先しつつ、その上位のWorkflow探索を後から追加するための研究仕様。  
+> **対象読者:** Workflow Search・実験基盤の開発者
+> **目的:** 画像制作の**描画行動Policy**を優先しつつ、その上位のWorkflow探索を後から追加するための研究仕様。
 > **状態:** 将来の拡張仕様。現在の最優先MVPではない。
 
 # Workflow Search仕様（DrawingPolicyの後段）
