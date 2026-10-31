@@ -1,127 +1,74 @@
-> **対象読者:** 開発者  
-> **目的:** GUI workbenchの責務・初期機能・実装方針を共有する。
+> **対象読者:** GUI実装者・レビュー担当者  
+> **目的:** 人間の絵師の操作を収集し、AIの各行動を見られる制作画面の責務を定義する。  
+> **状態:** 目標設計。既存の`image-drawer-gui`は完成した制作GUIではない。
 
-# GUI
+# GUI：人間が描き、AIの描画過程を観察する
 
-## 1. 目的
+## 1. 主画面は「Workflowの箱」ではなく「キャンバス」
 
-GUIは、描画Workflowを構築・実行・観察するための実験workbenchです。
+Image Drawerが最初に必要とするGUIは、**人間が筆で線を引き、その操作をActionとして保存できる制作画面**。Node editorや完成画像の一覧だけでは本来の目的を満たさない。
 
-DSLはGUIの下にある実装・永続化層であり、ユーザーが必ず手書きする主interfaceではありません。
+```text
++---------------------+--------------------------+------------------+
+| 固定256色パレット     |          Canvas          | Layers（下→上）   |
+| color_id / RGB表示   |  筆跡を描く・消す          | sketch / color    |
+| Brush: hard_round_v1 |  下書き・上塗り・修正       | active layer      |
+| 幅・不透明度         |  zoom（表示のみ）          |                 |
++---------------------+--------------------------+------------------+
+| phaseの選択・履歴      |  時系列Action / Replay     | 保存 / 再生       |
+| sketch/line/color... |  seq、type、選択色・レイヤー | origin表示        |
++---------------------+--------------------------+------------------+
+| 後続: Workflow Editor / 学習設定 / 評価表 / モデル比較                  |
++------------------------------------------------------------------------+
+```
 
-## 2. 初期layout
+## 2. 人間の操作は必ずDrawingActionに対応
 
-推奨layout:
+| UI操作 | 記録するAction | 表示が変わる対象 |
+| --- | --- | --- |
+| レイヤー追加 | `create_layer` | 透明レイヤーが最上位に増える |
+| 作業レイヤー切り替え | `select_layer` | 選択表示のみ |
+| 工程切り替え | `set_phase` | 工程ラベルのみ |
+| 256色から1色を選択 | `select_color` | 選択番号／色サンプルのみ |
+| ブラシを選択 | `select_brush` | 選択ブラシ名のみ |
+| キャンバス上でマウス／ペンを押して動かし離す | `stroke` | 作業レイヤー上の筆跡 |
+| 消しゴムを選択して描く | `erase` | 作業レイヤーだけ透明化 |
+| 作品を終了 | `finish` | 新規操作不可、保存可能 |
 
-    +----------------+---------------------------+
-    | Parameters     | Workflow                  |
-    |                |                           |
-    | run settings   | [SKETCH]                  |
-    | model settings |    |                      |
-    | train settings | [EVALUATE]                |
-    |                |    |                      |
-    |                | [SELECT]                  |
-    |                |    |                      |
-    |                | [COLOR]                   |
-    +----------------+---------------------------+
-    | Results / Intermediate artifacts           |
-    | candidate thumbnails / scores / history    |
-    +--------------------------------------------+
+マウス/ペンの一本のドラッグは**一個の`stroke`イベント**（途中の座標配列を`points`に記録）。ドラッグ開始のみで終了した場合も`points`が1個の`stroke`にする。筆圧・回転・傾きはv1では記録しない（未対応を0や固定値で偽装しない）。
 
-## 3. Workflow editor
+画面座標→描画座標：表示倍率によらず、キャンバス内の位置を`x=floor(local_x / display_scale)`、`y=floor(local_y / display_scale)`とし`0..width-1`／`0..height-1`に対応付ける。描画領域外のイベントは破棄する。連続して同じ画素中心が採取された場合、`points`では隣接重複を除去する。pointer-up時に最後の有効点が異なるなら追加する。**座標点が4096点を超えるときに無断で打ち切り・分割して履歴を偽らず、記録不可としてエラーを示す。**
 
-version 1で必要な操作:
+ブラシの色とブラシ種別は**独立した操作**。GUIが描画操作に必要な未選択状態を補助する場合でも、対応する`select_color`・`select_brush`等のActionを順序通り記録し、暗黙の変更をしない。
 
-- Step追加
-- Step削除
-- Step並べ替え
-- outputからinputへの接続
-- parameter編集
-- Step有効/無効
-- 生成DSLの確認
-- Workflowのload/save
+## 3. レイヤーは人間に見える構造を維持する
 
-最初のMVPでは自由配置Node Editorは必須ではありません。
+- `create_layer`は上に追加される。追加直後は透明で、それだけで塗りは発生しない。
+- 選択されている1レイヤーだけに描き、他のレイヤーは変更しない。
+- 上レイヤーの不透明な線が下書きを覆う場合、そのまま表示する。下書きが勝手に前面に来る補正はしない。
+- 消去すると上レイヤーの該当画素が透明になり、下の筆跡が見える。
+- 個別レイヤーのプレビュー、合成プレビュー、現在の作業対象を区別して表示する。
 
-縦方向のStep list + 接続selectorの方が実装・debugしやすいため、最初はこちらを優先します。
+画素計算や具体的な色番号・ブラシの定義は [制作過程 v1](drawing_process_v1.md) に従い、GUI独自の「近い色への変更」「自動塗り」を行わない。
 
-## 4. Parameter editor
+## 4. 保存・再生と人間／AIの区別
 
-parameter UIは各Stepのschemaから生成します。
+- 人間が実際に入力した場合、Action順・時刻・出所`human`を`DrawingEpisode`に記録。`origin=human`でも権利・収集許諾は別に管理する。
+- Replayでは任意の`seq`まで戻り、**その時点の各レイヤー・選択色・ブラシ・phaseと画像**を表示できる。
+- モデル推論では、`DrawingPolicy`が出したActionと、そのActionを`DrawingEngine`が受理したかを順に表示する。`origin=model`を使う。
+- モデルが生成した画像だけを表示して「制作過程が見える」と称しない。ストロークの軌跡・色選択・レイヤー切り替えまで追跡する。
+- 既存のWorkflow Editorやscore表は**別タブ・後続機能**として残してよいが、Canvasの操作記録を後回しにしてMVP完了を宣言しない。
 
-例:
+## 5. GUIの受け入れ試験
 
-    SKETCH
+1. 人間が下書き用レイヤーを作成し黒い線を描ける。
+2. 上レイヤーを作成し、固定256色の番号180を選んで別ストロークで赤を描ける。
+3. 上層だけ消すと下書きが残り、画面・レイヤー・ログで確認できる。
+4. すべてのGUI操作が [受け入れ試験 B](drawing_process_acceptance.md) のActionに写像され、保存→Replayで各イベントの画像が一致する。
+5. GUIから選んだ`color_id`とブラシを、保存・読み込み後も**別々に**復元できる。
+6. 行動履歴を読まず最終PNGを読み込んだだけでは「人間の実演」と登録できない。
+7. 未実装の学習機能やStepはGUIに「未実装」と表示し、モデル学習済みを偽装しない。
 
-    model       [mock        v]
-    count       [8            ]
-    temperature [0.8          ]
-    seed        [random       ]
+## 6. Workflow/DSLエディタは別の責務
 
-各Stepは最低限次のmetadataを公開します。
-
-    name
-    description
-    input schema
-    output schema
-    parameter schema
-    default values
-
-Stepごとに専用formを手書きせず、schema-driven GUIとします。
-
-## 5. Result inspector
-
-各runについて次を確認できるようにします。
-
-- 中間画像
-- candidate group
-- score
-- selected / rejected candidate
-- Step parameter
-- 実行履歴
-- final output
-
-どのcandidateがなぜ選ばれたかを視覚的に追跡できることを重視します。
-
-## 6. Evaluator view
-
-scoreは1個のscalarに限定しません。
-
-例:
-
-    overall        0.84
-    composition    0.91
-    line_quality   0.79
-    color          0.87
-    prompt_match   0.82
-
-GUIはaggregate scoreとcomponent scoreの両方を表示できるようにします。
-
-## 7. Training view
-
-初期training panelでは、選択中の学習・探索戦略に必要なparameterだけを表示します。
-
-例:
-
-- candidate count
-- top-k
-- epochs / iterations
-- learning rate
-- batch size
-- evaluator weights
-- checkpoint interval
-
-現在の戦略で使わないparameterを大量に表示しないことを原則とします。
-
-## 8. DSL editor / view
-
-GUIに生成DSLのtext viewを持たせます。
-
-version 1で必要な機能:
-
-- 表示・編集
-- parse
-- validation error表示
-- GUIへの反映
-
-canonical formattingにより、GUI生成WorkflowのGit diffを安定させます。
+Workflow編集ではStepの追加・削除・接続、パラメータ、DSL round-trip、Evaluator/Scoreの可視化を扱う。ただし`WorkflowSpec`は描画の個々の`ActionEvent`を保存しない。[Workflow DSL仕様](workflow_dsl.md)を参照。どのStepの実行中にどの描画操作があったかは`DrawingEpisode`のリンクで検査可能にする。
