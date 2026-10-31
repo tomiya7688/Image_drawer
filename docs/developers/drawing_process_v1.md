@@ -110,7 +110,7 @@ v1のパレット識別子は `idraw-palette-256-v1`。外部ライセンスに�
 {
   "schema_version": "drawing-episode/v1",
   "episode_id": "example01",
-  "origin": "human",
+  "origin": "synthetic",
   "prompt": "赤い線を下書きの上のレイヤーに描く",
   "canvas": {"width": 3, "height": 2},
   "palette_id": "idraw-palette-256-v1",
@@ -136,13 +136,15 @@ v1のパレット識別子は `idraw-palette-256-v1`。外部ライセンスに�
 }
 ```
 
-- `origin`は`human`（実際の人間の描画操作を記録）、`model`（学習済みモデルが行動を生成）、`synthetic`（テスト等で作成）、`derived`（完成画像などから行動を推定）の4種。上記は**形式例**であり、誰かの実演を収集したわけではない。テストfixtureへ転用するときは`synthetic`にする。
+- `origin`は`human`（実際の人間の描画操作を記録）、`model`（学習済みモデルが行動を生成）、`synthetic`（テスト等で作成）、`derived`（完成画像などから行動を推定）の4種。上記は**合成したテスト例**であり、人間の実演ではないため`synthetic`と明記する。
 - `seq`は0から始まる欠番なし整数。`time_ms`はエピソード開始からの非負整数・**非減少**。描画結果には影響しないが人間の所要時間を保存する。実時間の取得ができないsyntheticでは決定的な連番を使ってよい。
 - `episode_id`は空でない識別子。`prompt`は文字列。`metadata`はオブジェクトであり、権利・収集元・許諾の記録を保持する。`origin=human`だけでは学習許諾を示さない。
 - `palette_id`、`brush_set_id`、`renderer_version`は上記v1の識別子以外を拒否。将来の形式は新しいschema/versionを使う。
-- 行動イベントのトップレベルキーは`seq,time_ms,type,payload`のみ。エピソードの必須トップレベルキーはサンプルに列挙した9キー（`metadata`含む）で、未知のキーは拒否。終端は`finish`でなくてはならない。
+- 行動イベントのトップレベルキーは`seq,time_ms,type,payload`のみ。エピソードの必須トップレベルキーはサンプルに列挙した**10キー**（`metadata`含む）で、未知のキーは拒否。終端は`finish`でなくてはならない。
 - JSON number は符号付き32bitに自動丸めしない。仕様の整数境界に従い、NaN/Infinityや巨大入力を拒否する。`events`は`1..100000`件まで。
-- `DrawingEpisode`は`WorkflowSpec/Trajectory`とは別の型。Workflow Runtimeからは`DrawingEpisode`を指す**型付きArtifact**（例：`DrawingEpisode`）としてURIとバージョンを保持し、`Trajectory`にsource/parents/step等を紐づける。`Trajectory.exectutions`を描画操作ログの代用にしない。
+- `DrawingEpisode`は`WorkflowSpec/Trajectory`とは別の型。Workflow Runtimeからは`DrawingEpisode`を指す**型付きArtifact**（例：`DrawingEpisode`）としてURIとバージョンを保持し、`Trajectory`にsource/parents/step等を紐づける。`Trajectory.executions`を描画操作ログの代用にしない。
+
+構造検査用の[JSON Schema](schemas/drawing_episode_v1.schema.json)、[正本ゴールデンエピソード](../../tests/fixtures/drawing_process_v1/golden_episode.json)、[期待RGBA画素](../../tests/fixtures/drawing_process_v1/golden_frames.json)も同梱する。Schemaでは検査できない`seq`連続性・時間順・レイヤー存在・座標のキャンバス内制約は**DrawingEngine側で必ず検証**する。
 
 ## 7. 学習・推論の最小契約
 
