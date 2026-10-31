@@ -144,7 +144,7 @@ v1のパレット識別子は `idraw-palette-256-v1`。外部ライセンスに�
 - JSON number は符号付き32bitに自動丸めしない。仕様の整数境界に従い、NaN/Infinityや巨大入力を拒否する。`events`は`1..100000`件まで。
 - `DrawingEpisode`は`WorkflowSpec/Trajectory`とは別の型。Workflow Runtimeからは`DrawingEpisode`を指す**型付きArtifact**（例：`DrawingEpisode`）としてURIとバージョンを保持し、`Trajectory`にsource/parents/step等を紐づける。`Trajectory.executions`を描画操作ログの代用にしない。
 
-構造検査用の[JSON Schema](schemas/drawing_episode_v1.schema.json)、[正本ゴールデンエピソード](../../tests/fixtures/drawing_process_v1/golden_episode.json)、[期待RGBA画素](../../tests/fixtures/drawing_process_v1/golden_frames.json)も同梱する。Schemaでは検査できない`seq`連続性・時間順・レイヤー存在・座標のキャンバス内制約は**DrawingEngine側で必ず検証**する。
+構造検査用の[JSON Schema](schemas/drawing_episode_v1.schema.json)、[正本ゴールデンエピソード](../../tests/fixtures/drawing_process_v1/golden_episode.json)、[期待RGBA画素](../../tests/fixtures/drawing_process_v1/golden_frames.json)も同梱する。Schemaでは検査できない`seq`連続性・時間順・レイヤー存在・座標のキャンバス内制約は**DrawingEngine側で必ず検証**する。なおJSON Schemaの`integer`は数学的に整数な`5.0`を許容する実装がある。v1のID・座標・時刻・連番は**JSONの整数表記のみ許可**し、小数表記（`5.0`等）と真偽値をJSON読取層／Action validatorで拒否する。
 
 ## 7. 学習・推論の最小契約
 
