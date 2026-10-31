@@ -1,546 +1,90 @@
-> **対象読者:** 開発者  
-> **目的:** Workflow構造・parameter・backendを探索/学習するためのsearch layer仕様を実装する。
+> **対象読者:** Workflow Search・実験基盤の開発者  
+> **目的:** 画像制作の**描画行動Policy**を優先しつつ、その上位のWorkflow探索を後から追加するための研究仕様。  
+> **状態:** 将来の拡張仕様。現在の最優先MVPではない。
 
-# Workflow Search仕様
+# Workflow Search仕様（DrawingPolicyの後段）
 
-状態: 採用済み設計
-日付: 2026-09-20
+## 1. 優先順位
 
-## 1. 目的
+Image Drawerが学習する最小行動は、色・ブラシ・レイヤーの選択、筆跡、消去、工程変更などの`DrawingAction`。[制作過程 v1](drawing_process_v1.md) の状態・行動・再生が成立し、実演データを用いた`DrawingPolicy`の学習・逐次実行ができてから、**どの上位制作工程を呼ぶか**を探索する。
 
-Workflow Searchは「どの画像制作工程を採用するべきか」を探索・学習する層です。
+- **DrawingPolicy**：キャンバスと履歴を見て次の具体的な行動を選ぶ。
+- **WorkflowSearch**：どの区間を実行・評価・分岐・再試行するかを探索する。
+- **PartSelector**：任意の補助素材を選ぶ。筆跡や工程を学習したことにはならない。
 
-Image Drawerは次だけでなく、
+Part Bank中心の`RETRIEVE -> SELECT -> COMPOSE`は、**素材配置の比較実験**には使えるが、プロジェクトの最初のEnd-to-End学習例としては使わない。
 
-- どのPartを選ぶか
-- Partをどうcomposeするか
+## 2. 探索の前提条件
 
-最終的に次も学習対象にします。
+以下を満たさないままWorkflow Searchを「画像制作工程の学習」と呼ばない。
 
-- 次にどのStepを実行するか
-- どこで評価するか
-- どこでbranchするか
-- candidateをいくつ生成するか
-- refinementをいつ止めるか
-- どのmodel/operatorを使うか
+1. `DrawingEpisode`の行動時系列と、各時点の`DrawingState`を再生できる。
+2. モデルが`DrawingAction`を逐次予測して`DrawingEngine`へ適用できる。
+3. 少なくとも教師行動予測とモデルclosed-loop描画を測定できる。
+4. 出所・dataset split、`palette_id`、`brush_set_id`、`renderer_version`、モデルcheckpoint、seed、Workflow versionを追跡できる。
 
-初期段階ではreinforcement learningより先にexperiment/search problemとして扱います。
+未達ならそれを未実装・未評価と記す。Partの選択精度や画像評価の改善を代用品にしない。
 
-## 2. Search対象としてのWorkflow
+## 3. 探索する対象
 
-WorkflowはStep nodeのgraphまたはordered DAGとして表現します。
+### 3.1 Workflow構造
 
-例A:
+Workflowは`WorkflowSpec`のnodes/edges/inputs/outputsで表す。探索候補：
 
-    INPUT
-      -> PLAN_LAYOUT
-      -> RETRIEVE_PARTS
-      -> SELECT_PARTS
-      -> COMPOSE
-      -> REFINE
-      -> EVALUATE
-      -> OUTPUT
+- 行動Policyを実行する`DRAW_EPISODE`／`REPLAY_EPISODE`の組み合わせ。
+- `EVALUATE`の位置、候補`SELECT`、`REFINE`／修正セッションの起動。
+- 評価のための複数候補生成と分岐・合流。
+- 工程の変更や終了を**ActionとしてPolicyに選ばせる**か、上位Workflowの意思決定にするかの比較。
 
-例B:
+工程をWorkflowに固定してしまい、筆跡の各選択が学習不能になる構成は許さない。
 
-    INPUT
-      -> RETRIEVE_PARTS
-      -> SELECT_PARTS
-      -> COMPOSE
-      -> EVALUATE
-      -> REFINE
-      -> EVALUATE
-      -> OUTPUT
+### 3.2 Parameter／backend
 
-どちらも同じRuntimeで実行できる必要があります。
+- 候補数、評価器の重み、停止条件、許容する描画Action数、policy checkpoint。
+- 同じ論理Stepに複数backendを接続可能にする。backendを変えても`DrawingAction`の意味論は変えない。
+- Part Bankを使用する場合は検索深さ、採用素材数なども探索できるが**後続拡張**。
 
-## 3. Search dimension
+### 3.3 制約
 
-### Structure
+- Step graphの型・接続・依存・cycle・parameterを実行前に検証する。
+- Modelやworkflowから不正`DrawingAction`が出た場合は`DrawingEngine`でrejectし、失敗率として記録。
+- 色番号を再割当てしたり、レイヤーを潰して過去Actionを消したりして比較指標を改善してはならない。
 
-- Step追加/削除
-- compatible Stepの並べ替え
-- EVALUATE位置変更
-- SELECT挿入
-- REFINE挿入
-- candidate generationのbranch
-- candidate merge
+## 4. ExperimentとObjective
 
-### Parameter
+同じprompt set、学習・検証split、checkpoint version、seed policy、パレット・renderer versionで比較する。
 
-- candidate count
-- top-k
-- evaluator weights
-- refinement count
-- retrieval depth
-- threshold
-- temperature / seed等
+```text
+Experiment
+    workflows[]
+    prompt_set / episode_split
+    policy_checkpoints
+    seed_policy
+    palette / brush / renderer_version
+    evaluator_versions
+  -> results:
+       action_prediction_metrics
+       action_validation_failures
+       closed_loop_completion_rate
+       intermediate_state_checks
+       image_quality_and_human_preference
+       time_and_compute_cost
+```
 
-### Backend choice
+**行動予測精度・閉ループ制作の再現性・画像品質を別指標に保つ。** ある画像が高評価だからといって「人間の制作工程を学習した」と結論しない。aggregate weightを使う場合は個々のcomponentとweightを保存する。
 
-同じlogical Stepに複数backendを設定できます。
+## 5. 実装順（描画学習の後）
 
-    COLOR.backend = controlnet_a
-    COLOR.backend = adapter_b
+- Stage 0：同じDrawingEpisodeデータセットに対する手動Workflow・Policy baselineの比較。
+- Stage 1：固定したWorkflowの`max_actions`や評価重みをgrid/random search。
+- Stage 2：`EVALUATE`や`SELECT`位置を変えた少数のvalidation済みtemplate比較。
+- Stage 3：制約付きWorkflow mutation、必要ならWorkflowSelector。
+- Stage 4：次にどの上位工程を行うかのPolicy、必要ならRL。**ストローク行動Policyとの責務を分離**する。
 
-将来的にbackend選択もWorkflow Search対象にします。
+元の`PartSelector`やtemplate searchのアイデアはStage 2以降の選択肢として残る。`DrawingPolicy`を実装しない理由にはしない。
 
-## 4. Constraint
+## 6. 保存と再現性
 
-Workflow Searchから任意の壊れたgraphを生成してはいけません。
+`Trajectory`はWorkflow/Step単位の出力・時間・選択・評価の履歴。`DrawingEpisode`は**すべての実描画Actionの順序列**。Workflow/Searchの記録から必ず関連Episode URIへ辿れるようにする。必要なversion・seedが欠ける比較は再現不可と表記する。
 
-各Stepはschemaを公開します。
-
-    inputs
-    outputs
-    parameter schema
-    capabilities
-
-Search engineはstatic validationを通るWorkflowだけを実行します。
-
-必須validation:
-
-- 全inputが利用可能
-- Artifact型がcompatible
-- OUTPUTへ到達可能
-- 現Runtimeでillegal cycleがない
-- required parameterがvalid
-
-## 5. Objective model
-
-単一image scoreだけを最適化しません。
-
-runごとに例えば次を持ちます。
-
-    ObjectiveResult
-      final_quality
-      prompt_alignment
-      human_preference
-      diversity
-      runtime_seconds
-      compute_cost
-      failure_rate
-      editability
-      intermediate_consistency
-
-初期MVPではweighted aggregateを使って構いませんが、元componentをすべて保持します。
-
-例:
-
-    objective =
-        0.40 * final_quality
-      + 0.25 * prompt_alignment
-      + 0.20 * human_or_preference_score
-      + 0.15 * diversity
-      - compute_penalty
-
-weightはexperiment configurationでありhard-codeしません。
-
-## 6. Experiment unit
-
-1 Workflowを1 promptだけで評価しません。
-
-    Experiment
-      workflow
-      prompt_set
-      seeds
-      evaluator_config
-      dataset/index_version
-      model_versions
-
-output:
-
-    ExperimentResult
-      runs[]
-      aggregate_metrics
-      confidence/statistics
-      failures[]
-
-Workflow比較では可能な限り同じprompt setとseed policyを再利用します。
-
-## 7. Trajectory要件
-
-各runで保存:
-
-    Trajectory
-      workflow_id
-      workflow_version
-      prompt
-      input_metadata
-      executions[]
-      artifacts[]
-      evaluations[]
-      selections[]
-      final_outputs[]
-      human_feedback[]
-      timing
-      errors
-
-Stepごとの記録:
-
-    StepExecution
-      step_id
-      step_type
-      backend
-      parameters
-      input_artifact_ids
-      output_artifact_ids
-      seed
-      start_time
-      duration
-      error
-
-これがtraining/search logになります。
-
-## 8. Search stage
-
-### Stage 0: Manual Workflow
-
-GUIから人間がWorkflowを作ります。
-
-目的:
-
-- baseline確立
-- 有用operator発見
-- logging検証
-
-automatic searchは行いません。
-
-### Stage 1: Parameter Search
-
-Workflow structureを固定して次を探索します。
-
-- candidate count
-- top-k
-- evaluator weights
-- retrieval depth
-- refinement strength/count
-
-algorithm:
-
-- grid search
-- random search
-
-最初に実装します。
-
-### Stage 2: Template Search
-
-複数のvalid Workflow templateを定義します。
-
-    template_a:
-      RETRIEVE -> SELECT -> COMPOSE -> REFINE
-
-    template_b:
-      PLAN -> RETRIEVE -> SELECT -> COMPOSE -> REFINE
-
-    template_c:
-      RETRIEVE -> SELECT -> COMPOSE -> EVAL -> REFINE
-
-共通prompt setで比較します。
-
-### Stage 3: Constrained Structural Search
-
-安全なmutationだけを許可します。
-
-- EVALUATE挿入
-- SELECT挿入
-- REFINE挿入
-- candidate count変更
-- compatible operator差し替え
-- optional Step enable/disable
-
-候補algorithm:
-
-- random search
-- evolutionary search
-- mixed parameter向けBayesian optimization
-
-### Stage 4: Workflow Policy
-
-十分なTrajectoryが溜まった後、
-
-    choose_workflow(prompt, context)
-
-または
-
-    choose_next_step(state)
-
-を学習します。
-
-ここからlearned orchestrationが始まります。
-
-### Stage 5: RL / Sequential Policy
-
-次を満たした場合のみRLを導入します。
-
-- state/action定義が安定
-- Evaluator挙動を理解済み
-- reward hackingを監視できる
-- search baselineでは不足
-
-RLはMVP dependencyではありません。
-
-## 9. Search space表現
-
-内部表現:
-
-    WorkflowSpec
-      nodes[]
-      edges[]
-      inputs[]
-      outputs[]
-      metadata
-
-    StepSpec
-      id
-      type
-      backend
-      parameters
-
-DSLはWorkflowSpecのserializationです。
-
-Search layerはraw DSL stringを直接書き換えず、WorkflowSpecをmutationします。
-
-## 10. Mutation interface
-
-将来interface:
-
-    class WorkflowMutator:
-        def propose(self, workflow, search_space, rng):
-            ...
-
-安全なmutation type:
-
-    SetParameter
-    ReplaceBackend
-    InsertStep
-    DisableStep
-    ChangeCandidateCount
-    ChangeTopK
-
-すべてvalidationしてから実行します。
-
-## 11. Baseline Workflow
-
-repositoryに明示baselineを同梱します。
-
-### Baseline A: retrieval-first
-
-    INPUT prompt
-    parts = RETRIEVE_PARTS(prompt, top=20)
-    selected = SELECT_PARTS(parts, top=5)
-    draft = COMPOSE(selected)
-    final = REFINE(draft, prompt)
-    OUTPUT final
-
-### Baseline B: refine前に評価
-
-    INPUT prompt
-    parts = RETRIEVE_PARTS(prompt, top=20)
-    selected = SELECT_PARTS(parts, top=5)
-    drafts = COMPOSE(selected, count=4)
-    scores = EVALUATE(drafts)
-    draft = SELECT(drafts, scores=scores, top=1)
-    final = REFINE(draft, prompt)
-    OUTPUT final
-
-### Baseline C: layout-first
-
-    INPUT prompt
-    layout = PLAN_LAYOUT(prompt)
-    parts = RETRIEVE_PARTS(prompt, layout=layout, top=20)
-    selected = SELECT_PARTS(parts, context=layout)
-    draft = COMPOSE(layout, selected)
-    final = REFINE(draft, prompt)
-    OUTPUT final
-
-これらを最初のWorkflow比較実験に使います。
-
-## 12. Selection learning
-
-Part selectionとWorkflow selectionを分離します。
-
-### PartSelector
-
-問い:
-
-    どのcandidate Partを使うべきか?
-
-input:
-
-- PartSet
-- current composition
-- prompt
-- layout
-- evaluator features
-
-### WorkflowSelector
-
-問い:
-
-    どの制作Workflowを使うべきか?
-
-input:
-
-- prompt
-- requested style/task
-- resource budget
-- optional dataset/context features
-
-分離することで学習・評価がしやすくなります。
-
-## 13. Next-step policy
-
-長期表現:
-
-    policy(state) -> StepDecision
-
-    StepDecision
-      step_type
-      backend
-      parameters
-      stop: bool
-
-state候補:
-
-- prompt embedding
-- current Artifact summary
-- current evaluator scores
-- executed Step history
-- remaining compute budget
-
-初期versionでは不要ですが、将来学習できるようTrajectoryに必要dataを保持します。
-
-## 14. Stopping policy
-
-良いWorkflowは「何をするか」だけでなく「いつ止めるか」も決める必要があります。
-
-候補:
-
-- quality scoreがthreshold超過
-- N回refineしても改善なし
-- compute budget消費
-- human acceptance
-- selector confidenceが十分
-
-初期は明示parameterとして扱い、将来学習対象にできます。
-
-## 15. Experiment reproducibility
-
-各experimentで記録:
-
-- git commit
-- workflow version
-- dataset version
-- Part Bank index version
-- model/checkpoint identifiers
-- evaluator versions
-- random seeds
-- search configuration
-
-これらがないresultは信頼できるWorkflow比較として扱いません。
-
-## 16. GUI要件
-
-将来的にWorkflow Search panelを持たせます。
-
-MVP control:
-
-- workflow/template選択
-- prompt set選択
-- search parameter選択
-- experiment開始
-- run table表示
-- aggregate score比較
-- winning/losing trajectory確認
-
-将来:
-
-- mutation visualization
-- Pareto front
-- cost/quality plot
-- prompt-specific workflow recommendation
-
-## 17. Package構成案
-
-    image_drawer/
-      search/
-        models.py
-        objective.py
-        experiment.py
-        parameter_search.py
-        template_search.py
-        mutations.py
-        optimizer.py
-        results.py
-
-      training/
-        part_selector.py
-        workflow_selector.py
-        next_step_policy.py
-
-MVP必須:
-
-- models.py
-- objective.py
-- experiment.py
-- parameter_search.py
-- results.py
-
-## 18. MVP受け入れ条件
-
-Workflow Search v0完了条件:
-
-1. 最低2種類のvalid Workflowを定義できる。
-2. 同じprompt setで両方を実行できる。
-3. 全Trajectoryを永続化する。
-4. Workflow単位でEvaluator metricをaggregateする。
-5. runtime/failure metricを記録する。
-6. simple weighted objectiveでexperiment resultを比較できる。
-7. parameter searchで最低1個のStep parameterを変更できる。
-8. best configurationを保存metadataから再現できる。
-9. GUIから比較resultを表示できる。
-
-RLは不要です。
-
-## 19. 最初の研究実験
-
-問い:
-
-    candidate generation + evaluation + selection は
-    追加compute costに見合う改善を生むか?
-
-比較:
-
-    A:
-      RETRIEVE -> SELECT -> COMPOSE -> REFINE
-
-    B:
-      RETRIEVE -> SELECT -> COMPOSE(x4)
-      -> EVALUATE -> SELECT -> REFINE
-
-測定:
-
-- preference / final quality
-- prompt alignment
-- diversity
-- runtime
-- failure rate
-- 一部promptでhuman A/B preference
-
-アーキテクチャと中心仮説を同時に検証します。
-
-## 20. 実装優先度
-
-1. Trajectory persistence
-2. WorkflowSpec data model
-3. reusable Experiment runner
-4. objective aggregation
-5. parameter search
-6. baseline workflow comparison
-7. template search
-8. learned workflow selection
-9. structural / evolutionary search
-10. 必要な場合のみRL
-
-学習algorithmが変わってもシステム全体を使い続けられる設計にします。
+Workflowの一般的なDSL・validationは [Workflow DSL](workflow_dsl.md) に従う。優先順の正本は [実装計画](../kadoka/implementation_plan.md)。Workflow Search自体の合否は実施するStageのIssueで別途定義し、制作過程の[受け入れ試験](drawing_process_acceptance.md)の合格を取り消さない。
