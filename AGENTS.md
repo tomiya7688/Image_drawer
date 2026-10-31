@@ -3,7 +3,7 @@
 Codex・Claude・ChatGPT・Copilot共通の短い入口です。手順や履歴の全文はここへ複製しません。
 
 - 依頼の目的と完了条件に必要な範囲を扱い、既存の未コミット変更を保持してください。追加worktreeは作らず、必要なら通常のブランチで分けてください。
-- ファイルが分かる修正は、その実装と関連テストから読んでください。不明なら `rg --files`、`rg -n` で候補を絞り、必要な定義と呼び出し元だけを確認してください。
+- 描画・学習では[制作過程v1](docs/developers/drawing_process_v1.md)と[合否](docs/developers/drawing_process_acceptance.md)を先に読む。Part合成を筆跡学習と混同しない。変更箇所と関連テストも読む。
 - 場所の再探索・引き継ぎ・保全実装の統合では、[image-drawer-context](.agents/skills/image-drawer-context/SKILL.md)から今回に合う参照先だけを開いてください。
 - コード変更では[コーディング規約](docs/kadoka-codex/coding_conventions.md)の対象となる節を参照してください。規約本文はこの入口へ複製しません。
 - 作業前に更新を取り込み、オープンPRを先に処理してください。[共同作業ルール](docs/kadoka-codex/collaboration_workflow.md)に従い、PR前は `python scripts/check_local.py` を実行してください。
