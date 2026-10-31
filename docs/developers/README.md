@@ -3,6 +3,16 @@
 **対象読者:** Image Drawerを実装・拡張・レビューする開発者  
 **目的:** 内部設計、実装contract、コードの読み方を共有する。
 
+## 描画実装前の必読（この順）
+
+1. [最上位コンセプト](../kadoka/concept.md)
+2. [制作過程の状態・行動・再生仕様 v1](drawing_process_v1.md)
+3. [描画行動 v1 受け入れ試験](drawing_process_acceptance.md)
+4. [アーキテクチャ](architecture.md)
+5. [実装計画](../kadoka/implementation_plan.md)
+
+**画像パーツの検索・合成は補助機能。人間の制作行動の学習と取り違えないこと。**
+
 ## コードレビューから入る
 
 - [ソースコードガイド](source_code_guide.md)
@@ -18,7 +28,7 @@
 
 ## AI / 探索
 
-- [先行研究と技術方針](prior_art_and_research.md)
+- [先行研究（2026-09時点の参考資料・非正本）](prior_art_and_research.md)
 - [Workflow Search仕様](workflow_search.md)
 
 ## Part Bank
@@ -34,7 +44,7 @@
 
 ## 開発開始
 
-最初に [ソースコードガイド](source_code_guide.md) を読み、対象Issueに対応する仕様文書とtestを確認してください。
+描画・学習に関わる実装では、最初に上記の**描画仕様と受け入れ条件**を読んでください。その後 [ソースコードガイド](source_code_guide.md) と対象Issueに対応するtestを確認してください。
 
 基本的なlocal確認:
 
