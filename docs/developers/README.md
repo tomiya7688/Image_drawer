@@ -7,7 +7,7 @@
 
 1. [最上位コンセプト](../kadoka/concept.md)
 2. [制作過程の状態・行動・再生仕様 v1](drawing_process_v1.md)
-3. [描画行動 v1 受け入れ試験](drawing_process_acceptance.md)
+3. [描画行動 v1 受け入れ試験](drawing_process_acceptance.md)（[JSON Schema](schemas/drawing_episode_v1.schema.json)・[再生fixture](../../tests/fixtures/drawing_process_v1/golden_episode.json)を含む）
 4. [アーキテクチャ](architecture.md)
 5. [実装計画](../kadoka/implementation_plan.md)
 
