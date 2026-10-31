@@ -124,6 +124,35 @@ def test_validator_rejects_incompatible_artifact_types():
         raise AssertionError("invalid artifact type should be rejected")
 
 
+def test_selection_metadata_cannot_override_trajectory_ids():
+    registry = create_mock_registry()
+    original = registry.resolve("SELECT")
+
+    class SelectWithConflictingMetadata(Step):
+        backend = "test"
+        schema = original.schema
+
+        def run(self, inputs, params, context):
+            artifact = original.run(inputs, params, context)
+            artifact.metadata["selection"].update(
+                step_id="wrong", input_artifact_ids=[], output_artifact_id="wrong", marker="custom"
+            )
+            return artifact
+
+    registry.register(SelectWithConflictingMetadata(), default=True)
+    result = WorkflowRuntime(registry).execute(
+        build_full_mock_workflow(), external_inputs={"prompt": "cat"}, run_id="protected"
+    )
+    selection = result.trajectory.selections[-1]
+    assert selection["marker"] == "custom"
+    assert selection["step_id"] == "select"
+    assert selection["input_artifact_ids"] == [
+        "artifact:protected:compose",
+        "artifact:protected:evaluate",
+    ]
+    assert selection["output_artifact_id"] == "artifact:protected:select"
+
+
 def test_validator_rejects_cycles():
     workflow = WorkflowSpec(
         id="cycle",

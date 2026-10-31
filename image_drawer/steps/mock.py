@@ -198,6 +198,12 @@ class SelectStep(Step):
         capabilities=frozenset({"selection", "deterministic"}),
     )
 
+    # {
+    #   責務: [run: 評価結果に基づき画像を選ぶ]
+    #   処理: [入力を検証し選択した画像と由来を返す]
+    #   引数: [inputs: 候補と得点, params: 選択条件, context: 実行情報]
+    #   戻り値: [artifact: 選択画像]
+    # }
     def run(self, inputs, params, context):
         if type(params["top"]) is not int or params["top"] != 1:
             raise ValueError("SELECT currently supports only top=1")
@@ -225,6 +231,7 @@ class SelectStep(Step):
             model=selected.model,
             version=selected.version,
             seed=selected.seed,
+            scores=selected.scores,
             metadata=metadata,
         )
 

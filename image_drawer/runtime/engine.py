@@ -163,7 +163,11 @@ class WorkflowRuntime:
                     }
                     selection_details = artifact.metadata.get("selection")
                     if node.type == "SELECT" and isinstance(selection_details, dict):
-                        selection_record.update(selection_details)
+                        selection_record.update(
+                            (key, value)
+                            for key, value in selection_details.items()
+                            if key not in selection_record
+                        )
                     trajectory.selections.append(selection_record)
             except Exception as exc:
                 execution.error = f"{type(exc).__name__}: {exc}"

@@ -44,12 +44,14 @@ def make_inputs():
 
 def test_select_returns_highest_scored_image():
     images, scores = make_inputs()
+    scores.metadata["score_set"]["scores"][0]["overall"] = 0.9
+    scores.scores[0].overall = 0.9
     context = StepContext(run_id="run", step_id="select", backend="mock", external_inputs={})
     result = SelectStep().run([images, scores], {"top": 1}, context)
-    assert result.uri == "a.png"
-    assert result.metadata["value"] == "A"
-    assert result.metadata["selection"]["candidate_artifact_id"] == "a"
-    assert result.metadata["selection"]["score_id"] == "score-a"
+    assert result.uri == "b.png"
+    assert result.metadata["value"] == "B"
+    assert result.metadata["selection"]["candidate_artifact_id"] == "b"
+    assert result.metadata["selection"]["score_id"] == "score-b"
     assert "execution_identity" not in result.metadata
 
 
@@ -57,9 +59,19 @@ def test_ties_are_resolved_by_candidate_id():
     images, scores = make_inputs()
     scores.metadata["score_set"]["scores"][0]["overall"] = 0.8
     scores.scores[0].overall = 0.8
+    images.metadata["candidates"].reverse()
     context = StepContext(run_id="run", step_id="select", backend="mock", external_inputs={})
     result = SelectStep().run([images, scores], {"top": 1}, context)
     assert result.metadata["selection"]["candidate_artifact_id"] == "a"
+
+
+def test_select_preserves_candidate_scores():
+    images, scores = make_inputs()
+    existing = Score(id="existing", evaluator="other", evaluator_version="v1", overall=0.2)
+    images.metadata["candidates"][1]["scores"] = [existing.to_dict()]
+    context = StepContext(run_id="run", step_id="select", backend="mock", external_inputs={})
+    result = SelectStep().run([images, scores], {"top": 1}, context)
+    assert result.scores == [existing]
 
 
 def test_select_rejects_disagreement_with_artifact_scores():
