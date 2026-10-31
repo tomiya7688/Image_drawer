@@ -1,0 +1,416 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Image Drawer DrawingEpisode v1 (構造契約)",
+  "description": "時系列seq・time_ms、座標のcanvas内判定、描画状態遷移と権利確認は描画器およびdataset validationが別途行う。",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "episode_id",
+    "origin",
+    "prompt",
+    "canvas",
+    "palette_id",
+    "brush_set_id",
+    "renderer_version",
+    "events",
+    "metadata"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": "drawing-episode/v1"
+    },
+    "episode_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "origin": {
+      "enum": [
+        "human",
+        "model",
+        "synthetic",
+        "derived"
+      ]
+    },
+    "prompt": {
+      "type": "string"
+    },
+    "canvas": {
+      "type": "object",
+      "properties": {
+        "width": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 1024
+        },
+        "height": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 1024
+        }
+      },
+      "required": [
+        "width",
+        "height"
+      ],
+      "additionalProperties": false
+    },
+    "palette_id": {
+      "const": "idraw-palette-256-v1"
+    },
+    "brush_set_id": {
+      "const": "brush-v1"
+    },
+    "renderer_version": {
+      "const": "raster-v1"
+    },
+    "events": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 100000,
+      "items": {
+        "oneOf": [
+          {
+            "type": "object",
+            "properties": {
+              "seq": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "time_ms": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "type": {
+                "const": "create_layer"
+              },
+              "payload": {
+                "type": "object",
+                "properties": {
+                  "layer_id": {
+                    "$ref": "#/$defs/layer_id"
+                  },
+                  "name": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 128
+                  }
+                },
+                "required": [
+                  "layer_id",
+                  "name"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "required": [
+              "seq",
+              "time_ms",
+              "type",
+              "payload"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "seq": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "time_ms": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "type": {
+                "const": "select_layer"
+              },
+              "payload": {
+                "type": "object",
+                "properties": {
+                  "layer_id": {
+                    "$ref": "#/$defs/layer_id"
+                  }
+                },
+                "required": [
+                  "layer_id"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "required": [
+              "seq",
+              "time_ms",
+              "type",
+              "payload"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "seq": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "time_ms": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "type": {
+                "const": "set_phase"
+              },
+              "payload": {
+                "type": "object",
+                "properties": {
+                  "phase": {
+                    "enum": [
+                      "sketch",
+                      "line",
+                      "color",
+                      "correct",
+                      "other"
+                    ]
+                  }
+                },
+                "required": [
+                  "phase"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "required": [
+              "seq",
+              "time_ms",
+              "type",
+              "payload"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "seq": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "time_ms": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "type": {
+                "const": "select_color"
+              },
+              "payload": {
+                "type": "object",
+                "properties": {
+                  "color_id": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 255
+                  }
+                },
+                "required": [
+                  "color_id"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "required": [
+              "seq",
+              "time_ms",
+              "type",
+              "payload"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "seq": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "time_ms": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "type": {
+                "const": "select_brush"
+              },
+              "payload": {
+                "type": "object",
+                "properties": {
+                  "brush_id": {
+                    "const": "hard_round_v1"
+                  }
+                },
+                "required": [
+                  "brush_id"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "required": [
+              "seq",
+              "time_ms",
+              "type",
+              "payload"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "seq": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "time_ms": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "type": {
+                "const": "stroke"
+              },
+              "payload": {
+                "type": "object",
+                "properties": {
+                  "points": {
+                    "$ref": "#/$defs/points"
+                  },
+                  "width_px": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 64
+                  },
+                  "opacity_u8": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 255
+                  }
+                },
+                "required": [
+                  "points",
+                  "width_px",
+                  "opacity_u8"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "required": [
+              "seq",
+              "time_ms",
+              "type",
+              "payload"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "seq": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "time_ms": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "type": {
+                "const": "erase"
+              },
+              "payload": {
+                "type": "object",
+                "properties": {
+                  "points": {
+                    "$ref": "#/$defs/points"
+                  },
+                  "width_px": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 64
+                  }
+                },
+                "required": [
+                  "points",
+                  "width_px"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "required": [
+              "seq",
+              "time_ms",
+              "type",
+              "payload"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "seq": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "time_ms": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "type": {
+                "const": "finish"
+              },
+              "payload": {
+                "type": "object",
+                "properties": {},
+                "required": [],
+                "additionalProperties": false
+              }
+            },
+            "required": [
+              "seq",
+              "time_ms",
+              "type",
+              "payload"
+            ],
+            "additionalProperties": false
+          }
+        ]
+      }
+    },
+    "metadata": {
+      "type": "object"
+    }
+  },
+  "$defs": {
+    "layer_id": {
+      "type": "string",
+      "pattern": "^[A-Za-z][A-Za-z0-9_-]{0,63}$"
+    },
+    "point": {
+      "type": "array",
+      "prefixItems": [
+        {
+          "type": "integer",
+          "minimum": 0
+        },
+        {
+          "type": "integer",
+          "minimum": 0
+        }
+      ],
+      "minItems": 2,
+      "maxItems": 2,
+      "items": false
+    },
+    "points": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 4096,
+      "items": {
+        "$ref": "#/$defs/point"
+      }
+    }
+  }
+}
