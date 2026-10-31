@@ -1,4 +1,4 @@
-> **対象読者:** Workflow DSL・Step adapter・GUIを実装する開発者  
+> **対象読者:** Workflow DSL・Step adapter・GUIを実装する開発者
 > **目的:** Workflowと筆跡イベントの責務を分け、実装されていないOperationを実装済みと誤認しない。
 
 # Workflow DSL（上位工程の保存仕様）
