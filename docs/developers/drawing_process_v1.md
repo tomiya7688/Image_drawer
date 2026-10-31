@@ -1,0 +1,184 @@
+> **対象読者:** 描画器・収集器・学習器・GUI・テストを実装する開発者  
+> **目的:** 人間の絵師の**行動と判断の連続**を学習するための、解釈の余地を残さない v1 実装契約。  
+> **状態:** v1 設計案。PRの承認・マージまでは既存実装に反映済みとみなさない。
+
+# 制作過程の状態・行動・再生仕様 v1（正本）
+
+## 0. 優先順位と読み方
+
+この文書は「何を学習するか／何を再生するか／記録をどう解釈するか」の **唯一の規範的仕様**。関連する仕様に食い違いがある場合、プロジェクトの目的は [コンセプト](../kadoka/concept.md)、具体的なv1契約はこの文書を優先する。受け入れ条件は [描画行動の受け入れ試験](drawing_process_acceptance.md) に置く。
+
+- **必須** はv1で実装・検証する事項。**後続** はv1の完成判定に含めない事項。
+- `SKETCH`、`LINE`、`COLOR` は**工程の目的・区間**であり、「画像を一度で生成／変換する魔法の関数」ではない。
+- `stroke` はブラシによる一回の描画操作。`fill` は領域塗りつぶし（v1では**未実装**）。`color` は色を使って描き進める工程であり、`fill` の同義語ではない。
+- `Part Bank`／`RETRIEVE_PARTS`／`COMPOSE` は既存の**補助的な画像部品処理**で、ここで定義する描画操作・学習を代替しない。
+- 完成PNGの生成、固定のストローク列のハードコード、WorkflowやPart選択だけの学習を「絵師の制作過程を学習した」と報告してはならない。
+
+## 1. 学習する対象（最上位の不変条件）
+
+AIが観測するのは「現在のキャンバス、各レイヤー、使用中の色・道具、工程、これまでの行動、prompt」。AIが選ぶのは「**次にどの行動をするか、その具体的なパラメータ**」。実行後の状態を再び観測して次を選ぶ。
+
+```text
+prompt + DrawingState + ActionHistory
+    -> DrawingPolicy（次の行動を予測）
+    -> DrawingAction
+    -> DrawingEngine（実行・記録）
+    -> 新しいDrawingState / 画像 / ActionHistory
+    -> 次の予測 … -> finish
+```
+
+人間の絵師が行った操作は同じ `DrawingAction` 形式で収集する。学習・推論・再生で**同一の行動意味論**を使う。画像から逆算した推定ストロークは、人間が実際に行った行動として扱わない。
+
+## 2. v1の境界
+
+| 項目 | v1で必須 | 後続（無断で代替してはいけない） |
+| --- | --- | --- |
+| 絵師の制作工程 | 描画／色選択／レイヤー操作／消去／工程移行／終了を時系列で記録し再生 | 筆圧・傾き・速度、複雑な補正 |
+| パレット | **全エピソードで同じ固定256色**、色番号 `0..255` | 画像ごとの自動パレット生成、色番号の可変化 |
+| ブラシ | 色と独立した`brush_id`、v1は再現可能な`hard_round_v1`を1種類 | 複数ブラシ・質感・物理筆モデル |
+| レイヤー | 透明RGBA層、作成順が下から上、選択して描画 | blend mode・グループ・レイヤー順変更 |
+| 描画 | point列を結ぶ一回のストローク、消しゴム | bucket fill・領域推定による自動着色 |
+| 保存 | 描画前後の状態を再生できる行動履歴 | 完成画像のみ保存 |
+| 学習 | 人間の操作履歴を教師信号に「次の行動」を予測 | PartSelector/WorkflowSelectorだけを主目標とする学習 |
+
+## 3. パレット：固定256色（色の選択と実画素を分離）
+
+**一つの配列`palette[0..255]`が全描画・収集・推論・テストで共通**。RGB値ではなく色番号 `color_id` を予測する。色番号とRGBの対応は実行中・エピソードごと・モデルごとに変更できない。
+
+v1のパレット識別子は `idraw-palette-256-v1`。外部ライセンスに依存しない初期基準として、次の**厳密な順番・計算**でRGB8を定義する（パレット内容を変える場合は新しい `palette_id` と、別PRでの設計承認が必須）。
+
+- `0 <= i <= 215`：`r = i // 36`、`g = (i // 6) % 6`、`b = i % 6`、`palette[i] = [51*r, 51*g, 51*b]`（6×6×6 = 216色）。
+- `216 <= i <= 255`：`k = i - 215`、`v = floor(255*k/41 + 0.5)`、`palette[i] = [v, v, v]`（端点を含まない40段階のグレースケール）。
+- 3チャンネルとも整数 `0..255`。全256項目は重複しない。`color_id` は**JSONの整数**であり、`true`、`5.0`、`-1`、`256` は不正。
+- 確認点：`0=[0,0,0]`、`5=[0,0,255]`、`30=[0,255,0]`、`180=[255,0,0]`、`215=[255,255,255]`、`216=[6,6,6]`、`255=[249,249,249]`。
+
+**255段階の透明度はパレットに含まない。** 描画色は256色からしか選ばないが、透明度やレイヤーの合成で最終PNGに中間RGB値が現れることは許す。「GIF形式への強制変換」や「出力PNG自体を256色に再量子化」は要求しない。表示・保存用色空間はv1では**sRGBのRGB8/RGBA8数値**に固定し、ICC変換・HDRは後続とする。
+
+## 4. DrawingState：1つの制作途中状態
+
+| フィールド | 型と初期状態 | 更新する行動 |
+| --- | --- | --- |
+| `canvas.width / height` | 各整数 `1..1024`、RGB8白背景`[255,255,255]`。キャンバス寸法はエピソード中不変 | なし |
+| `layers` | 空配列。`Layer{id, name, rgba}`を**下から上**に並べる。最大16層 | `create_layer` |
+| `active_layer_id` | `null` | `select_layer` |
+| `selected_color_id` | `null` | `select_color` |
+| `selected_brush_id` | `null` | `select_brush` |
+| `phase` | `null` | `set_phase` |
+| `finished` | `false` | `finish` |
+| `history` | 空配列 | **全行動** |
+
+各Layerの`rgba`はキャンバスと同じ大きさの8bit RGBA画素配列。新規作成時は全画素`[0,0,0,0]`。同じ`layer_id`の再利用禁止。`create_layer`は配列末尾、つまり**最上層**へ追加。`select_layer`は選択だけで既存画素を変更しない。
+
+**合成は下→上のsource-over、最後に白背景**。上レイヤーの不透明な筆跡は同位置の下書きを覆い、上レイヤー上の消去はその箇所の下書きを再び見せる。「上のレイヤーで色を塗る」は**筆跡を記録すること**であり、下書き領域から自動的に塗り領域を生成する処理を意味しない。
+
+## 5. DrawingAction：順序付きの1操作
+
+以下は**v1で受理するすべての行動型**。辞書に記載していない`payload`キーは不正。型の`int`は真偽値を含まない。`name`を除く文字列IDは`[A-Za-z][A-Za-z0-9_-]{0,63}`、最大64文字。`name`は1〜128文字。
+
+| `type` | `payload`（指定キーは必須） | 状態変化 |
+| --- | --- | --- |
+| `create_layer` | `{"layer_id":"sketch","name":"下書き"}` | 新規透明レイヤーを最上位に追加。重複IDはエラー |
+| `select_layer` | `{"layer_id":"sketch"}` | 既存レイヤーを作業対象にする |
+| `set_phase` | `{"phase":"sketch"}` | `sketch / line / color / correct / other`から選択。**順序は強制しない** |
+| `select_color` | `{"color_id":180}` | 固定パレット番号を選ぶ。画素は変えない |
+| `select_brush` | `{"brush_id":"hard_round_v1"}` | 色とは独立した筆を選ぶ。v1はこの1種類のみ |
+| `stroke` | `{"points":[[0,0],[2,0]],"width_px":1,"opacity_u8":255}` | 選択レイヤーへ、選択したブラシと色で**一回の筆跡**を描く |
+| `erase` | `{"points":[[1,0]],"width_px":1}` | 選択レイヤーの筆跡部分だけを透明へ消去。下層は変更しない |
+| `finish` | `{}` | エピソードを終了する。最後に必ず1回のみ |
+
+`stroke`の前に、`active_layer_id`、`phase`、`selected_color_id`、`selected_brush_id` が全て設定されていなければエラー。`erase`の前に、`active_layer_id`、`phase`、`selected_brush_id` が設定されていなければエラー。
+
+- `points`は1〜4096個の`[x,y]`の配列。`x,y`は**キャンバス画素中心を表す整数**、`0 <= x < width`、`0 <= y < height`。`[0,0]`は左上画素の中心。配列順に折れ線を結ぶ。1点の場合は点を描く。
+- `width_px` は`1..64`の整数。`opacity_u8`は`1..255`の整数。初期値を暗黙に補わない（全フィールド必須）。
+- `set_phase` は学習・表示用の意味的な工程ラベル。`color`フェーズでも`stroke`を使い、下書きへの描画と同じ基本操作で処理する。フェーズで描画機能を制限しない。
+- レイヤー追加前の描画、存在しないレイヤー選択、`finish`後の行動、不明な型・キー・範囲外の値は必ず拒否する。黙った補正はしない。
+
+### v1の決定的な描画器（`raster-v1`）
+
+- 対応ブラシは`hard_round_v1`のみ。各画素中心`(px,py)`から、各点または隣接2点の線分までの最短ユークリッド距離`d`を計算する。`d² <= (width_px/2)²` の画素だけを塗る（境界を含む）。**アンチエイリアスなし**。ストロークを分解して別の色を選び直さない。
+- `stroke`のsrc色は`palette[selected_color_id]`、src alphaは`opacity_u8`。既存の**作業レイヤー**にsource-overする。
+- Alpha合成の各チャンネルは整数演算で次の通り。`As,Ad`は`0..255`のalpha、`Cs,Cd`は色チャンネルの`0..255`。`D = 255*As + Ad*(255-As)`。`Aout = round_half_up(D/255)`。`D==0`なら`Cout=0`、それ以外は`Cout = round_half_up((Cs*As*255 + Cd*Ad*(255-As))/D)`。`round_half_up(p/q) = floor(p/q + 0.5)`。結果は各8bit整数。これをR/G/Bに適用する。
+- `erase`の対象画素は`[0,0,0,0]`へ置換する（他のレイヤーを消さない）。
+- 表示画像はすべての透明レイヤーを順に白背景へ同じ整数source-overで合成し、最終の8bit RGBA画像のalphaは255となる。PNG圧縮バイトの同一性ではなく、**復号後のRGBA画素列**の同一性を検証する。
+- v1は筆圧、アンチエイリアス、レイヤーの非`normal`ブレンド、ブラシ形状の自動生成を採用しない。将来追加する場合、ブラシとrendererのバージョンを更新する。
+
+## 6. 保存形式：DrawingEpisode v1
+
+1エピソードはUTF-8 JSON 1ファイルとし、`schema_version`で判別する。画像バイト列はJSONへ埋め込まない。**時系列順の`events`が正本であり、最終画像から行動を推定して補完してはならない。**
+
+```json
+{
+  "schema_version": "drawing-episode/v1",
+  "episode_id": "example01",
+  "origin": "human",
+  "prompt": "赤い線を下書きの上のレイヤーに描く",
+  "canvas": {"width": 3, "height": 2},
+  "palette_id": "idraw-palette-256-v1",
+  "brush_set_id": "brush-v1",
+  "renderer_version": "raster-v1",
+  "events": [
+    {"seq": 0, "time_ms": 0, "type": "create_layer", "payload": {"layer_id": "sketch", "name": "下書き"}},
+    {"seq": 1, "time_ms": 1, "type": "select_layer", "payload": {"layer_id": "sketch"}},
+    {"seq": 2, "time_ms": 2, "type": "set_phase", "payload": {"phase": "sketch"}},
+    {"seq": 3, "time_ms": 3, "type": "select_brush", "payload": {"brush_id": "hard_round_v1"}},
+    {"seq": 4, "time_ms": 4, "type": "select_color", "payload": {"color_id": 0}},
+    {"seq": 5, "time_ms": 5, "type": "stroke", "payload": {"points": [[0, 0], [2, 0]], "width_px": 1, "opacity_u8": 255}},
+    {"seq": 6, "time_ms": 6, "type": "create_layer", "payload": {"layer_id": "color", "name": "色"}},
+    {"seq": 7, "time_ms": 7, "type": "select_layer", "payload": {"layer_id": "color"}},
+    {"seq": 8, "time_ms": 8, "type": "set_phase", "payload": {"phase": "color"}},
+    {"seq": 9, "time_ms": 9, "type": "select_color", "payload": {"color_id": 180}},
+    {"seq": 10, "time_ms": 10, "type": "stroke", "payload": {"points": [[1, 0], [1, 1]], "width_px": 1, "opacity_u8": 255}},
+    {"seq": 11, "time_ms": 11, "type": "set_phase", "payload": {"phase": "correct"}},
+    {"seq": 12, "time_ms": 12, "type": "erase", "payload": {"points": [[1, 0]], "width_px": 1}},
+    {"seq": 13, "time_ms": 13, "type": "finish", "payload": {}}
+  ],
+  "metadata": {"dataset_id": "example", "rights": "demo-only"}
+}
+```
+
+- `origin`は`human`（実際の人間の描画操作を記録）、`model`（学習済みモデルが行動を生成）、`synthetic`（テスト等で作成）、`derived`（完成画像などから行動を推定）の4種。上記は**形式例**であり、誰かの実演を収集したわけではない。テストfixtureへ転用するときは`synthetic`にする。
+- `seq`は0から始まる欠番なし整数。`time_ms`はエピソード開始からの非負整数・**非減少**。描画結果には影響しないが人間の所要時間を保存する。実時間の取得ができないsyntheticでは決定的な連番を使ってよい。
+- `episode_id`は空でない識別子。`prompt`は文字列。`metadata`はオブジェクトであり、権利・収集元・許諾の記録を保持する。`origin=human`だけでは学習許諾を示さない。
+- `palette_id`、`brush_set_id`、`renderer_version`は上記v1の識別子以外を拒否。将来の形式は新しいschema/versionを使う。
+- 行動イベントのトップレベルキーは`seq,time_ms,type,payload`のみ。エピソードの必須トップレベルキーはサンプルに列挙した9キー（`metadata`含む）で、未知のキーは拒否。終端は`finish`でなくてはならない。
+- JSON number は符号付き32bitに自動丸めしない。仕様の整数境界に従い、NaN/Infinityや巨大入力を拒否する。`events`は`1..100000`件まで。
+- `DrawingEpisode`は`WorkflowSpec/Trajectory`とは別の型。Workflow Runtimeからは`DrawingEpisode`を指す**型付きArtifact**（例：`DrawingEpisode`）としてURIとバージョンを保持し、`Trajectory`にsource/parents/step等を紐づける。`Trajectory.exectutions`を描画操作ログの代用にしない。
+
+## 7. 学習・推論の最小契約
+
+- 学習対象は`policy(prompt, DrawingState, history) -> next DrawingAction`。実演エピソードの`events[n]`より前だけを観測し、**次の操作種別とそのパラメータを**教師信号とする。未来のイベント・最終画像はポリシーへの入力に渡さない。
+- `select_color` は固定256クラスの分類。`select_brush` は**別の分類**。`stroke`の座標列・太さ・不透明度、レイヤー選択、工程変更、消去、終了も**学習・予測の対象**。固定スクリプトで毎回同じ操作を再生するだけでは学習ではない。
+- v1初期ベースラインは`behavior cloning`（教師あり行動模倣）。評価時は「実演の次の行動の予測」と「予測を閉ループで実際に描かせた結果」を**別々に測定**する。損失とモデル内部構造の選択は後続の学習実装Issueで固定し、この行動・状態APIだけを先に固定する。
+- 学習用データには`origin=human`かつ権利・出所を確認できる実行履歴を使う。`synthetic`と`derived`は描画器の試験には使えても「人間の制作過程を学習した」根拠にはしない。`model`は推論ログ。
+- 記録する再現性情報：`schema_version`、`palette_id`、`brush_set_id`、`renderer_version`、学習dataset split/version、checkpoint、seed、モデルが予測した各行動（採択・棄却を含むなら区別）、実際に適用した行動、失敗理由。
+- まず学習器なしの人間入力→履歴保存→完全再生を成立させ、その後に人間履歴からの学習、モデルの逐次描画を通す。Part検索・構図評価などはこのループを置き換えない。
+
+## 8. Workflowとの責務の違い
+
+| 単位 | 意味 | 担当 |
+| --- | --- | --- |
+| `DrawingAction` | ある時点で色を選ぶ／筆で描く／レイヤーを選ぶ等の**行動1件** | DrawingEngineとDrawingPolicy |
+| `DrawingEpisode` | 1枚を描く過程の、時間順の行動列と再生可能な状態 | Recorder / Replay / 学習Dataset |
+| `Workflow Step`（`SKETCH/LINE/COLOR/EVALUATE`など） | 何をする工程を起動し、どこで評価するかという**上位の区間・実行制御** | WorkflowRuntime |
+| `Image / Score / PartSet` | 中間結果・評価値・補助データ | Renderer / Evaluator / Part Bank |
+
+例：`COLOR` Stepが1回呼ばれても、その内部ではポリシーが`select_layer`、`select_color`、`stroke`、`erase`など**複数の行動を逐次選んで記録する**。画素を直接塗りつぶす画像変換のみの`COLOR`は本仕様に合格しない。`SKETCH`や`LINE`にも同じ原則が適用される。工程間でCanvasと履歴を引き継ぐこと。
+
+## 9. 実装上の分割と禁止事項
+
+推奨の責務境界（path案ではなく抽象的な所有者）：
+
+- **Palette**：`color_id -> RGB`の純粋な固定表。
+- **DrawingEngine**：厳密な行動validation、状態遷移、レイヤー合成。学習器に依存しない。
+- **Recorder / Replay**：入力イベントの収集と永続化、行動による再生。予測モデルに依存しない。
+- **DrawingPolicy**：状態を読み、次の行動を予測。描画を直接変更せずDrawingEngineに渡す。
+- **Workflow adapter**：これらを上位Stepとして登録し、既存Runtime/Artifact/Trajectoryへ橋渡しする。
+- **Evaluation**：行動予測と完成物を区別して評価する。
+
+**禁止**：完成PNGを用いて架空の筆跡履歴を「人間が描いた過程」と偽装／`COMPOSE`のPart配置を`stroke`として記録／描画工程の固定順を「人間の制作行動の学習」と呼ぶ／renderer内部でモデルに無断の色を選ばせる／256色paletteを画像ごとに並べ替える。
+
+## 10. 変更手順
+
+この仕様に未記載の意味論（筆圧、bucket、異なる色管理、履歴Undo等）が必要な場合、推測実装せず設計Issue→バージョン更新→受け入れテスト更新→実装PRの順にする。
+
+特に`idraw-palette-256-v1`の**具体的なRGB値の対応**は「256色固定」から設計者がここで導いた**明示的な初期案**であり、既にユーザーが個々の256色を承認した事実を意味しない。このPRのレビューで色テーブル自体を確認し、承認された内容のみ正本とする。勝手に既存の実学習データを移行しない。
