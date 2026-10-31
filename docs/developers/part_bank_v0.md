@@ -1,7 +1,9 @@
 > **対象読者:** 開発者  
 > **目的:** Part Bank v0の実装済み挙動・制約・CI要件を確認する。
 
-# Part Bank v0（Issue #5）
+# Part Bank v0（Issue #5：補助的な素材モジュール）
+
+**重要**：これは素材のingest/保存を検証する既存モジュールの文書。人間の筆跡・色選択・レイヤー・制作行動の学習は扱わない。Image Drawer本体の目標は [制作過程 v1](drawing_process_v1.md) を参照。
 
 このmilestoneではsemantic segmentationやvector retrievalではなく、画像ingestとprovenance管理を実装します。既存M1のSourceImage / Part recordは変更せず使用します。
 
