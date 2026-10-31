@@ -2,6 +2,8 @@
 
 Image Drawerの文書は、**誰が・何のために読むか**で分けています。
 
+**設計の最短読み順**：[目的（Kadoka向け）](kadoka/concept.md) → [描画行動・レイヤー・固定256色の正本](developers/drawing_process_v1.md) → [画素・履歴・学習の受け入れ試験](developers/drawing_process_acceptance.md) → [実装計画](kadoka/implementation_plan.md)。**既存のPart Bank中心の説明を最優先仕様として読まないでください。**
+
 ## 利用者向け
 
 [docs/users/](users/)
@@ -22,6 +24,7 @@ Image Drawerを使う人向けです。
 
 Image Drawerを実装・拡張・レビューする人向けです。
 
+- 制作過程の状態・行動・再生契約とその受け入れテスト
 - architecture
 - DSL
 - GUI実装仕様
