@@ -1,396 +1,127 @@
-> **対象読者:** Kadoka  
-> **目的:** 実装順、milestone、優先順位を判断し、Issue化の基準にする。
-
-# 実装計画
+> **対象読者:** Kadoka・Issueを分割する設計担当  
+> **目的:** 何を優先して実装するか、どの条件で次へ進んでよいかを決める。  
+> **状態:** 2026-10-31 見直し案。従来のM0〜M14は実装履歴として保持するが、以下を**新しい優先順**とする。
 
-状態: 採用済み
-日付: 2026-09-20
+# 実装計画：人間の制作過程の学習を最優先に戻す
 
-## 1. 目標
+## 1. 完了の定義
 
-現在の設計を実装順へ落とします。
+**最初のEnd-to-End目標は、絵師の行動を記録し、再生し、その実演から次の描画行動を学習したモデル自身が逐次描画できること。**
 
-最初の目標は高品質画像ではなく、End-to-Endで動く研究workbenchです。
+```text
+人間の描画を記録（行動と状態の時系列）
+    -> 共通の固定256色・ブラシ・レイヤー形式で保存
+    -> 全行動を決定的に再生／途中状態を検査
+    -> 実演の「次の操作」を学習
+    -> モデルが観測→行動選択→筆跡実行を繰り返す
+    -> 行動予測と制作結果を別々に評価
+```
 
-最初の有用loop:
+**不合格の例**：Part検索→画像配置→PNG出力だけ。下書き画像→塗りつぶし変換だけ。固定ストローク列の自動再生だけ。Workflow/Partのランキング学習だけ。いずれも上記End-to-Endに到達しない。
 
-    dataset
-      -> Part Bank
-      -> GUI/DSL Workflow
-      -> retrieval
-      -> selection
-      -> composition
-      -> evaluation
-      -> trajectory storage
-      -> workflow comparison
+## 2. 正本の分離
 
-## 2. M0: Project skeleton
+| 判断すること | 正本 |
+| --- | --- |
+| なぜ作るか、何を学習するか | [コンセプト](concept.md) |
+| DrawingState、固定256色、ブラシ、レイヤー、ストローク、記録形式、学習の入出力 | [制作過程 v1](../developers/drawing_process_v1.md) |
+| 画素単位・ログ単位の合否 | [受け入れ試験](../developers/drawing_process_acceptance.md) |
+| Runtime/Stepの接続 | [アーキテクチャ](../developers/architecture.md) |
+| GUI/DSLの責務 | [GUI](../developers/gui.md)・[Workflow DSL](../developers/workflow_dsl.md) |
 
-作成:
+他の設計書に古いPart Bank中心の例が残っていたら、上記の目的・責務を優先してIssueに報告する。**既存コードがこうなっているから仕様を変更する**ことはしない。
 
-    image_drawer/
-      core/
-      dsl/
-      runtime/
-      part_bank/
-      steps/
-      evaluation/
-      search/
-      gui/
+## 3. 実装ステージ（この順で依存を解決）
 
-    tests/
-    workflows/
-    data/
+### S0：設計整合と既存資産の棚卸し
 
-deliverable:
+**成果物**：実装済／未実装／目的から逸脱、の3区分を記した差分表。
 
-- Python package
-- config loading
-- logging
-- test setup
-- CLI entrypoint
-- GUI entrypoint
+- 正本と現在の`WorkflowRuntime`、`Artifact`、`Trajectory`、`Part Bank`、`COMPOSE`、`GUI`、`学習・評価`を対応付ける。
+- 既存Part Bank実装が主な制作手段でないことを明記。使える基盤（ID、Runtime、lineage、CI等）を再利用する。
+- Issue #62 を親として関連Issueを整理。既存の未完了Issueは、描画工程の学習との関係が決まるまで「進行していれば完了」と判定しない。
 
-## 3. M1: Core model
+**Done**：機能ごとに「人間の制作行動のどの部分を表現するか／しないか」「移行要否」が示され、各後続Issueに契約とテストへのリンクがある。
 
-最初に実装:
+### S1：固定パレットと描画状態・操作エンジン
 
-    Artifact
-    Score
-    SourceImage
-    Part
-    PartSet
-    Layout
-    Composition
-    StepSpec
-    WorkflowSpec
-    StepExecution
-    Trajectory
+**成果物**：モデルなしで動く純粋な`DrawingEngine`。
 
-規則:
+- `idraw-palette-256-v1`を**仕様どおりの色番号とRGB値**で公開する。
+- 複数の透明レイヤー、作業レイヤー選択、色・ブラシ選択、フェーズ記録、筆跡、消去、終了の`DrawingAction`を実装。
+- 描画とレイヤー合成は`raster-v1`の画素契約に従う。色選択とブラシ選択を混ぜない。
+- Action validation と再現可能なエラー、versioningを用意。
 
-- stable string IDを使う。
-- 全recordをserialize可能にする。
-- model/backend/version metadataを明示する。
-- 大きなimage byteをJSONへ直接入れずURI/path参照にする。
+**Done**：[受け入れ試験 A〜D](../developers/drawing_process_acceptance.md)の**すべて**が自動で通る。下書きの上のレイヤーに描いて消すと下書きが再表示される。
 
-受け入れ条件:
+### S2：人間の描画収集・保存・再生
 
-- serialization round-trip testが通る。
-- minor schema追加後も可能な範囲で旧recordをloadできる。
+**成果物**：絵師の一回の制作過程を`DrawingEpisode`として保存する機能。
 
-## 4. M2: RuntimeとDSL
+- UIで人間の入力をActionに変換し、実際の時間順で記録。未取得の筆圧などを捏造しない。
+- 保存・読み込み・途中イベントへのシーク・決定的再生・出所（`origin`）を実装。
+- 下書き→別レイヤーでの着色／筆跡→消去／修正→終了を、人間が操作できる。
+- DrawingEpisodeをURI付きArtifactとしてRuntime/Trajectoryと関連付ける。Workflow Stepと筆跡イベントを混同しない。
 
-実装:
+**Done**：同一履歴から全レイヤーと全中間画素が再現される。[受け入れ試験 E](../developers/drawing_process_acceptance.md)に合格し、実ユーザー操作による収集とsynthetic fixtureが区別できる。
 
-- Step base interface
-- Step registry
-- Workflow validation
-- DSL parser
-- canonical DSL serializer
-- Runtime execution
-- Artifact registry
-- Trajectory logger
+### S3：人間の実演Dataset・学習器の最初のベースライン
 
-初期Step:
+**成果物**：人間が描いた履歴から次の行動を予測する学習器。
 
-- INPUT
-- RETRIEVE_PARTS
-- SELECT_PARTS
-- COMPOSE
-- EVALUATE
-- SELECT
-- OUTPUT
+- 許諾・由来のある`origin=human`の履歴を入力に、**未来を見ずに**`state_before -> next_action`の学習例を作る。
+- まず`behavior cloning`。次アクション種別、色番号（256クラス）、ブラシ、レイヤー、ストローク点列・太さ・透明度、工程移行、終了を予測できる形式とする。
+- checkpoint保存・再読み込み、seed制御、teacher-forced評価、未見エピソードでの評価を実装。
+- **モデルが1行動ずつ決めてDrawingEngineに実行させるclosed-loop**を実装。指示済みの固定操作列で代用しない。
 
-REFINEは最初はpass-through/mockでも構いません。
+**Done**：[受け入れ試験 F](../developers/drawing_process_acceptance.md)に合格。学習のsmokeと、実演データを使った学習・評価の証拠を区別する。人間のデータが未収集なら**学習機能は未完成**と記載する。
 
-受け入れ条件:
+### S4：工程WorkflowとGUIの統合
 
-- GUIなしでもWorkflow fileをCLIから実行できる。
-- 全Stepのinput/outputが記録される。
+**成果物**：描画履歴を失わないGUIとWorkflow adapter。
 
-## 5. M3: Part Bank v0
+- `SKETCH`／`LINE`／`COLOR`／`CORRECT`などは**制作工程の上位区間**。その内部の逐次Actionを観測・記録できる。
+- `COLOR`を一回のbucket fillや画像の色置換Stepとして実装して済ませない。
+- GUIでレイヤー・ブラシ・色・現在工程を表示し、人間／モデルの各操作とそのときの中間結果を追跡できる。
+- DSLは上位Workflowを保存、ActionEventは`DrawingEpisode`に保存。どちらの責務も偽らない。
 
-実装:
+**Done**：画面から下書きとその上のレイヤーへの描画操作を実行・観察・保存・再生でき、上位Workflowからも同一行動履歴にたどれる。
 
-- filesystem ingest
-- SourceImage record
-- simple extractor 1種類
-- Part record
-- embedding backend 1種類
-- vector index backend 1種類
-- text/category retrieval
+### S5：評価・比較・改善
 
-最初のextractorはdatasetに適した最も単純な方法を使います。
+- 次アクション予測精度と、最終作品の品質を**別指標**で測る。
+- 同じ人間の実演を使って、模倣学習の有無・モデル差・適用した工程を比較する。
+- 評価器や探索器を差し替えても、Action・Episode契約を壊さない。
+- Part Bank・素材参照・構図探索・Workflow選択は**必要に応じた拡張**として配置する。
 
-完璧なsegmentation model待ちでM3を止めません。
+**Done**：再現可能な条件・dataset split・checkpoint・評価出力を保存し、学習前後を同一条件で比較できる。
 
-受け入れ条件:
+## 4. 旧M0〜M14および既存Issueの扱い
 
-- 小さいdevelopment subsetをingestできる。
-- indexをbuildできる。
-- text/category queryからtop-k Partをretrieveできる。
-- source provenanceを保持する。
-
-## 6. M4: Simple composition
-
-実装:
-
-- PartPlacement
-- Layout
-- COMPOSE renderer
-
-初期renderer support:
-
-- translation
-- scale
-- rotation
-- z-order
-- alpha/mask
-
-受け入れ条件:
-
-- selected Partからdeterministic draft imageを作れる。
-- Compositionをrasterized imageとは別Artifactとして保持する。
-
-## 7. M5: Evaluator subsystem
-
-interface:
-
-    class Evaluator:
-        def evaluate(self, artifacts, context) -> ScoreSet:
-            ...
-
-最低1種類のbaseline Evaluatorを実装します。
-
-support:
-
-- evaluator name/version
-- multiple component scores
-- aggregate score
-- batch evaluation
-
-受け入れ条件:
-
-- EVALUATEでImageSetをscoreできる。
-- SELECTでScoreSetからtop-kを選べる。
-- raw evaluator outputを保持する。
-
-## 8. M6: GUI v0
-
-完成品Editorではなくworkbenchを作ります。
-
-必須:
-
-- Workflow load/save
-- ordered Step list
-- Step add/delete/reorder
-- Step schema由来parameter editor
-- DSL text view
-- Run button
-- intermediate Artifact viewer
-- candidate thumbnails
-- score table
-- selected/rejected表示
-- run history list
-
-free-form node graphより縦型editorを先に実装します。
-
-受け入れ条件:
-
-- GUI parameter変更がserialized DSLへ反映される。
-- DSL loadでGUI stateを再構築できる。
-- Part retrievalを含むWorkflowをGUIから実行できる。
-
-## 9. M7: Experiment runner
-
-実装:
-
-- prompt-set loader
-- repeated run execution
-- seed policy
-- workflow comparison
-- aggregate metrics
-- results export
-
-受け入れ条件:
-
-- 同じprompt setで最低2 Workflowを比較できる。
-- 全Trajectoryとexperiment metadataを保存する。
-
-## 10. M8: Parameter search
-
-実装:
-
-- grid search
-- random search
-
-初期search parameter:
-
-- retrieval top-k
-- selected top-k
-- composed candidate count
-- evaluator weights
-
-受け入れ条件:
-
-- 保存result metadataからbest configurationを再現できる。
-
-## 11. M9: Real model integration
-
-Architectureが動いた後に行います。
-
-候補:
-
-- pretrained image editing/refinement model
-- ControlNet / T2I-Adapter系conditioned generation
-- preference evaluator
-- perceptual / structure evaluator
-
-各integrationは既存Step/Evaluator interfaceの背後にadapterとして実装します。
-
-1 modelのためだけにDSL syntaxを変更しません。
-
-## 12. M10: Learning
-
-保存Trajectoryを使います。
-
-最初の学習target:
-
-1. PartSelector
-2. prompt -> WorkflowSelector
-3. refinement decision / gating
-
-最初からEnd-to-End RLは行いません。
-
-推奨順:
-
-    logged data
-    -> supervised ranking
-    -> pairwise preference learning
-    -> workflow selector
-    -> constrained structural search
-    -> 必要な場合のみRL
-
-## 13. Test strategy
-
-### Unit test
-
-- DSL parsing
-- serialization
-- type validation
-- Step schema
-- Part repository
-- retrieval
-- selection
-- score aggregation
-- workflow mutation
-
-### Golden Workflow test
-
-小さいdeterministic mock Workflowを維持します。
-
-検証内容:
-
-- execution order
-- Artifact lineage
-- selection result
-- Trajectory serialization
-
-### Integration test
-
-小さいfixture datasetを使います。
-
-    ingest
-    -> extract
-    -> index
-    -> retrieve
-    -> select
-    -> compose
-    -> evaluate
-    -> output
-
-## 14. Configuration
-
-設定を分離します。
-
-    project config
-    dataset config
-    model/backend config
-    evaluator config
-    workflow config
-    experiment config
-
-secret/API keyをWorkflow DSLやcommit対象configへ埋め込みません。
-
-## 15. Versioning
-
-記録対象:
-
-- dataset
-- Part extraction method
-- embedding model
-- index
-- workflow
-- Step implementation/backend
-- evaluator
-- trained selector/policy
-
-これらのversionがないexperiment resultは再現不能として扱います。
-
-## 16. 初期実装の非目標
-
-- distributed training
-- large-scale orchestration cluster
-- DSLへの任意programming language機能
-- end-to-end RL
-- unrestricted automatic graph generation
-- polished node-editor UX
-- custom foundation image model
-
-## 17. 最初の実行target
-
-    INPUT prompt
-
-    parts = RETRIEVE_PARTS(
-      prompt,
-      category="generic",
-      top=20
-    )
-
-    selected = SELECT_PARTS(
-      parts,
-      top=5
-    )
-
-    draft = COMPOSE(
-      selected
-    )
-
-    scores = EVALUATE(
-      draft,
-      evaluator="mock"
-    )
-
-    OUTPUT draft
-
-次に複数draftへ拡張:
-
-    drafts = COMPOSE(selected, count=4)
-    scores = EVALUATE(drafts)
-    best = SELECT(drafts, scores=scores, top=1)
-    OUTPUT best
-
-これが最初の retrieval-selection-composition-evaluation loopです。
-
-## 18. Architecture phase完了条件
-
-- Runtime coreを変更せず新しいStepを追加できる。
-- SELECTを変更せず新しいEvaluatorを追加できる。
-- DSLを変えずvector-index backendを差し替えられる。
-- GUIとDSLがround-tripする。
-- 保存metadataからrunを実験用途として十分に再現できる。
-- final imageから使用Part、selection、Stepまで追跡できる。
-- 2 Workflowをexperimentとして比較できる。
-
-ここまで完成したら、以後はplumbingよりmodel qualityとlearningへ重点を移します。
+旧実装計画は、これまで何を作ったかの**履歴**として意味がある。ただし優先順位と最初のEnd-to-End対象は撤回する。具体的には次の対応を取る。
+
+| 旧領域 | 継続可否 | 新しい位置づけ |
+| --- | --- | --- |
+| M0〜M2：package、core、Runtime、DSL | 継続利用 | S1〜S4の基盤。新Action／Episodeを追加しても流用する |
+| M3：Part Bank／検索 | 補助機能として維持 | 主たる「描く行為」の学習ではない |
+| M4：COMPOSE（Issue #7、PR #39） | 補助機能として維持 | パーツ配置は筆跡ではない。**M4達成≠描画工程の達成** |
+| M5：EVALUATE／SELECT（Issue #8等） | 契約を照合 | 画像評価とAction学習の評価は別 |
+| M6：GUI（Issue #9） | 要件を更新 | Step編集だけでなく絵師の操作記録／レイヤー／再生を扱う |
+| M7〜M8：実験／探索 | S5以降に再優先付け | 描画エピソードとモデル行動の比較を中心にする |
+| M9〜M14：学習／選択／deploy | 再設計 | **PartSelectorより先にDrawingPolicyを学習・実行**。上位Workflow最適化は後続 |
+
+既存PRを無条件にrevertする指示ではない。新しい正本に合う部分は残す。ただし古い主経路・優先順位を新規Issueへコピーしない。対象変更で他作業の範囲が変わる場合、担当間でIssueの責務を分割する。
+
+## 5. 全Stageに共通する品質・運用
+
+- 日本語を正本とし、具体的契約は`docs/developers/`にだけ書く。
+- Issueごとに「入力・出力・状態遷移・禁止する代替実装・テスト・Done条件」を記す。
+- 変更で既存tests/build、wheelの実行確認を壊さない。PR経由で変更し、CIを確認する。
+- model・dataset・GPUがなくても、`synthetic`の描画イベントを再生できるテストを維持する。
+- 人間の実演では出所・権利・分割を保存し、テスト用の偽物を学習成果と混同しない。
+- 不明点を都合よく「固定画像変換」に置き換えない。仕様に書かれていなければIssueへ戻す。
+- 最終画像の見た目だけで「完成」としない。**どの行動を選んで描いたかを再生・学習できる**ことを示す。
+
+## 6. 設計完了と実装完了を分ける
+
+この計画や仕様書ができても`S1〜S5`が実装されたわけではない。設計PR承認後にS1から実装する。各Stageの完了はリンクされた**自動テストと実行結果**をもって判断する。
