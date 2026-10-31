@@ -1,9 +1,12 @@
 > **対象読者:** 開発者  
 > **目的:** 既存研究を再利用する箇所と技術選択の根拠を確認する。
 
-# 先行研究と技術方針
+# 先行研究と技術調査（参考資料・非規範）
 
-状態: 初期調査
+状態: 2026-09-20時点の初期調査。**古い優先順位・実装案を含むため現在の設計正本ではない**。
+
+研究メモ中の「Part/Workflow選択を先に学ぶ」「画像変換でCOLORを代用する」等は、採用済みの描画仕様を上書きしない。最新の実装契約は [制作過程 v1](drawing_process_v1.md)、合否は [受け入れ試験](drawing_process_acceptance.md)、実装優先順位は [実装計画](../kadoka/implementation_plan.md) を参照する。
+
 日付: 2026-09-20
 
 ## 1. 要約
@@ -21,7 +24,7 @@ Image Drawerでは、すべてのAI componentを独自に学習するのでは�
 - generation trajectoryに対するreinforcement learning
 - differentiable / learned renderer
 
-Image Drawer固有の中心はorchestration layerです。
+**最新の中心課題は絵師の制作行動をモデルが逐次予測・実行すること。** 以下は当時検討したWorkflow orchestrationの補助的研究要素であり、実装優先順位を示すものではない。
 
 1. 制作手順を編集可能なWorkflowとして表現する。
 2. GUIから操作できるようにする。
@@ -505,9 +508,9 @@ aesthetic / preference modelにはdatasetや文化的biasも含まれ得ます�
 - random seed
 - duration / error
 
-長期的には、このTrajectory storeが最も重要な学習datasetになります。
+WorkflowのTrajectory storeは重要だが、**人間の一筆ごとの行動を学ぶ正本データはDrawingEpisode**。StepExecutionだけでは描画の制作過程を復元できない。
 
-## 10. 推奨研究段階
+## 10. 当時提案した研究段階（現行の優先順ではない）
 
 ### R0: Runtime validation
 mock stepでGUI <-> DSL round trip、Artifact tracking、branch、score、provenanceを検証します。
@@ -554,7 +557,7 @@ Workflow W は初期状態からTrajectoryを生成します。
 
 したがってImage Drawerはmulti-objective procedural-generation systemとして扱います。
 
-## 12. 現時点の推奨方針
+## 12. 当時の推奨方針（現行仕様には従属する）
 
 1. DSL / Runtimeをmodel-agnosticに保つ。
 2. ArtifactとTrajectoryを第一級objectにする。
