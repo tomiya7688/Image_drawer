@@ -1,0 +1,159 @@
+{
+  "schema_version": "drawing-episode/v1",
+  "episode_id": "golden01",
+  "origin": "synthetic",
+  "prompt": "赤い線を下書きの上のレイヤーに描く",
+  "canvas": {
+    "width": 3,
+    "height": 2
+  },
+  "palette_id": "idraw-palette-256-v1",
+  "brush_set_id": "brush-v1",
+  "renderer_version": "raster-v1",
+  "events": [
+    {
+      "seq": 0,
+      "time_ms": 0,
+      "type": "create_layer",
+      "payload": {
+        "layer_id": "sketch",
+        "name": "下書き"
+      }
+    },
+    {
+      "seq": 1,
+      "time_ms": 1,
+      "type": "select_layer",
+      "payload": {
+        "layer_id": "sketch"
+      }
+    },
+    {
+      "seq": 2,
+      "time_ms": 2,
+      "type": "set_phase",
+      "payload": {
+        "phase": "sketch"
+      }
+    },
+    {
+      "seq": 3,
+      "time_ms": 3,
+      "type": "select_brush",
+      "payload": {
+        "brush_id": "hard_round_v1"
+      }
+    },
+    {
+      "seq": 4,
+      "time_ms": 4,
+      "type": "select_color",
+      "payload": {
+        "color_id": 0
+      }
+    },
+    {
+      "seq": 5,
+      "time_ms": 5,
+      "type": "stroke",
+      "payload": {
+        "points": [
+          [
+            0,
+            0
+          ],
+          [
+            2,
+            0
+          ]
+        ],
+        "width_px": 1,
+        "opacity_u8": 255
+      }
+    },
+    {
+      "seq": 6,
+      "time_ms": 6,
+      "type": "create_layer",
+      "payload": {
+        "layer_id": "color",
+        "name": "色"
+      }
+    },
+    {
+      "seq": 7,
+      "time_ms": 7,
+      "type": "select_layer",
+      "payload": {
+        "layer_id": "color"
+      }
+    },
+    {
+      "seq": 8,
+      "time_ms": 8,
+      "type": "set_phase",
+      "payload": {
+        "phase": "color"
+      }
+    },
+    {
+      "seq": 9,
+      "time_ms": 9,
+      "type": "select_color",
+      "payload": {
+        "color_id": 180
+      }
+    },
+    {
+      "seq": 10,
+      "time_ms": 10,
+      "type": "stroke",
+      "payload": {
+        "points": [
+          [
+            1,
+            0
+          ],
+          [
+            1,
+            1
+          ]
+        ],
+        "width_px": 1,
+        "opacity_u8": 255
+      }
+    },
+    {
+      "seq": 11,
+      "time_ms": 11,
+      "type": "set_phase",
+      "payload": {
+        "phase": "correct"
+      }
+    },
+    {
+      "seq": 12,
+      "time_ms": 12,
+      "type": "erase",
+      "payload": {
+        "points": [
+          [
+            1,
+            0
+          ]
+        ],
+        "width_px": 1
+      }
+    },
+    {
+      "seq": 13,
+      "time_ms": 13,
+      "type": "finish",
+      "payload": {}
+    }
+  ],
+  "metadata": {
+    "dataset_id": "golden-contract",
+    "rights": "test-only"
+  }
+}
