@@ -8,6 +8,8 @@
 - [コンセプト](concept.md)
 - [実装計画](implementation_plan.md)
 
+具体的な描画契約は [制作過程v1](../developers/drawing_process_v1.md)、完成判定は [受け入れ試験](../developers/drawing_process_acceptance.md) を参照してください。色は固定256色・ブラシは独立、描画行動の学習が最優先です。
+
 ## このfolderに置くもの
 
 - プロジェクトの目的・非目的
