@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "title": "Image Drawer DrawingEpisode v1 (構造契約)",
-  "description": "時系列seq・time_ms、座標のcanvas内判定、描画状態遷移と権利確認は描画器およびdataset validationが別途行う。",
+  "description": "時系列seq・time_ms、座標のcanvas内判定、描画状態遷移と権利確認は描画器およびdataset validationが別途行う。JSON Schemaのintegerが5.0を許容する場合でも、v1ではJSONの小数表記の整数値を別途拒否する。",
   "type": "object",
   "additionalProperties": false,
   "required": [
