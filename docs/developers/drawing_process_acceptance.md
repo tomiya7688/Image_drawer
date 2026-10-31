@@ -6,6 +6,8 @@
 
 以下は**実装契約**であり「テストの例にすぎない」ものではない。各観測点を同じ入力で再現できない実装は完了として認めない。既存のPart Bankテスト、ビルド、PNG生成成功だけでは代替できない。
 
+機械可読な正本：[JSON Schema](schemas/drawing_episode_v1.schema.json)／[入力episode](../../tests/fixtures/drawing_process_v1/golden_episode.json)／[期待frames](../../tests/fixtures/drawing_process_v1/golden_frames.json)。後続のDrawingEngine実装は**このFixtureを自動テストで読み込むこと**。この文書を追加しただけでは描画機能が実装済みにならない。
+
 ## A. 固定256色
 
 入力色番号とRGB8の期待値：
