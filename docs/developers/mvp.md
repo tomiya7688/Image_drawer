@@ -1,119 +1,53 @@
-> **対象読者:** 開発者  
-> **目的:** MVPで実装する範囲と受け入れ条件を共有する。
+> **対象読者:** 開発者・レビュアー  
+> **目的:** 最初の動くImage Drawerの合否を、制作行動の再生と学習で判定する。  
+> **状態:** v1目標仕様。現状実装済みの機能一覧ではない。
 
-# MVP範囲
+# MVP範囲：絵師の制作過程を学習する最小系
 
-## 1. 目標
+## 1. 最初に見せるべき動作
 
-最初のMVPでは、編集可能な手順型画像Workflowを実行し、中間状態まで観察できることを証明します。
+「3×2画素のキャンバスに筆で下書きを描き、**その上にレイヤーを追加し、色を選んでストロークを描き、消して修正する**」操作が、**人間の実演でもAIの推論でも同じ描画器**を通る。
 
-高品質な画像生成は必須ではありません。
+```text
+人間の入力 -> 保存されたActionEvent -> Replay -> 全中間状態の再現
+                                        |
+                                   学習Dataset
+                                        |
+                           DrawingPolicyが次Actionを予測
+                                        |
+                           Action実行 -> 状態観測 -> 次Action
+```
 
-## 2. 必須component
+高品質な作品はMVPの合格条件ではない。一方、画像の生成だけ、Partの配置だけ、固定の操作列を流すだけではMVPではない。
 
-### DSL parser
+## 2. MVPの必須機能と受け入れ基準
 
-初期Workflow formatをparseします。
+| 層 | 必須内容 | 正式な合否 |
+| --- | --- | --- |
+| DrawingState | キャンバス、レイヤー、色・ブラシ選択、工程、終了状態 | [制作過程 v1](drawing_process_v1.md) |
+| DrawingEngine | 固定256色、ストローク、透明レイヤー、消去、source-over | [受け入れ試験 A〜D](drawing_process_acceptance.md) |
+| Recorder/Replay | 時系列イベント、出所、途中状態の保存と再生 | [受け入れ試験 B・D・E](drawing_process_acceptance.md) |
+| Dataset/Policy | 人間のイベントを次行動教師にし、同じAction形式を生成 | [受け入れ試験 F](drawing_process_acceptance.md) |
+| GUI | 色・ブラシ・レイヤーを選び筆を動かして、履歴／途中状態を見られる | [GUI仕様](gui.md) |
+| Workflow連携 | Episodeと上位Stepを区別しArtifact/Trajectoryから参照できる | [アーキテクチャ](architecture.md)・[DSL](workflow_dsl.md) |
 
-### Runtime
+`DRAW_EPISODE`や`REPLAY_EPISODE`等、未実装Operationを完了済みと記載しない。これらを設計に基づき段階的に追加する。
 
-線形またはdependency-based Workflowを実行し、Artifactを追跡します。
+## 3. 正式な完成条件
 
-### Step registry
+- **描画器のDone**：固定パレット、ブラシ、レイヤー、ストローク、消去、検証、完全再生が自動テストで成立。
+- **記録のDone**：人間の実入力を、実際に何をしたかというイベント列として保存・再生可能。画像だけを保存していない。
+- **学習器のDone**：実演データから未来を見ずに次Actionを学習し、checkpointを再読み込みし、モデルが閉ループでDrawingEngineを動かす。synthetic dataだけの検証は学習器のsmokeに留める。
+- **MVP全体のDone**：上記全てが揃い、工程を追って検証できる。最終画像ができただけなら未完成。
 
-operationを名前で登録し、schemaを公開します。
+## 4. v1で意図的に除外するもの
 
-### Mock drawing step
+複数のブラシ、筆圧・傾き、アンチエイリアス、物理ブラシ、bucket fill、複雑なレイヤーブレンド、分散学習、強化学習、GPUによる高品質画像生成、GUIの自由配置Node Graph、PartBankの学習最適化、Workflowの自動構造探索は初期の必須条件ではない。
 
-決定的または単純な実装を用意します。
+ただし、除外した機能の代わりに別の画像処理だけを実装しても、それを描画工程の学習成功とみなさない。
 
-- SKETCH
-- COLOR
+## 5. 既存コードとの関係
 
-最初はplaceholder画像生成や単純なtest image変換でも構いません。
+既存の`WorkflowRuntime`、`Artifact`、`Trajectory`、`Part Bank`、`COMPOSE`は利用できる部分を再利用する。**既存Mock SKETCH/COLOR画像変換やPart合成を、このMVPの描画学習の証拠に使わない**。新機能が未実装の間は「設計済み・実装未完了」と正確に表示する。
 
-### Mock evaluator
-
-Selection logicをtestできるよう、再現可能なscoreを返します。
-
-### SELECT
-
-top-k selectionをsupportします。
-
-### GUI
-
-最低限次をsupportします。
-
-- Workflow Step編集
-- parameter編集
-- run
-- intermediate Artifact表示
-- score表示
-- DSL表示・編集
-- validation error表示
-
-## 3. Repository構成案
-
-    Image_drawer/
-    ├─ README.md
-    ├─ docs/
-    ├─ pyproject.toml
-    ├─ image_drawer/
-    │  ├─ dsl/
-    │  │  ├─ parser.py
-    │  │  ├─ runtime.py
-    │  │  └─ types.py
-    │  ├─ steps/
-    │  │  ├─ base.py
-    │  │  ├─ registry.py
-    │  │  ├─ sketch.py
-    │  │  ├─ color.py
-    │  │  ├─ evaluate.py
-    │  │  └─ select.py
-    │  ├─ training/
-    │  │  ├─ runner.py
-    │  │  └─ config.py
-    │  └─ gui/
-    │     └─ app.py
-    ├─ workflows/
-    │  └─ basic.idraw
-    └─ tests/
-
-実装が進んだ場合は実際の構成を優先し、この図は概念上の目安として扱います。
-
-## 4. 最初のEnd-to-End Workflow
-
-    INPUT prompt: Text
-
-    sketches = SKETCH(prompt, count=4)
-    scores = EVALUATE(sketches, evaluator="mock")
-    best = SELECT(sketches, scores=scores, top=1)
-    colored = COLOR(best, prompt=prompt)
-
-    OUTPUT colored
-
-成功条件:
-
-1. GUIがWorkflowをloadできる。
-2. GUIからcountを変更できる。
-3. DSLへ変更が反映される。
-4. Runtimeが各Stepを実行する。
-5. 中間candidateを表示できる。
-6. Evaluator scoreを表示できる。
-7. SELECTが採用candidateを示す。
-8. final outputを確認できる。
-9. run historyをlocalへ保存する。
-
-## 5. MVP非目標
-
-初期段階では必須ではありません。
-
-- 高品質なimage foundation model
-- distributed training
-- reinforcement learning
-- automatic workflow discovery
-- arbitrary DSL programming
-- multi-user / server architecture
-- production deployment
-
-MVPの主目的はアーキテクチャと実験loopの検証です。
+実装順とIssueの整理は [Kadoka向け実装計画](../kadoka/implementation_plan.md) を参照。
