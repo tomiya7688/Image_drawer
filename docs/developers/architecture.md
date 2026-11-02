@@ -103,12 +103,12 @@ class DrawingPolicy:
     def next_action(self, prompt, state, history) -> DrawingAction: ...
 ```
 
-新しい`DrawingEpisode`は型付きArtifactのURIとバージョンでWorkflow Runtimeへ紐付ける。`Trajectory.executions`は**上位Stepの実行履歴**として残す。何千回ものstrokeを1個の`StepExecution`へ文字列として押し込まず、`DrawingEpisode.events`に順序通り保存する。
+新しい`DrawingEpisode`は型付きArtifactのURI・SHA-256・versionでWorkflow Runtimeへ紐付ける。**EpisodeファイルとArtifact/Trajectory参照を別々に書いて終わらせない。** 保存は一時ファイル→fsync→原子的rename→manifest/outboxのtransaction確定を順に行い、起動時に孤立blob・破損参照を照合する。[制作過程v1の復旧仕様](drawing_process_v1.md#62-途中保存クラッシュ復旧と参照の一貫性)に従う。`Trajectory.executions`は**上位Stepの実行履歴**。何千回ものstrokeを1個の`StepExecution`へ押し込まず、`DrawingEpisode.events`に順序と`actor`を保存する。
 
 ## 6. 学習ループの契約
 
-- **収集**：人間が実行したActionとStateを再生可能な形で保存する。
-- **Training**：ActionEventの直前までの状態から次のActionを予測する。色は固定256クラス。道具・工程・線の操作・終了も対象。
+- **収集**：人間・モデル・systemの各Actionをイベント単位の`actor`とともに区別し、Stateを再生可能な形で保存する。生の収集データと学習可能Episodeの区別は[データ品質仕様](drawing_data_quality_v1.md)に従う。
+- **Training**：ActionEventの直前までの状態から次Actionを予測する。固定256色、道具、レイヤー、工程、可変長筆跡、修正・終了を条件付きに予測する。教師強制とClosed-loopの設計は[DrawingPolicy精度仕様](drawing_policy_accuracy_v1.md)を参照。
 - **Inference**：予測したActionを`DrawingEngine`へ適用し、新しいStateを次の入力にする。人間の未来行動や最終画像をpeekしない。
 - **Evaluation**：教師あり予測、閉ループで描かれた過程、最終画像の品質を区別して記録する。
 
