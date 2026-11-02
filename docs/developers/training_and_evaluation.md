@@ -3,6 +3,8 @@
 
 # 学習と評価：DrawingPolicyを学ぶ
 
+モデルの詳細は[階層型Action・学習損失・精度評価](drawing_policy_accuracy_v1.md)、人間の実演収集とリーク防止は[データ品質仕様](drawing_data_quality_v1.md)を**正本**とする。
+
 ## 1. 何を学習するのか
 
 主対象は**次の描画行動の予測**。
@@ -27,7 +29,7 @@
 
 ## 2. Dataset作成
 
-データ単位は`DrawingEpisode`。**保存された全イベントを最初から順に再生**し、各時点で`state_before`、`history_before`、`target_action`を生成する。
+データ単位は`DrawingEpisode`。**保存された全イベントを最初から順に再生**し、各時点で`state_before`、`history_before`、`target_action`を生成する。**教師ラベルに使えるのは許諾のある`actor=human`の行動だけ**。同じEpisode内のmodel/system/derivedイベントは教師にしない。人間がモデルを修正したmixed episodeは独立した人間実演とは別cohortで評価する。
 
 | 分類 | 用途 |
 | --- | --- |
@@ -51,6 +53,8 @@
 - `brush_id`：色とは独立。v1では`hard_round_v1`のみ（ブラシの選択はActionとして残す）。
 - `points`、`width_px`、`opacity_u8`、`layer_id`、`phase`、`finish`は、それぞれAction typeに必要な場合に予測する。
 - 人間の未来行動を直接入力してはいけない。学習時は教師Actionをtargetとして使い、推論時はモデルがActionを選ぶ。
+
+階層型Action decoderでは`type`と条件付きpayloadを分け、可変長strokeの`POINT_END`、既存レイヤーindex、固定256色分類を別々に予測する（[精度設計](drawing_policy_accuracy_v1.md)）。
 
 **モデルの内部構造**（Transformer、RNN、別の模倣学習器等）は別Issueで比較・決定する。どの実装であっても**同じDrawingActionを出力**しなければならない。予測が契約違反なら`DrawingEngine`が拒否し、失敗をログに残す。仕様外の色や「代わりにPNGを生成する」回避は禁止。
 
@@ -96,7 +100,7 @@
 
 学習runには`dataset_id/split`、`schema_version`、`palette_id`、`brush_set_id`、`renderer_version`、`model/checkpoint_id`、`seed`、学習設定、評価器versionを記録する。モデルのAction出力と拒否／適用結果は`DrawingEpisode`またはrunの関連ログに残す。個人データ・権利のない実演を勝手に学習へ投入しない。
 
-**Done条件**は [受け入れ試験 F](drawing_process_acceptance.md) と [実装計画 S3](../kadoka/implementation_plan.md) に従う。synthetic fixtureだけの模倣学習テストに成功した場合は、**「学習系のテストは成功。実演学習は未検証」**と明記する。
+**Done条件**は [受け入れ試験 F](drawing_process_acceptance.md) と [実装計画 S3](../kadoka/implementation_plan.md) に従う。[精度向上の公開ゲート](drawing_policy_accuracy_v1.md#8-精度に関する公開ゲート実データ確保後)を満たしていない結果を「高精度」と呼ばない。synthetic fixtureだけの模倣学習テストに成功した場合は、**「学習系のテストは成功。実演学習は未検証」**と明記する。
 
 ## 7. 後続研究
 
