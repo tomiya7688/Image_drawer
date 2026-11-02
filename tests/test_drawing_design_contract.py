@@ -79,11 +79,7 @@ def line_contains(
 
 
 def pixels_covered(points: list[list[int]], width: int, x: int, y: int) -> bool:
-    segments = (
-        list(zip(points, points[1:]))
-        if len(points) > 1
-        else [(points[0], points[0])]
-    )
+    segments = list(zip(points, points[1:])) if len(points) > 1 else [(points[0], points[0])]
     return any(line_contains((x, y), a, b, width) for a, b in segments)
 
 
@@ -181,12 +177,10 @@ def test_schema_declares_all_actor_fields_and_budgets():
 
 
 def test_main_golden_episode_matches_every_checkpoint():
-    episode = json.loads(
-        (FIXTURES / "golden_episode.json").read_text(encoding="utf-8")
-    )
-    checkpoints = json.loads(
-        (FIXTURES / "golden_frames.json").read_text(encoding="utf-8")
-    )["checkpoints"]
+    episode = json.loads((FIXTURES / "golden_episode.json").read_text(encoding="utf-8"))
+    checkpoints = json.loads((FIXTURES / "golden_frames.json").read_text(encoding="utf-8"))[
+        "checkpoints"
+    ]
     assert all(item["actor"] == "synthetic" for item in episode["events"])
     frames = replay(episode)
     for checkpoint in checkpoints:
@@ -199,9 +193,7 @@ def test_main_golden_episode_matches_every_checkpoint():
 
 
 def test_geometry_and_overlap_golden_cases():
-    cases = json.loads(
-        (FIXTURES / "golden_geometry.json").read_text(encoding="utf-8")
-    )["cases"]
+    cases = json.loads((FIXTURES / "golden_geometry.json").read_text(encoding="utf-8"))["cases"]
     for item in cases:
         frames = replay(item["episode"])
         for checkpoint in item["frames"]:
@@ -237,11 +229,14 @@ def test_strict_json_loader_rejects_ambiguous_numeric_and_duplicates(payload):
         )
 
 
-def test_temporary_show_ruff_diff():
-    """整形差分をCIログで確認するための一時的な検査。"""
-    import subprocess
 
-    result = subprocess.run(
-        ["ruff", "format", "--diff", __file__], capture_output=True, text=True
-    )
-    assert result.returncode == 0, result.stdout + result.stderr
+def test_mixed_actor_episode_keeps_human_corrections_separate():
+    episode = json.loads((FIXTURES / "golden_mixed_actor.json").read_text(encoding="utf-8"))
+    frames = replay(episode)
+    assert episode["origin"] == "mixed"
+    assert [event["actor"] for event in episode["events"][6:11]] == ["model"] * 5
+    assert episode["events"][12]["actor"] == "human"
+    expected = json.loads((FIXTURES / "golden_frames.json").read_text(encoding="utf-8"))[
+        "checkpoints"
+    ]
+    assert frames[12]["rgba_rows"] == expected[-1]["rgba_rows"]
