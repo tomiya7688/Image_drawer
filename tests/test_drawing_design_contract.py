@@ -110,10 +110,7 @@ def replay(episode: dict) -> dict[int, dict]:
             assert payload["layer_id"] not in layer_by_id
             layer = {
                 "id": payload["layer_id"],
-                "rows": [
-                    [[0, 0, 0, 0] for _ in range(width)]
-                    for _ in range(height)
-                ],
+                "rows": [[[0, 0, 0, 0] for _ in range(width)] for _ in range(height)],
             }
             layers.append(layer)
             layer_by_id[layer["id"]] = layer
@@ -131,9 +128,7 @@ def replay(episode: dict) -> dict[int, dict]:
                 assert color is not None
             for y in range(height):
                 for x in range(width):
-                    if pixels_covered(
-                        payload["points"], payload["width_px"], x, y
-                    ):
+                    if pixels_covered(payload["points"], payload["width_px"], x, y):
                         active["rows"][y][x] = (
                             [0, 0, 0, 0]
                             if action_type == "erase"
@@ -159,10 +154,7 @@ def replay(episode: dict) -> dict[int, dict]:
         observed[seq] = {
             "rgba_rows": image,
             "layers": {
-                layer["id"]: [
-                    [pixel[:] for pixel in row]
-                    for row in layer["rows"]
-                ]
+                layer["id"]: [[pixel[:] for pixel in row] for row in layer["rows"]]
                 for layer in layers
             },
         }
@@ -238,4 +230,8 @@ def reject_duplicate(pairs):
 )
 def test_strict_json_loader_rejects_ambiguous_numeric_and_duplicates(payload):
     with pytest.raises(ValueError):
-        json.loads(payload, parse_float=reject_decimal, object_pairs_hook=reject_duplicate)
+        json.loads(
+            payload,
+            parse_float=reject_decimal,
+            object_pairs_hook=reject_duplicate,
+        )
