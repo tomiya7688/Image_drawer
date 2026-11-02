@@ -31,10 +31,11 @@
 1. [コンセプト](../kadoka/concept.md)（最上位の目的）
 2. [制作過程v1](../developers/drawing_process_v1.md)（状態・行動の契約）
 3. [描画受け入れ試験](../developers/drawing_process_acceptance.md)（合否）
-4. [実装計画](../kadoka/implementation_plan.md)（優先順位）
-5. 対象Issueと依存Issue
-6. [ソースコードガイド](../developers/source_code_guide.md)、対象componentの開発者文書と関連test
-7. 実装本体
+4. [データ品質と学習精度の正本](../developers/drawing_data_quality_v1.md)・[DrawingPolicy学習設計](../developers/drawing_policy_accuracy_v1.md)
+5. [実装計画](../kadoka/implementation_plan.md)（優先順位）
+6. 対象Issueと依存Issue
+7. [ソースコードガイド](../developers/source_code_guide.md)、対象componentの開発者文書と関連test
+8. 実装本体
 
 **Part Bankだけの変更でも、それをプロジェクトの主目的と呼ばない。** 説明が古い文書と矛盾する場合は、推測実装せず設計Issueへ報告する。
 
