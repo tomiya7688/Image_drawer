@@ -229,7 +229,6 @@ def test_strict_json_loader_rejects_ambiguous_numeric_and_duplicates(payload):
         )
 
 
-
 def test_mixed_actor_episode_keeps_human_corrections_separate():
     episode = json.loads((FIXTURES / "golden_mixed_actor.json").read_text(encoding="utf-8"))
     frames = replay(episode)
@@ -241,9 +240,3 @@ def test_mixed_actor_episode_keeps_human_corrections_separate():
     ]
     assert frames[12]["rgba_rows"] == expected[-1]["rgba_rows"]
 
-
-def test_temporary_format_diff():
-    import subprocess
-
-    completed = subprocess.run(["ruff", "format", "--diff", __file__], capture_output=True, text=True)
-    assert completed.returncode == 0, completed.stdout + completed.stderr
