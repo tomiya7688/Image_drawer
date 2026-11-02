@@ -147,6 +147,34 @@ v1のパレット識別子は `idraw-palette-256-v1`。外部ライセンスに�
 
 構造検査用の[JSON Schema](schemas/drawing_episode_v1.schema.json)、[正本ゴールデンエピソード](../../tests/fixtures/drawing_process_v1/golden_episode.json)、[期待RGBA画素](../../tests/fixtures/drawing_process_v1/golden_frames.json)も同梱する。Schemaでは検査できない`seq`連続性・時間順・レイヤー存在・座標のキャンバス内制約は**DrawingEngine側で必ず検証**する。なおJSON Schemaの`integer`は数学的に整数な`5.0`を許容する実装がある。v1のID・座標・時刻・連番は**JSONの整数表記のみ許可**し、小数表記（`5.0`等）と真偽値をJSON読取層／Action validatorで拒否する。
 
+### 6.1 リソースと計算量上限（受理前に検証）
+
+形式上validでも過大なCPU/RAMを消費しないように**実行前に全予算を計算して拒否**する。byte制限はJSON parse前に適用する。
+
+| 予算 | v1上限と計算 |
+| --- | --- |
+| UTF-8ファイル | 16 MiB（読み込む前に確認） |
+| キャンバス | `width,height <= 1024`、レイヤー最大16。さらに`width * height * max(1, layer_count) <= 4,194,304` |
+| イベント数 | 最大20,000（`finish`を含む） |
+| 全ストローク/消去の座標点 | 合計200,000点 |
+| 全線分 | 合計200,000本。1点strokeも1本 |
+| 線分の探索候補画素 | 全線分のクリップ済み候補矩形の面積合計が最大50,000,000画素 |
+
+候補矩形の定義：`r=ceil(width_px/2)`、`xmin=max(0,min(ax,bx)-r)`、`xmax=min(width-1,max(ax,bx)+r)`。y軸も同様。`xmin>xmax`または`ymin>ymax`なら面積0、それ以外は`(xmax-xmin+1)*(ymax-ymin+1)`。描画器は**矩形内に限って**`5の整数距離判定を行う。全画面を全線分ごとに走査してはならない。合計上限超過時は**一部を描画する前に**episodeごと拒否する。
+
+この予算はDoS対策のv1実装上限であり、作品品質の保証値ではない。緩和する場合は互換性・測定と共に別実行profile/versionを定義する。
+
+### 6.2 途中保存・クラッシュ復旧と参照の一貫性
+
+- `finish`を持つ完成`DrawingEpisode`と、`finish`を持たない未完成の`DrawingDraft`を**別の状態**として扱う。Draftを完成済み／学習済みと偽らない。
+- `Recorder`は承認済みイベントを`seq`順のappend-only journalへ記録する。1イベントごとにflushとfsyncを済ませてから、画面へ「保存済み」を返す。描画中のポインタサンプルはpointer-upまで未確定と表示し、1strokeが確定した時点でeventとして記録する。
+- 再起動時はchecksum・seq・actor・状態遷移を検証できる最後のprefixまで復旧し、未確定suffixを報告して隔離する。`finish`を自動挿入しない。受理済みでackされたイベントを失わない。
+- 完了時はEpisode JSONを一時ファイルへ書き、fsync→同一filesystem内の原子的rename→ディレクトリfsyncする。その後、Episodeの`uri`・SHA-256・`run_id`・`artifact_id`・`status`を含むmanifest/outboxをトランザクションで確定する。
+- manifest参照のないblobは`orphan`として照合・再登録を試みる。blob不在やSHA不一致の参照は`broken`とし、公開／学習へ出さない。破損を隠して正常完了としない。
+- Draftから続ける場合は既存の有効prefixと描画状態を完全再生したうえで、新規イベントのseqを継続する。リカバリーした操作の`actor`と時刻を変更しない。
+
+独立した検証項目は[受け入れ試験](drawing_process_acceptance.md)、学習への取り込みは[データ品質仕様](drawing_data_quality_v1.md)で定義する。
+
 ## 7. 学習・推論の最小契約
 
 - 学習対象は`policy(prompt, DrawingState, history) -> next DrawingAction`。実演エピソードの`events[n]`より前だけを観測し、**次の操作種別とそのパラメータを**教師信号とする。未来のイベント・最終画像はポリシーへの入力に渡さない。
