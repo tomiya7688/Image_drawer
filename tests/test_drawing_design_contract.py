@@ -235,3 +235,13 @@ def test_strict_json_loader_rejects_ambiguous_numeric_and_duplicates(payload):
             parse_float=reject_decimal,
             object_pairs_hook=reject_duplicate,
         )
+
+
+def test_temporary_show_ruff_diff():
+    """整形差分をCIログで確認するための一時的な検査。"""
+    import subprocess
+
+    result = subprocess.run(
+        ["ruff", "format", "--diff", __file__], capture_output=True, text=True
+    )
+    assert result.returncode == 0, result.stdout + result.stderr
