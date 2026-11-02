@@ -35,11 +35,19 @@ Image Drawerが最初に必要とするGUIは、**人間が筆で線を引き、
 | 消しゴムを選択して描く | `erase` | 作業レイヤーだけ透明化 |
 | 作品を終了 | `finish` | 新規操作不可、保存可能 |
 
-マウス/ペンの一本のドラッグは**一個の`stroke`イベント**（途中の座標配列を`points`に記録）。ドラッグ開始のみで終了した場合も`points`が1個の`stroke`にする。筆圧・回転・傾きはv1では記録しない（未対応を0や固定値で偽装しない）。
+**キャンバス内の連続した1筆跡**を一個の`stroke`（または`erase`）イベントとする。pointer-downだけでpointer-upした場合も1点の描画イベントにする。キャンバス外へ出て戻った場合は**別のstrokeに分割**し、その2地点を線で結ばない。失われた区間は補間しない。筆圧・回転・傾きはv1では未対応（未取得を0や固定値で偽装しない）。
 
-画面座標→描画座標：表示倍率によらず、キャンバス内の位置を`x=floor(local_x / display_scale)`、`y=floor(local_y / display_scale)`とし`0..width-1`／`0..height-1`に対応付ける。描画領域外のイベントは破棄する。連続して同じ画素中心が採取された場合、`points`では隣接重複を除去する。pointer-up時に最後の有効点が異なるなら追加する。**座標点が4096点を超えるときに無断で打ち切り・分割して履歴を偽らず、記録不可としてエラーを示す。**
+画面座標→描画座標：Canvas表示領域の左上を`(left,top)`、表示倍率を`scale>0`、pan量を`(pan_x,pan_y)`としたとき、`x=floor((client_x-left-pan_x)/scale)`、`y=floor((client_y-top-pan_y)/scale)`。devicePixelRatioなど画面側の変換を含めた`scale`は収集metadataへ記録する。座標が`0..width-1`／`0..height-1`外なら**そこで現在の連続strokeを確定し**、再入場時は新しいstrokeを開始する（bridge線なし）。ドラッグの軌跡が一度も画布内に入らなければActionを記録しない。隣接する同一画素の重複サンプルは除く。pointer-up時の最後の有効点が異なるなら追加する。`4096点`を超える場合は無断分割せず、raw captureを保存し正規化不能としてエラーを表示する。値を静かに間引いたり途中のstrokeを成功扱いしてはいけない。
 
 ブラシの色とブラシ種別は**独立した操作**。GUIが描画操作に必要な未選択状態を補助する場合でも、対応する`select_color`・`select_brush`等のActionを順序通り記録し、暗黙の変更をしない。
+
+### 2.1 入力競合・操作中断の順序を固定する
+
+- 全てのpointer、色・ブラシ・phase・レイヤー選択を**一つの順序付きイベントキュー**で処理する。各`seq`は1個のActionを`DrawingEngine`が受理してから増やし、失敗したActionに番号を消費させない。
+- pointer-down時に`active_layer_id`、`selected_color_id`、`selected_brush_id`、`phase`、`width_px`、`opacity_u8`、描画モードを**immutable snapshot**として固定。ストロークが確定するまではUIの選択変更を**保留**し、strokeコミット後に記録する。画面に「後で反映」と明示し、記録上のAction順と表示を一致させる。
+- pointer-cancelやアプリが非表示になる場合は、最後の有効な点列を確定できるときだけそのprefixをcommitし、中断理由をsidecarへ記録する。確定できなければActionを捏造せずDraftとして復旧する。
+- 学習用の人間Actionは`actor=human`。自動で作ったレイヤーや初期設定を記録する場合は`actor=system`で区別する。AIの描画を人間が修正したらEpisodeの`origin=mixed`と各イベントのactorを維持する。
+- 入力待ちのraw座標とコミット済みActionは区別し、UIで「保存済み」を表示するのはJournalへfsyncされてからだけ。詳細は[データ品質仕様](drawing_data_quality_v1.md)。
 
 ## 3. レイヤーは人間に見える構造を維持する
 
@@ -53,7 +61,7 @@ Image Drawerが最初に必要とするGUIは、**人間が筆で線を引き、
 
 ## 4. 保存・再生と人間／AIの区別
 
-- 人間が実際に入力した場合、Action順・時刻・出所`human`を`DrawingEpisode`に記録。`origin=human`でも権利・収集許諾は別に管理する。
+- 人間が実際に入力した場合、各イベントに`actor=human`と時刻・操作順を記録。モデル／自動操作と混在した場合は`origin=mixed`とし、`origin=human`だけで権利・収集許諾を証明したことにはしない。
 - Replayでは任意の`seq`まで戻り、**その時点の各レイヤー・選択色・ブラシ・phaseと画像**を表示できる。
 - モデル推論では、`DrawingPolicy`が出したActionと、そのActionを`DrawingEngine`が受理したかを順に表示する。`origin=model`を使う。
 - モデルが生成した画像だけを表示して「制作過程が見える」と称しない。ストロークの軌跡・色選択・レイヤー切り替えまで追跡する。
