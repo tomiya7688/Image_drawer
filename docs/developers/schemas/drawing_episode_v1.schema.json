@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "title": "Image Drawer DrawingEpisode v1 (構造契約)",
-  "description": "時系列seq・time_ms、座標のcanvas内判定、描画状態遷移と権利確認は描画器およびdataset validationが別途行う。JSON Schemaのintegerが5.0を許容する場合でも、v1ではJSONの小数表記の整数値を別途拒否する。",
+  "description": "JSON Schemaは構造・値域を検査する。厳密なJSON整数字句、同名キー、actor/origin一致、seq連続性、画布内座標、集約リソース予算、state遷移、終了条件はstrict loader/semantic validatorが別途必須。",
   "type": "object",
   "additionalProperties": false,
   "required": [
@@ -29,7 +29,8 @@
         "human",
         "model",
         "synthetic",
-        "derived"
+        "derived",
+        "mixed"
       ]
     },
     "prompt": {
@@ -67,7 +68,7 @@
     "events": {
       "type": "array",
       "minItems": 1,
-      "maxItems": 100000,
+      "maxItems": 20000,
       "items": {
         "oneOf": [
           {
@@ -75,11 +76,13 @@
             "properties": {
               "seq": {
                 "type": "integer",
-                "minimum": 0
+                "minimum": 0,
+                "maximum": 19999
               },
               "time_ms": {
                 "type": "integer",
-                "minimum": 0
+                "minimum": 0,
+                "maximum": 604800000
               },
               "type": {
                 "const": "create_layer"
@@ -101,11 +104,21 @@
                   "name"
                 ],
                 "additionalProperties": false
+              },
+              "actor": {
+                "enum": [
+                  "human",
+                  "model",
+                  "system",
+                  "synthetic",
+                  "derived"
+                ]
               }
             },
             "required": [
               "seq",
               "time_ms",
+              "actor",
               "type",
               "payload"
             ],
@@ -116,11 +129,13 @@
             "properties": {
               "seq": {
                 "type": "integer",
-                "minimum": 0
+                "minimum": 0,
+                "maximum": 19999
               },
               "time_ms": {
                 "type": "integer",
-                "minimum": 0
+                "minimum": 0,
+                "maximum": 604800000
               },
               "type": {
                 "const": "select_layer"
@@ -136,11 +151,21 @@
                   "layer_id"
                 ],
                 "additionalProperties": false
+              },
+              "actor": {
+                "enum": [
+                  "human",
+                  "model",
+                  "system",
+                  "synthetic",
+                  "derived"
+                ]
               }
             },
             "required": [
               "seq",
               "time_ms",
+              "actor",
               "type",
               "payload"
             ],
@@ -151,11 +176,13 @@
             "properties": {
               "seq": {
                 "type": "integer",
-                "minimum": 0
+                "minimum": 0,
+                "maximum": 19999
               },
               "time_ms": {
                 "type": "integer",
-                "minimum": 0
+                "minimum": 0,
+                "maximum": 604800000
               },
               "type": {
                 "const": "set_phase"
@@ -177,11 +204,21 @@
                   "phase"
                 ],
                 "additionalProperties": false
+              },
+              "actor": {
+                "enum": [
+                  "human",
+                  "model",
+                  "system",
+                  "synthetic",
+                  "derived"
+                ]
               }
             },
             "required": [
               "seq",
               "time_ms",
+              "actor",
               "type",
               "payload"
             ],
@@ -192,11 +229,13 @@
             "properties": {
               "seq": {
                 "type": "integer",
-                "minimum": 0
+                "minimum": 0,
+                "maximum": 19999
               },
               "time_ms": {
                 "type": "integer",
-                "minimum": 0
+                "minimum": 0,
+                "maximum": 604800000
               },
               "type": {
                 "const": "select_color"
@@ -214,11 +253,21 @@
                   "color_id"
                 ],
                 "additionalProperties": false
+              },
+              "actor": {
+                "enum": [
+                  "human",
+                  "model",
+                  "system",
+                  "synthetic",
+                  "derived"
+                ]
               }
             },
             "required": [
               "seq",
               "time_ms",
+              "actor",
               "type",
               "payload"
             ],
@@ -229,11 +278,13 @@
             "properties": {
               "seq": {
                 "type": "integer",
-                "minimum": 0
+                "minimum": 0,
+                "maximum": 19999
               },
               "time_ms": {
                 "type": "integer",
-                "minimum": 0
+                "minimum": 0,
+                "maximum": 604800000
               },
               "type": {
                 "const": "select_brush"
@@ -249,11 +300,21 @@
                   "brush_id"
                 ],
                 "additionalProperties": false
+              },
+              "actor": {
+                "enum": [
+                  "human",
+                  "model",
+                  "system",
+                  "synthetic",
+                  "derived"
+                ]
               }
             },
             "required": [
               "seq",
               "time_ms",
+              "actor",
               "type",
               "payload"
             ],
@@ -264,11 +325,13 @@
             "properties": {
               "seq": {
                 "type": "integer",
-                "minimum": 0
+                "minimum": 0,
+                "maximum": 19999
               },
               "time_ms": {
                 "type": "integer",
-                "minimum": 0
+                "minimum": 0,
+                "maximum": 604800000
               },
               "type": {
                 "const": "stroke"
@@ -296,11 +359,21 @@
                   "opacity_u8"
                 ],
                 "additionalProperties": false
+              },
+              "actor": {
+                "enum": [
+                  "human",
+                  "model",
+                  "system",
+                  "synthetic",
+                  "derived"
+                ]
               }
             },
             "required": [
               "seq",
               "time_ms",
+              "actor",
               "type",
               "payload"
             ],
@@ -311,11 +384,13 @@
             "properties": {
               "seq": {
                 "type": "integer",
-                "minimum": 0
+                "minimum": 0,
+                "maximum": 19999
               },
               "time_ms": {
                 "type": "integer",
-                "minimum": 0
+                "minimum": 0,
+                "maximum": 604800000
               },
               "type": {
                 "const": "erase"
@@ -337,11 +412,21 @@
                   "width_px"
                 ],
                 "additionalProperties": false
+              },
+              "actor": {
+                "enum": [
+                  "human",
+                  "model",
+                  "system",
+                  "synthetic",
+                  "derived"
+                ]
               }
             },
             "required": [
               "seq",
               "time_ms",
+              "actor",
               "type",
               "payload"
             ],
@@ -352,11 +437,13 @@
             "properties": {
               "seq": {
                 "type": "integer",
-                "minimum": 0
+                "minimum": 0,
+                "maximum": 19999
               },
               "time_ms": {
                 "type": "integer",
-                "minimum": 0
+                "minimum": 0,
+                "maximum": 604800000
               },
               "type": {
                 "const": "finish"
@@ -366,11 +453,21 @@
                 "properties": {},
                 "required": [],
                 "additionalProperties": false
+              },
+              "actor": {
+                "enum": [
+                  "human",
+                  "model",
+                  "system",
+                  "synthetic",
+                  "derived"
+                ]
               }
             },
             "required": [
               "seq",
               "time_ms",
+              "actor",
               "type",
               "payload"
             ],
