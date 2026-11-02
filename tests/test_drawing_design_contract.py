@@ -239,4 +239,3 @@ def test_mixed_actor_episode_keeps_human_corrections_separate():
         "checkpoints"
     ]
     assert frames[12]["rgba_rows"] == expected[-1]["rgba_rows"]
-
