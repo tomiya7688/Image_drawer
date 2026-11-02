@@ -118,31 +118,31 @@ v1のパレット識別子は `idraw-palette-256-v1`。外部ライセンスに�
   "brush_set_id": "brush-v1",
   "renderer_version": "raster-v1",
   "events": [
-    {"seq": 0, "time_ms": 0, "type": "create_layer", "payload": {"layer_id": "sketch", "name": "下書き"}},
-    {"seq": 1, "time_ms": 1, "type": "select_layer", "payload": {"layer_id": "sketch"}},
-    {"seq": 2, "time_ms": 2, "type": "set_phase", "payload": {"phase": "sketch"}},
-    {"seq": 3, "time_ms": 3, "type": "select_brush", "payload": {"brush_id": "hard_round_v1"}},
-    {"seq": 4, "time_ms": 4, "type": "select_color", "payload": {"color_id": 0}},
-    {"seq": 5, "time_ms": 5, "type": "stroke", "payload": {"points": [[0, 0], [2, 0]], "width_px": 1, "opacity_u8": 255}},
-    {"seq": 6, "time_ms": 6, "type": "create_layer", "payload": {"layer_id": "color", "name": "色"}},
-    {"seq": 7, "time_ms": 7, "type": "select_layer", "payload": {"layer_id": "color"}},
-    {"seq": 8, "time_ms": 8, "type": "set_phase", "payload": {"phase": "color"}},
-    {"seq": 9, "time_ms": 9, "type": "select_color", "payload": {"color_id": 180}},
-    {"seq": 10, "time_ms": 10, "type": "stroke", "payload": {"points": [[1, 0], [1, 1]], "width_px": 1, "opacity_u8": 255}},
-    {"seq": 11, "time_ms": 11, "type": "set_phase", "payload": {"phase": "correct"}},
-    {"seq": 12, "time_ms": 12, "type": "erase", "payload": {"points": [[1, 0]], "width_px": 1}},
-    {"seq": 13, "time_ms": 13, "type": "finish", "payload": {}}
+    {"seq": 0, "time_ms": 0, "actor": "synthetic", "type": "create_layer", "payload": {"layer_id": "sketch", "name": "下書き"}},
+    {"seq": 1, "time_ms": 1, "actor": "synthetic", "type": "select_layer", "payload": {"layer_id": "sketch"}},
+    {"seq": 2, "time_ms": 2, "actor": "synthetic", "type": "set_phase", "payload": {"phase": "sketch"}},
+    {"seq": 3, "time_ms": 3, "actor": "synthetic", "type": "select_brush", "payload": {"brush_id": "hard_round_v1"}},
+    {"seq": 4, "time_ms": 4, "actor": "synthetic", "type": "select_color", "payload": {"color_id": 0}},
+    {"seq": 5, "time_ms": 5, "actor": "synthetic", "type": "stroke", "payload": {"points": [[0, 0], [2, 0]], "width_px": 1, "opacity_u8": 255}},
+    {"seq": 6, "time_ms": 6, "actor": "synthetic", "type": "create_layer", "payload": {"layer_id": "color", "name": "色"}},
+    {"seq": 7, "time_ms": 7, "actor": "synthetic", "type": "select_layer", "payload": {"layer_id": "color"}},
+    {"seq": 8, "time_ms": 8, "actor": "synthetic", "type": "set_phase", "payload": {"phase": "color"}},
+    {"seq": 9, "time_ms": 9, "actor": "synthetic", "type": "select_color", "payload": {"color_id": 180}},
+    {"seq": 10, "time_ms": 10, "actor": "synthetic", "type": "stroke", "payload": {"points": [[1, 0], [1, 1]], "width_px": 1, "opacity_u8": 255}},
+    {"seq": 11, "time_ms": 11, "actor": "synthetic", "type": "set_phase", "payload": {"phase": "correct"}},
+    {"seq": 12, "time_ms": 12, "actor": "synthetic", "type": "erase", "payload": {"points": [[1, 0]], "width_px": 1}},
+    {"seq": 13, "time_ms": 13, "actor": "synthetic", "type": "finish", "payload": {}}
   ],
   "metadata": {"dataset_id": "example", "rights": "demo-only"}
 }
 ```
 
-- `origin`は`human`（実際の人間の描画操作を記録）、`model`（学習済みモデルが行動を生成）、`synthetic`（テスト等で作成）、`derived`（完成画像などから行動を推定）の4種。上記は**合成したテスト例**であり、人間の実演ではないため`synthetic`と明記する。
-- `seq`は0から始まる欠番なし整数。`time_ms`はエピソード開始からの非負整数・**非減少**。描画結果には影響しないが人間の所要時間を保存する。実時間の取得ができないsyntheticでは決定的な連番を使ってよい。
+- `origin`は単一主体の`human`／`model`／`synthetic`／`derived`と、複数主体の`mixed`の5種類。各イベントには必須の`actor`を持たせ、`human`（人間の実入力）、`model`（モデルの予測）、`system`（アプリによる自動操作）、`synthetic`（テスト）、`derived`（推定）のいずれかとする。全イベントactorが同じ`human`／`model`／`synthetic`／`derived`ならそれを`origin`に使い、その他は`mixed`。systemのみの完成episodeは拒否。モデルを人間が修正したときは`actor=human`で区別し、mixed全体を人間実演として学習させない。上記例は`synthetic`。
+- `seq`は0から始まる欠番なし整数（`0..19999`）。`time_ms`は開始からの非負整数（`0..604800000`＝7日）で**非減少**。実行順は必ず`seq`で決める。時刻は描画結果に影響しない。syntheticでは連番を使用してよい。
 - `episode_id`は空でない識別子。`prompt`は文字列。`metadata`はオブジェクトであり、権利・収集元・許諾の記録を保持する。`origin=human`だけでは学習許諾を示さない。
 - `palette_id`、`brush_set_id`、`renderer_version`は上記v1の識別子以外を拒否。将来の形式は新しいschema/versionを使う。
-- 行動イベントのトップレベルキーは`seq,time_ms,type,payload`のみ。エピソードの必須トップレベルキーはサンプルに列挙した**10キー**（`metadata`含む）で、未知のキーは拒否。終端は`finish`でなくてはならない。
-- JSON number は符号付き32bitに自動丸めしない。仕様の整数境界に従い、NaN/Infinityや巨大入力を拒否する。`events`は`1..100000`件まで。
+- 行動イベントのトップレベルキーは`seq,time_ms,actor,type,payload`の**5キーのみ**。エピソードの必須トップレベルキーはサンプルに列挙した10キー（`metadata`含む）。未知キーは拒否。**完成Episodeだけが**終端`finish`を必須とする。録画中断の部分履歴は`6.2のDraftとして別管理する。
+- JSON numberを符号付き32bitへ自動丸めしない。全数値は**JSON字句として小数点も指数表記もない10進整数表記**のみ。`5.0`、`5e0`、`true`、NaN/Infinity、同名JSONキー、非UTF-8を拒否。JSON Schemaだけでこの字句制約を検査できないため、**厳密なJSON読取層**が必須。`events`は`1..20000`件。
 - `DrawingEpisode`は`WorkflowSpec/Trajectory`とは別の型。Workflow Runtimeからは`DrawingEpisode`を指す**型付きArtifact**（例：`DrawingEpisode`）としてURIとバージョンを保持し、`Trajectory`にsource/parents/step等を紐づける。`Trajectory.executions`を描画操作ログの代用にしない。
 
 構造検査用の[JSON Schema](schemas/drawing_episode_v1.schema.json)、[正本ゴールデンエピソード](../../tests/fixtures/drawing_process_v1/golden_episode.json)、[期待RGBA画素](../../tests/fixtures/drawing_process_v1/golden_frames.json)も同梱する。Schemaでは検査できない`seq`連続性・時間順・レイヤー存在・座標のキャンバス内制約は**DrawingEngine側で必ず検証**する。なおJSON Schemaの`integer`は数学的に整数な`5.0`を許容する実装がある。v1のID・座標・時刻・連番は**JSONの整数表記のみ許可**し、小数表記（`5.0`等）と真偽値をJSON読取層／Action validatorで拒否する。
