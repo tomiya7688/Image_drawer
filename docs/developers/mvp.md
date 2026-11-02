@@ -27,7 +27,7 @@
 | DrawingState | キャンバス、レイヤー、色・ブラシ選択、工程、終了状態 | [制作過程 v1](drawing_process_v1.md) |
 | DrawingEngine | 固定256色、ストローク、透明レイヤー、消去、source-over | [受け入れ試験 A〜D](drawing_process_acceptance.md) |
 | Recorder/Replay | 時系列イベント、出所、途中状態の保存と再生 | [受け入れ試験 B・D・E](drawing_process_acceptance.md) |
-| Dataset/Policy | 人間のイベントを次行動教師にし、同じAction形式を生成 | [受け入れ試験 F](drawing_process_acceptance.md) |
+| Dataset/Policy | 人間のイベントを次行動教師にし、同じAction形式を生成 | [受け入れ試験 F](drawing_process_acceptance.md)・[データ品質](drawing_data_quality_v1.md)・[精度評価](drawing_policy_accuracy_v1.md) |
 | GUI | 色・ブラシ・レイヤーを選び筆を動かして、履歴／途中状態を見られる | [GUI仕様](gui.md) |
 | Workflow連携 | Episodeと上位Stepを区別しArtifact/Trajectoryから参照できる | [アーキテクチャ](architecture.md)・[DSL](workflow_dsl.md) |
 
