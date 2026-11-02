@@ -14,6 +14,7 @@
     {
       "seq": 0,
       "time_ms": 0,
+      "actor": "synthetic",
       "type": "create_layer",
       "payload": {
         "layer_id": "sketch",
@@ -23,6 +24,7 @@
     {
       "seq": 1,
       "time_ms": 1,
+      "actor": "synthetic",
       "type": "select_layer",
       "payload": {
         "layer_id": "sketch"
@@ -31,6 +33,7 @@
     {
       "seq": 2,
       "time_ms": 2,
+      "actor": "synthetic",
       "type": "set_phase",
       "payload": {
         "phase": "sketch"
@@ -39,6 +42,7 @@
     {
       "seq": 3,
       "time_ms": 3,
+      "actor": "synthetic",
       "type": "select_brush",
       "payload": {
         "brush_id": "hard_round_v1"
@@ -47,6 +51,7 @@
     {
       "seq": 4,
       "time_ms": 4,
+      "actor": "synthetic",
       "type": "select_color",
       "payload": {
         "color_id": 0
@@ -55,6 +60,7 @@
     {
       "seq": 5,
       "time_ms": 5,
+      "actor": "synthetic",
       "type": "stroke",
       "payload": {
         "points": [
@@ -74,6 +80,7 @@
     {
       "seq": 6,
       "time_ms": 6,
+      "actor": "synthetic",
       "type": "create_layer",
       "payload": {
         "layer_id": "color",
@@ -83,6 +90,7 @@
     {
       "seq": 7,
       "time_ms": 7,
+      "actor": "synthetic",
       "type": "select_layer",
       "payload": {
         "layer_id": "color"
@@ -91,6 +99,7 @@
     {
       "seq": 8,
       "time_ms": 8,
+      "actor": "synthetic",
       "type": "set_phase",
       "payload": {
         "phase": "color"
@@ -99,6 +108,7 @@
     {
       "seq": 9,
       "time_ms": 9,
+      "actor": "synthetic",
       "type": "select_color",
       "payload": {
         "color_id": 180
@@ -107,6 +117,7 @@
     {
       "seq": 10,
       "time_ms": 10,
+      "actor": "synthetic",
       "type": "stroke",
       "payload": {
         "points": [
@@ -126,6 +137,7 @@
     {
       "seq": 11,
       "time_ms": 11,
+      "actor": "synthetic",
       "type": "set_phase",
       "payload": {
         "phase": "correct"
@@ -134,6 +146,7 @@
     {
       "seq": 12,
       "time_ms": 12,
+      "actor": "synthetic",
       "type": "erase",
       "payload": {
         "points": [
@@ -148,6 +161,7 @@
     {
       "seq": 13,
       "time_ms": 13,
+      "actor": "synthetic",
       "type": "finish",
       "payload": {}
     }
