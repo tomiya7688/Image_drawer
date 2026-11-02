@@ -56,6 +56,8 @@
 
 ### S2：人間の描画収集・保存・再生
 
+**必読**：[データの真正性・actor・復旧・分割契約](../developers/drawing_data_quality_v1.md)。途中中断のDraftと完成Episodeは区別し、ACK済みイベントの復元とURI/SHA/Artifact参照の原子的整合を検証する。
+
 **成果物**：絵師の一回の制作過程を`DrawingEpisode`として保存する機能。
 
 - UIで人間の入力をActionに変換し、実際の時間順で記録。未取得の筆圧などを捏造しない。
@@ -66,6 +68,8 @@
 **Done**：同一履歴から全レイヤーと全中間画素が再現される。[受け入れ試験 E](../developers/drawing_process_acceptance.md)に合格し、実ユーザー操作による収集とsynthetic fixtureが区別できる。
 
 ### S3：人間の実演Dataset・学習器の最初のベースライン
+
+**必読**：[DrawingPolicy階層予測・学習/検証プロトコル](../developers/drawing_policy_accuracy_v1.md)。Action type・色・ブラシ・レイヤー・可変長点列・終了を条件付きに予測し、合法マスクと学習精度を混同しない。held-out作者とclosed-loopを別々に評価する。
 
 **成果物**：人間が描いた履歴から次の行動を予測する学習器。
 
