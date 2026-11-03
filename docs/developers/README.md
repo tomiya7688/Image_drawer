@@ -3,6 +3,12 @@
 **対象読者:** Image Drawerを実装・拡張・レビューする開発者  
 **目的:** 内部設計、実装contract、コードの読み方を共有する。
 
+## 初めて設計を読む場合
+
+**まずは [Image Drawer 設計ガイド](start_here.md)**。txt2imgの仕組み、何が決まっているか、ブラシ・筆圧の例、何が未実装かを説明します。
+
+**特にブラシを実装する場合**：[サイズ・不透明度・筆圧の段階表とパターン](brush_control_levels_v2.md) → [12種のブラシと高精度操作](brush_presets_v2.md) の順に読みます。
+
 ## 描画実装前の必読（この順）
 
 1. [最上位コンセプト](../kadoka/concept.md)
@@ -23,6 +29,7 @@
 
 - [定番ブラシ12種の独自プリセット・高精度ペンサンプル仕様（v2）](brush_presets_v2.md)
 - [ブラシ設定の機械可読な正本](brush_presets_v2.json)
+- [固定段階表・筆圧パターンの機械可読な正本](brush_control_levels_v2.json)
 
 
 - [アーキテクチャ](architecture.md)
