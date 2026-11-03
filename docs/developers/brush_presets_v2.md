@@ -42,7 +42,7 @@ Image Drawer は **txt2img**。モデルは文章だけから白紙上に一筆�
 - `tip` は `round / flat / soft_round / grain_round`。道具の見た目のラベルではなく、rendererが実装する幾何カーネルを特定する。
 - プリセット値は全て**JSON整数**。実数を使わず、色とブラシを混ぜず、外部ブラシデータを参照しない。`q8` は256を1px、`u16` と `q16` は0〜65535を0〜1とする固定小数のスケールである。
 - プリセットのindexはJSON配列の順序が正本。AI学習用のclass番号はこの順番（0〜11）。CSV・Pythonの辞書順やusage rankingで並べ替えない。
-- **モデルcheckpointとDrawingEpisodeにはbrush_set_idとmanifest SHA-256（canonical JSON）を保存する**。異なる構成で同じ名前を使わず、checksum不一致なら学習・推論・Replayを停止。
+- **モデルcheckpointとDrawingEpisodeにはbrush_set_idとmanifest SHA-256（canonical JSON）を保存する**。canonical bytesはUTF-8で `json.dumps(manifest, sort_keys=True, ensure_ascii=False, separators=(",",":"), allow_nan=False).encode("utf-8")` と同一の結果になるよう定義し、そのSHA-256を記録する。空白やキー順の違いでhashが変化しない一方、プリセット値や順番の変更ではhashが変わる。異なる構成で同じbrush_set_idを使わず、checksum不一致なら学習・推論・Replayを停止。
 
 各プリセットが持つ固定フィールドは `tip`、`family`、`spacing_q16`、`hardness_u16`、`flow_u16`、`grain_u16`、`aspect_u16`、`angle_cdeg`、`pressure_min_size_u16`、`pressure_min_opacity_u16`。
 
@@ -94,7 +94,7 @@ v2の最初の正式な調整可能項目は **`size_q8` と `opacity_u16` の2�
 - `x_q8 / y_q8`：画素中心の1/256単位の非負整数。各 `0..(width-1)*256` ／ `0..(height-1)*256`。2Dのサブピクセル精度を保持する。
 - `time_us`：一本のストローク開始からの相対microsecond、先頭0、非減少、`0..60,000,000`。
 - `pressure_u16`：`null`または整数0〜65535。`null`はデバイスから観測できなかったことを意味し、0や最大値を「実測値」と偽装しない。
-- `tilt_x_cdeg, tilt_y_cdeg`：両方`null`または両方整数`-9000..9000`。欠損はそのまま保存し、勝手に「水平」と断定しない。
+- `tilt_x_cdeg, tilt_y_cdeg`：両方`null`または両方整数`-9000..9000`。傾きはキャンバス座標軸を基準にし、+xは右、+yは下への傾き。原デバイスのセンサー座標をキャンバスに変換するNormalizerを必ずversion付きで保存。欠損はそのまま保存し、勝手に「水平」と断定しない。
 - `samples`：1〜4096個。連続サンプル間の時間、筆圧・傾きの変動を**生の実演に由来する時系列**として保持。座標の間引きや平滑化をした場合は`normalizer_version`・元のraw data参照を残す。
 - renderer内の有効筆圧は`pressure_u16=null`なら65535（サイズ等の計算上は最大）とするが、**保存サンプルのnullは変更しない**。有効tiltは未観測時0とする。時間は現行基準Rendererでは筆跡の密度を変更しない観測・学習情報とする。
 - 実行中のtool選択とサイズ/透明度は**strokeの開始時点で固定**。ストローク中に別の選択が入ったらGUIは順序キューで後続に回し、既存strokeの意味を変えない。
