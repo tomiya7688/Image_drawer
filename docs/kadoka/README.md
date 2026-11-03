@@ -8,7 +8,7 @@
 - [コンセプト](concept.md)
 - [実装計画](implementation_plan.md)
 
-具体的な描画契約は [制作過程v1](../developers/drawing_process_v1.md)、完成判定は [受け入れ試験](../developers/drawing_process_acceptance.md) を参照してください。色は固定256色・ブラシは独立、描画行動の学習が最優先です。
+**初めて読む方は[設計ガイド](../developers/start_here.md)へ。** 現在の学習方式は[画像だけから自分で描いて学ぶ](../developers/image_only_learning_v1.md)で、制作順序は[ラフ→下書き→本描きの固定工程](../developers/fixed_drawing_workflow_v2.md)。旧[制作過程v1](../developers/drawing_process_v1.md)は画素Replay互換の契約です。[受け入れ試験](../developers/drawing_process_acceptance.md)も参照してください。
 
 ## このfolderに置くもの
 
