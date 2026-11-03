@@ -276,3 +276,29 @@ def test_vision_provider_connection_settings_change_cache_fingerprint():
     )
     assert a.config_fingerprint != b.config_fingerprint
     assert "api_key" not in a.config_fingerprint
+
+def test_missing_visual_facts_causes_quality_fallback():
+    verifier = FakeVision(
+        "checker",
+        "checker-vlm",
+        [
+            VisionResponse('{"supported":true,"unsupported_claims":[],"missing_facts":["second object"]}'),
+            VisionResponse('{"supported":true,"unsupported_claims":[],"missing_facts":[]}'),
+        ],
+    )
+    router, _, _ = make_pipeline(VisionResponse(caption_json()), verifier=verifier)
+    result = router.extract(b"image bytes", "image/png")
+    assert result.fallback_used is True
+    assert result.attempts[0].status == "unverified_facts"
+
+
+def test_verifier_refusal_does_not_discard_valid_qwen_fallback():
+    verifier = FakeVision("checker", "restricted-verifier", [VisionResponse(refusal=True)])
+    router, _, _ = make_pipeline(
+        VisionResponse(refusal=True),
+        verifier=verifier,
+    )
+    result = router.extract(b"image bytes", "image/png")
+    assert result.fallback_used is True
+    assert result.verifier_status == "verifier_refused_unverified"
+    assert result.attempts[-1].status == "ok"
