@@ -88,3 +88,10 @@ def test_next_stage_is_fixed_and_cannot_jump():
     assert ids[index["final_drawing"] + 1] == "base_color"
     assert ids[index["base_color"] + 1] == "shading"
     assert ids[index["shading"] + 1] == "refine"
+
+
+def test_temporary_ruff_format_diff():
+    import subprocess
+
+    proc = subprocess.run(["ruff", "format", "--diff", __file__], capture_output=True, text=True)
+    assert proc.returncode == 0, proc.stdout + proc.stderr
