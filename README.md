@@ -13,7 +13,7 @@ Image Drawer の最上位目的は、**人間の絵師がキャンバスを見�
 
 色は**固定256色パレット**から選び、ブラシは色と独立した要素です。下書き・線画・着色は人間の制作上の工程を表し、**「着色＝一括塗りつぶし」ではありません**。
 
-まず[コンセプト](docs/kadoka/concept.md)と[制作過程v1の正本](docs/developers/drawing_process_v1.md)・[受け入れ試験](docs/developers/drawing_process_acceptance.md)を読んでください。既存のPart Bank・COMPOSEは補助的な素材機能であり、筆による制作行動の学習の代わりではありません。
+**初見の方は [設計ガイド](docs/developers/start_here.md) から読んでください。** サイズ・不透明度・筆圧を固定段階にし、一筆の筆圧変化パターンも学習対象にする方針を含みます。詳細は[コンセプト](docs/kadoka/concept.md)と[制作過程v1](docs/developers/drawing_process_v1.md)・[受け入れ試験](docs/developers/drawing_process_acceptance.md)。既存のPart Bank・COMPOSEは補助的な素材機能であり、筆による制作行動の学習の代わりではありません。
 
 ## 文書は読者別に分かれています
 
