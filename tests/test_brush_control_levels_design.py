@@ -114,3 +114,14 @@ def test_pressure_profile_labels_are_deterministic():
     assert pressure_pattern([2, None, 8, 10], c) is None
     assert pressure_pattern([2, 8], c) is None
     assert pressure_pattern([0, 0, 0], c) == "constant"
+
+def test_temporary_ruff_format_diffs():
+    import subprocess
+
+    target_a = Path(__file__).resolve()
+    target_b = target_a.parent / "test_brush_presets_design.py"
+    for target in (target_a, target_b):
+        result = subprocess.run(
+            ["ruff", "format", "--diff", str(target)], capture_output=True, text=True
+        )
+        assert result.returncode == 0, str(target) + "\n" + result.stdout + result.stderr
