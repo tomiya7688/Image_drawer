@@ -8,7 +8,7 @@
 
 **学習素材は画像だけ、生成時の外部入力は文章だけ**。描く順序はラフ→下書き→本描き→基本色→陰影→仕上げで固定するが、その中の色・ブラシ・筆跡はAI自身が学習する。
 
-\`\`\`text
+```text
 学習画像だけ
     │
     ├── ImageDataset（画像の検査/rights/hash/split）
@@ -31,7 +31,7 @@
     └───────────────────────┘
 
 生成モード：文章 → DrawingPolicy → Controller → Engine → 完成画像＋Episode
-\`\`\`
+```
 
 **元画像を見られるのは学習用のEvaluatorだけ**。Policyへの観測入力に目標画像、差分画像、目標画像のembeddingを渡したら不合格。
 
@@ -39,17 +39,17 @@
 
 | モジュール | 責務 | 絶対にしないこと |
 | --- | --- | --- |
-| \`ImageDataset\` | 画像だけの登録、正規化、split、権利・重複・version管理 | 実演Actionを教材の必須入力にする |
-| \`TagExtractor/CaptionExtractor\` | 選択されたモデルで画像からタグと文章を抽出 | 利用者にprompt/タグを書かせることを必須にする |
-| \`PromptBuilder\` | タグと説明文をversion付きで学習promptへ整形 | 抽出器を勝手に切り替えキャッシュを混ぜる |
-| \`DrawingPolicy\` | prompt＋自分のstateから次の合法Actionを予測 | 元画像やその特徴を観測する |
-| \`FixedStageController\` | ラフ→下書き→本描きの必須順序、stage進行/skip/予算管理 | 筆跡や位置を固定Scriptで決める |
-| \`DrawingEngine\` | Actionを画素・レイヤー・ブラシで実行、拒否を返す | Policyの代わりに色や構図を独断で選ぶ |
-| \`Recorder / Replay\` | **モデルが実際に描いた**Action、stage、RGBA中間状態を記録/再生 | 元画像からActionを捏造する |
-| \`Evaluator / Reward\` | 学習時に元画像と生成画像を比較、形・色・文章一致・コストの報酬を出す | 元画像・差分画像をPolicyに観測させる |
-| \`Trainer\` | Rewardを用いてPolicyのパラメータを更新、checkpointとtrialを保存 | 選択だけ行い学習したと称する |
-| \`Workflow Runtime\` | 上記の実行をArtifact/Trajectoryへ結び付ける | 完成画像だけをActionEpisodeに偽装する |
-| \`Part Bank\` | 任意の補助素材参照 | Part配置を筆跡の代わりにする |
+| `ImageDataset` | 画像だけの登録、正規化、split、権利・重複・version管理 | 実演Actionを教材の必須入力にする |
+| `TagExtractor/CaptionExtractor` | 選択されたモデルで画像からタグと文章を抽出 | 利用者にprompt/タグを書かせることを必須にする |
+| `PromptBuilder` | タグと説明文をversion付きで学習promptへ整形 | 抽出器を勝手に切り替えキャッシュを混ぜる |
+| `DrawingPolicy` | prompt＋自分のstateから次の合法Actionを予測 | 元画像やその特徴を観測する |
+| `FixedStageController` | ラフ→下書き→本描きの必須順序、stage進行/skip/予算管理 | 筆跡や位置を固定Scriptで決める |
+| `DrawingEngine` | Actionを画素・レイヤー・ブラシで実行、拒否を返す | Policyの代わりに色や構図を独断で選ぶ |
+| `Recorder / Replay` | **モデルが実際に描いた**Action、stage、RGBA中間状態を記録/再生 | 元画像からActionを捏造する |
+| `Evaluator / Reward` | 学習時に元画像と生成画像を比較、形・色・文章一致・コストの報酬を出す | 元画像・差分画像をPolicyに観測させる |
+| `Trainer` | Rewardを用いてPolicyのパラメータを更新、checkpointとtrialを保存 | 選択だけ行い学習したと称する |
+| `Workflow Runtime` | 上記の実行をArtifact/Trajectoryへ結び付ける | 完成画像だけをActionEpisodeに偽装する |
+| `Part Bank` | 任意の補助素材参照 | Part配置を筆跡の代わりにする |
 
 ## 3. DrawingEpisode とWorkflowを混同しない
 
@@ -64,10 +64,10 @@
 
 現在の主要な既存資産：
 
-- \`image_drawer/runtime/engine.py\`：Workflow RuntimeとTrajectory。
-- \`image_drawer/core/models.py\`：ArtifactやScore、Trajectory等の共通型。
-- \`image_drawer/steps/\`：既存StepとPart合成など。
-- \`image_drawer/dsl/\`：Workflow DSLのparser/serializer。
+- `image_drawer/runtime/engine.py`：Workflow RuntimeとTrajectory。
+- `image_drawer/core/models.py`：ArtifactやScore、Trajectory等の共通型。
+- `image_drawer/steps/`：既存StepとPart合成など。
+- `image_drawer/dsl/`：Workflow DSLのparser/serializer。
 
 これらは**新しい学習・描画器が既に実装されたことを意味しない**。既存のCI、Artifact URI/lineage、実験ログを利用し、DrawingAction/Stage/Rewardの責務を新しいモジュールに切り出す。
 
