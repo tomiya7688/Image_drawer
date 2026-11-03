@@ -2,7 +2,7 @@
 
 Image Drawerの文書は、**誰が・何のために読むか**で分けています。
 
-**初めて読む方は [Image Drawer 設計ガイド](developers/start_here.md) から始めてください。** 制作工程、定番ブラシ、段階表、学習と未実装範囲を平易な言葉で説明しています。
+**初めて読む方は [Image Drawer 設計ガイド](developers/start_here.md) から始めてください。** 学習素材の外部入力は画像だけです。内部で生成するテキスト条件は[学習入力契約](developers/training_input_v1.json)にまとめています。 制作工程、定番ブラシ、段階表、学習と未実装範囲を平易な言葉で説明しています。
 
 **実装者向けの詳細な読み順**：[目的](kadoka/concept.md) → **[画像だけで描いて学ぶ](developers/image_only_learning_v1.md)** → **[固定のラフ→下書き→本描き工程](developers/fixed_drawing_workflow_v2.md)** → [受け入れ試験](developers/drawing_process_acceptance.md) → [画像データと自動抽出器](developers/drawing_data_quality_v1.md) → [学習器と精度評価](developers/drawing_policy_accuracy_v1.md) → [旧v1画素再生](developers/drawing_process_v1.md) → [実装計画](kadoka/implementation_plan.md)。**既存のPart Bank中心の説明を最優先仕様として読まないでください。**
 
