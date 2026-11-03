@@ -26,7 +26,11 @@
     "training_prompt",
     "text_condition",
     "extractor_versions",
-    "trial_history"
+    "trial_history",
+    "prompt_variants",
+    "fallback_reason",
+    "selected_caption_model",
+    "verification_status"
   ],
   "text_condition": {
     "required_during_txt2img_training": true,
@@ -90,12 +94,24 @@
     "text_encoder_version",
     "internal_generated_prompt",
     "dataset_split",
-    "seed"
+    "seed",
+    "prompt_extraction_profile",
+    "primary_fallback_and_verifier_ids",
+    "chosen_prompt_variant"
   ],
   "compatibility": [
     "fixed_7_stage_workflow",
     "fixed_256_color_palette",
     "brush_12_presets",
     "brush_level_tables"
-  ]
+  ],
+  "prompt_extraction": {
+    "profile_id": "human-prompt-aligned-v1",
+    "config_path": "docs/developers/prompt_extraction_v1.json",
+    "pipeline": "image_drawer.prompting.ImagePromptPipeline",
+    "primary": "user_selected_quality_first_vlm",
+    "fallback": "local_qwen_vl_on_primary_refusal_or_failure",
+    "human_prompt_alignment": "short_standard_detailed_with_same_text_encoder",
+    "no_user_extra_files": true
+  }
 }
