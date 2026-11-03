@@ -134,7 +134,6 @@
   "forbidden_action_types": [
     "skip_stage",
     "set_phase",
-    "finish",
     "direct_pixel_write",
     "copy_target_image"
   ],
@@ -150,6 +149,7 @@
   ],
   "controller_only_actions": [
     "enter_stage",
+    "exit_stage",
     "set_layer_visibility",
     "finish"
   ],
@@ -190,5 +190,55 @@
   "renderer_kind": "sequential-actions",
   "workflow_is_not_human_traces": true,
   "target_image_policy": "evaluator_only_never_policy_observation",
-  "legacy_v1_phase_mode": "legacy golden replay only"
+  "legacy_v1_phase_mode": "legacy golden replay only",
+  "transition_acceptance": {
+    "proposal_action": "advance_stage",
+    "proposal_payload_variants": [
+      "{}",
+      "{\"review_reason\":\"<current-stage-allowed-code>\"}"
+    ],
+    "target_selection": "next-stage-only; model must not supply destination",
+    "event_commit_order": [
+      "advance_stage",
+      "exit_stage",
+      "set_layer_visibility(if needed)",
+      "enter_stage(next stage)"
+    ],
+    "final_stage_commit_order": [
+      "advance_stage",
+      "exit_stage",
+      "finish"
+    ],
+    "atomic_stage_boundary": true,
+    "controller_event_actor": "system",
+    "model_proposal_actor": "model",
+    "rejected_proposal_has_no_event_seq": true,
+    "rejected_proposal_is_logged_as_trial": true
+  },
+  "effectful_stroke_definition": "accepted stroke_v2 that alters at least one pixel on eligible layer and leaves visible alpha>0 on required rough/sketch/final_drawing layer upon exit; erase/select only cannot satisfy mandatory drawing",
+  "stage_exit_approval": {
+    "initial_three": ">=1 effectful stroke_v2 on own dedicated layer and nontransparent paint remaining at exit",
+    "normal_color_or_shading": ">=1 effectful stroke_v2 on currently allowed layer",
+    "normal_refine": ">=1 accepted effectful stroke_v2 or erase_v2 on allowed visible layer",
+    "review_only": "no stage draw/erase actions, allowed review_reason; independent non-target prompt/state condition check",
+    "inapplicable_review": "reject with auditable reason; do not auto insert strokes or advance"
+  },
+  "resource_policy": {
+    "source": "DRAW_EPISODE.max_actions",
+    "proposal_budget_source": "DRAW_EPISODE.max_actions (explicit or default)",
+    "count_accepted_model_actions": true,
+    "count_rejected_proposals_in_separate_attempt_budget": true,
+    "count_controller_events_separately": true,
+    "exhaustion": "incomplete Draft with failure; no auto-finish, no implicit stage jump",
+    "no_stage_soft_quota_as_legal_action_mask": true
+  },
+  "policy_observation_excludes": [
+    "target_image",
+    "target_features",
+    "target_dependent_reward",
+    "future_accepted_actions",
+    "future_stage_result"
+  ],
+  "stage_layer_creation_rule": "The controller creates a transparent role layer on entering each stage requiring a new role; action create_layer(role) can create more allowed-role layers; initial layer order is not final z order",
+  "layer_blend_profile": "normal-rgba, fixed z order independent of creation order; precise pixel compositing is a separate Renderer v2 contract"
 }
