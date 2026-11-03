@@ -10,7 +10,7 @@
 
 DrawingPolicyは**文章と白紙**から自分でラフ・下書き・本描き・着色・仕上げを行い、描いた結果を元画像と比較した報酬によって、次回のAction選択を改善する。
 
-- **固定されるのは工程の順序**：[固定制作工程](fixed_drawing_workflow_v2.md)の \`rough → sketch → final_drawing → base_color → shading → refine → finish\`。
+- **固定されるのは工程の順序**：[固定制作工程](fixed_drawing_workflow_v2.md)の `rough → sketch → final_drawing → base_color → shading → refine → finish`。
 - **学習するのはその中身**：色、ブラシ、レイヤー、サイズ、透明度、筆圧、座標、消去、進行時期。
 - **教師ありで人間の次Actionを当てる課題ではない**。従来のhuman Behavior Cloningとheld-out作者テストは本製品の必須条件から外す。
 - **学習時に元画像を見てよいのはEvaluatorだけ**。推論時は元画像自体が存在しない。
@@ -19,7 +19,7 @@ DrawingPolicyは**文章と白紙**から自分でラフ・下書き・本描き
 
 ## 1. 何をPolicyに渡すか
 
-\`\`\`text
+```text
 DrawingPolicy(
     prompt,
     own_canvas_and_layers,
@@ -29,7 +29,7 @@ DrawingPolicy(
     remaining_budget,
     seed
 ) -> next_action
-\`\`\`
+```
 
 **禁止**：target_image、target_image_embedding、教師Action、未来の自分のAction、targetとの距離/差分画像、学習用RewardをPolicyの**観測入力**に含めること。
 
@@ -43,7 +43,7 @@ DrawingPolicy(
 | 出力 | 学習対象 |
 | --- | --- |
 | 次のAction種別 | レイヤーの作成・選択、色・ブラシ選択、調整、描画、消去、工程を進める、完成 |
-| 色 | **固定256色**の\`color_id\`を分類 |
+| 色 | **固定256色**の`color_id`を分類 |
 | ブラシ | **独自12プリセット**を分類。色とは独立 |
 | サイズ | [19段階](brush_control_levels_v2.md)のlevel ID |
 | 不透明度 | [11段階](brush_control_levels_v2.md)のlevel ID |
@@ -51,13 +51,13 @@ DrawingPolicy(
 | ストローク | サブピクセルの可変長座標列、傾き、終了判断 |
 | 工程移行 | 現在の工程を**終えてもよいか**だけを予測。飛び先は固定Controllerが決める |
 
-ストローク座標を一つの巨大分類にせず、点を1つずつ予測して最後に\`POINT_END\`を出す。幅、色、ブラシと座標の直積分類は禁止。工程外Action、ブラシ不一致、予算超過はEngine/Controllerが拒否する。
+ストローク座標を一つの巨大分類にせず、点を1つずつ予測して最後に`POINT_END`を出す。幅、色、ブラシと座標の直積分類は禁止。工程外Action、ブラシ不一致、予算超過はEngine/Controllerが拒否する。
 
 最初のAction decoderの実装候補は、現在画像の視覚encoder＋文章encoder＋自己履歴要約＋条件付き分類headで構成する。各headを事前に用意しても、その数だけ学習できたと主張しない。
 
 ## 3. 工程は固定するが、正解の筆跡は与えない
 
-[工程JSON](drawing_stage_workflow_v2.json)によって、最初は\`rough\`。必須のラフ・下書き・本描き・仕上げにはそれぞれ実際の描画Actionが必要。
+[工程JSON](drawing_stage_workflow_v2.json)によって、最初は`rough`。必須のラフ・下書き・本描き・仕上げにはそれぞれ実際の描画Actionが必要。
 
 - ラフでは構図・大まかな形、下書きで形状構造、本描きで主要な形・面、着色で基本色、陰影で明暗、仕上げで細部や修正を**試行して学ぶ**。
 - ただし「こういうラフ線を引け」という人間の正解Actionは無い。**画像比較から各工程の状態を評価する**だけ。
@@ -66,7 +66,7 @@ DrawingPolicy(
 
 ## 4. 基本の学習ループ
 
-\`\`\`text
+```text
 学習画像だけ登録
     ↓
 選択したTagExtractor/CaptionExtractorで文章生成（結果を凍結・キャッシュ）
@@ -80,7 +80,7 @@ Evaluatorが各段階・最終画像と元の画像を比較
 Trainerが報酬を用いてPolicyのパラメータを更新
     ↓
 学習前後を同条件で比較・新しい試行
-\`\`\`
+```
 
 **v0の学習Baselineは**、少数の合法Action候補をPolicyからサンプリングし、Rewardで相対的に良かったActionの確率を上げる方法（REINFORCE＋状態価値Baseline等のpolicy-gradient、または同等の検証可能な手法）。採択/棄却、学習前checkpoint、更新後checkpoint、ログ確率と報酬を保存する。
 
@@ -121,7 +121,7 @@ Trainerが報酬を用いてPolicyのパラメータを更新
 
 画像datasetのhash・権利・train/val/test group、Tag/Caption抽出器ID/hash、PromptBuilder、palette、brush set、control levels、Renderer、Stage workflow、Rewardのversion、Policy checkpoint、seedを一緒に記録。
 
-それぞれの試行に\`target_image_id\`（**Policyの観測ではなくEvaluatorの参照**）、自動抽出したprompt、各Action、各Reward、最終画像、Policy更新前後を保存する。失敗trialやbudget超過を隠さない。
+それぞれの試行に`target_image_id`（**Policyの観測ではなくEvaluatorの参照**）、自動抽出したprompt、各Action、各Reward、最終画像、Policy更新前後を保存する。失敗trialやbudget超過を隠さない。
 
 ## 8. 精度に関する公開ゲート（画像データ評価後）
 
@@ -132,4 +132,4 @@ Trainerが報酬を用いてPolicyのパラメータを更新
 
 ## 9. 互換性と未実装
 
-\`drawing-episode/v1\`の古い整数座標・hard_round・\`set_phase\`は**旧再生試験専用**に維持する。高精度の新しい12ブラシと[段階制御表](brush_control_levels_v2.md)、[固定工程](fixed_drawing_workflow_v2.md)はEpisode v2の設計として実装前にスキーマと画素goldenを別途完成させる。v2の描画/学習実装はまだ完成していない。
+`drawing-episode/v1`の古い整数座標・hard_round・`set_phase`は**旧再生試験専用**に維持する。高精度の新しい12ブラシと[段階制御表](brush_control_levels_v2.md)、[固定工程](fixed_drawing_workflow_v2.md)はEpisode v2の設計として実装前にスキーマと画素goldenを別途完成させる。v2の描画/学習実装はまだ完成していない。
