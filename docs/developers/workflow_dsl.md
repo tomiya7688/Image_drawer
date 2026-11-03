@@ -15,6 +15,11 @@
 
 ## 2. 現在の実装済みDSLと将来の目標を区別
 
+**基幹のWorkflowはtxt2img専用の入力契約を持つ**。推論時の唯一の必須外部入力は`INPUT prompt: Text`であり、`Image`・`LineArt`・`DrawingEpisode`等の外部入力は必須ではない。`DRAW_EPISODE`は外部画像を読まず、白紙から生成を開始する。`REPLAY_EPISODE`はモデル自身が直前に生成したEpisodeを画像にする。主たるワークフロー出力は`Image`。Episodeはその親Artifactとして保存される。
+
+この入力契約を持たないimg2img／既存画面の編集／人間の実演Replayは**別モード**。モデル自身のActionによる生成なしでPart合成や固定Scriptを実行し、`OUTPUT image`を返すだけではtxt2imgの合格にならない。
+
+
 現在の`image_drawer/dsl/parser.py` は`INPUT`、Step呼び出し、`OUTPUT`を`WorkflowSpec`に変換する。Step名が使えるかどうかは`StepRegistry`に依存する。既存の主要なregistryにある`RETRIEVE_PARTS`、`SELECT_PARTS`、`COMPOSE`は**Part Bank用の補助機能**であり、以下の描画用目標Stepが既に実装されたという意味ではない。
 
 目標となる描画用Workflowの概念例（**現時点で実行可能なDSLとは主張しない**）：
