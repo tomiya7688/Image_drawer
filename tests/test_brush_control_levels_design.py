@@ -21,6 +21,16 @@ def nearest_level(values: list[int], raw: float) -> int:
     return min(range(len(values)), key=lambda i: (abs(values[i] - raw), values[i]))
 
 
+def quantize_size_q8(values: list[int], raw_q8: int) -> int:
+    distances = [abs(raw_q8 - value * 256) for value in values]
+    return min(range(len(values)), key=lambda i: (distances[i], values[i]))
+
+
+def quantize_percent_u16(values: list[int], raw_u16: int) -> int:
+    distances = [abs(raw_u16 * 100 - value * 65535) for value in values]
+    return min(range(len(values)), key=lambda i: (distances[i], values[i]))
+
+
 def round_half_up(numerator: int, denominator: int) -> int:
     """非負有理数の厳密な四捨五入。"""
     return (2 * numerator + denominator) // (2 * denominator)
@@ -88,6 +98,18 @@ def test_levels_are_stable_and_ordered():
 def test_nearest_level_and_tie_break(key: str, input_value: float, expected_value: int):
     values = load_levels()[key]
     assert values[nearest_level(values, input_value)] == expected_value
+
+
+def test_integer_quantization_is_shared_across_training_and_replay():
+    c = load_levels()
+    size = c["size_px"]
+    opacity = c["opacity_percent"]
+    pressure = c["pressure_percent"]
+    assert size[quantize_size_q8(size, 14 * 256)] == 12
+    assert size[quantize_size_q8(size, 50 * 256)] == 50
+    assert opacity[quantize_percent_u16(opacity, round_half_up(82 * 65535, 100))] == 80
+    assert opacity[quantize_percent_u16(opacity, round_half_up(15 * 65535, 100))] == 10
+    assert pressure[quantize_percent_u16(pressure, round_half_up(73 * 65535, 100))] == 70
 
 
 def test_presets_reference_valid_level_ids():
