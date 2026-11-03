@@ -40,9 +40,7 @@ def test_text_is_generated_internally_and_extractor_is_switchable():
     assert controls["TextEncoder"]["internal"] is True
     assert spec["text_condition"]["required_during_txt2img_training"]
     assert spec["text_condition"]["required_nonempty_training_prompt"]
-    assert "without_requesting_external_text" in (
-        spec["text_condition"]["missing_condition"]
-    )
+    assert "without_requesting_external_text" in (spec["text_condition"]["missing_condition"])
     assert spec["interfaces"]["learning_input"] == "image"
     assert spec["interfaces"]["inference_input"] == "user_prompt"
 
@@ -83,9 +81,3 @@ def test_no_manual_rights_field_in_dataset_example():
     assert "rights_status" not in content
     assert "使用権限を確認したデータを利用" not in content
     assert "TextEncoder" in content
-
-def test_temporary_show_formatter_diff():
-    import subprocess
-
-    result = subprocess.run(["ruff", "format", "--diff", __file__], capture_output=True, text=True)
-    assert result.returncode == 0, result.stdout + result.stderr
