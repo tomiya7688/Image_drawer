@@ -22,8 +22,8 @@
 
 - **タグ抽出器とキャプション抽出器は別の設定**。同じ実装が両方できる場合もアダプタで共通APIに合わせる。
 - GUI・CLI・設定ファイルから選べる。利用者が切り替えると、同じ画像でも**別の抽出結果バージョン**として保存し、古いキャッシュを使わない。
-- どの抽出器を使用したかは\`tagger_id/model_hash/config_hash\`、\`captioner_id/model_hash/config_hash\`、\`prompt_builder_version\`をデータごとに記録。
-- \`tags\`はラベル・confidenceを保持。文章は\`caption\`と\`training_prompt\`を区別し、PromptBuilderがどのように両者を組み立てたかをversion管理する。
+- どの抽出器を使用したかは`tagger_id/model_hash/config_hash`、`captioner_id/model_hash/config_hash`、`prompt_builder_version`をデータごとに記録。
+- `tags`はラベル・confidenceを保持。文章は`caption`と`training_prompt`を区別し、PromptBuilderがどのように両者を組み立てたかをversion管理する。
 - モデルが画像にない特徴を記述する場合がある。**自動抽出は正解ラベルではない**。空文・低信頼・不適切な文字列は品質エラーとしてマークし、利用者へタグの手入力を強制しない。
 - 対応モデルが利用できない場合、データ登録と学習開始のどこで止まったかを明示する。**追加で人間の実演を要求して回避しない**。
 
@@ -33,7 +33,7 @@
 
 JSONは構造説明用で、まだ実装済みのschemaではない。
 
-\`\`\`json
+```json
 {
   "image_id": "img_sample_001",
   "image_sha256": "<sha256-of-file>",
@@ -48,9 +48,9 @@ JSONは構造説明用で、まだ実装済みのschemaではない。
   "split": "train",
   "rights_status": "confirmed"
 }
-\`\`\`
+```
 
-上記の\`tagger_id\`等は**例示名**であって実装済みのエンジンではない。ハッシュ・URI・分割・権利確認は**ソフトが生成・管理するメタデータ**であり、ユーザーに別ファイルを要求しない。
+上記の`tagger_id`等は**例示名**であって実装済みのエンジンではない。ハッシュ・URI・分割・権利確認は**ソフトが生成・管理するメタデータ**であり、ユーザーに別ファイルを要求しない。
 
 ## 4. データ登録の必須チェック
 
@@ -60,12 +60,12 @@ JSONは構造説明用で、まだ実装済みのschemaではない。
 4. **画像をsplitしてから抽出器やPolicyの検証に使う**。trainから抽出器設定を調整し、固定testを何度も学習調整に使わない。
 5. 画像のライセンス・権利と利用目的を確認する。権利の確認はUIまたはシステムによる記録で扱い、**画像以外のデータファイル提供を必須にしない**。
 6. 抽出器の出力を保存し、空のprompt・不正なタグ・説明の矛盾・低信頼・失敗件数を一覧にする。失敗した画像を無断で除外しない。
-7. **対象画像を描画Policyの観測へ混ぜない**。読み取れるのはTrainerのEvaluatorだけ。Dataset loaderは\`policy_input\`と\`reward_target\`を別データ型で返す。
+7. **対象画像を描画Policyの観測へ混ぜない**。読み取れるのはTrainerのEvaluatorだけ。Dataset loaderは`policy_input`と`reward_target`を別データ型で返す。
 8. 学習成果を報告するとき、画像件数・画風・解像度・train/validation/test split・抽出器別の分布と欠損・重複率・権利確認状態を示す。
 
 ## 5. 自動描画の履歴は元画像から作らない
 
-**モデルが実際に描いた試行**だけを\`actor=model\`で記録する。そこには選択ブラシ（12種）、固定256色、サイズ19段階、不透明度11段階、筆圧11段階・パターン、レイヤー、軌跡、終了や失敗理由を含める。
+**モデルが実際に描いた試行**だけを`actor=model`で記録する。そこには選択ブラシ（12種）、固定256色、サイズ19段階、不透明度11段階、筆圧11段階・パターン、レイヤー、軌跡、終了や失敗理由を含める。
 
 - 元画像から「作者の正解Action列」を推定しない。画像が似ていても**作者が使った本当のブラシ・筆圧・レイヤーは分からない**。
 - 採点に使った目標画像ID、抽出prompt、抽出器version、Renderer、Policy before/after、Reward component、seedと各試行の成功・失敗を保存する。
@@ -80,13 +80,13 @@ JSONは構造説明用で、まだ実装済みのschemaではない。
 
 ## 7. 人間の実演の扱い（オプションのみ）
 
-もし将来本人の許諾がある筆跡データを別途収集したくなった場合だけ、独立したデータセット・学習方法として設計する。\`actor=human\`は**本当に人間がそのActionを実行した場合のみ**。モデルが描いたActionを人間の動きとして偽装しない。
+もし将来本人の許諾がある筆跡データを別途収集したくなった場合だけ、独立したデータセット・学習方法として設計する。`actor=human`は**本当に人間がそのActionを実行した場合のみ**。モデルが描いたActionを人間の動きとして偽装しない。
 
 **本プロジェクトの学習Done条件に人間実演の有無を入れない。** 元センサー値の保全仕様は、このオプションの収集と、将来センサー付き描画UIを追加する際の互換性のためにだけ保持する。
 
 ## 8. バージョンと互換性
 
-\`image_dataset_hash\`、画像ごとの\`sha256\`、画像正規化version、TagExtractor/CaptionExtractor/PromptBuilderの全versionとhash、抽出結果、固定256色palette、brush set、control levels、renderer、reward、Policy checkpoint、学習seedを一緒に保存する。
+`image_dataset_hash`、画像ごとの`sha256`、画像正規化version、TagExtractor/CaptionExtractor/PromptBuilderの全versionとhash、抽出結果、固定256色palette、brush set、control levels、renderer、reward、Policy checkpoint、学習seedを一緒に保存する。
 
 変更で抽出結果やAction意味が変わる場合、**キャッシュを無効化し新Dataset/Checkpoint実験として区別**。既存のDrawingEpisode v1のスキーマ・goldenは変更しない。
 
