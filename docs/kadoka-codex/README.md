@@ -31,9 +31,10 @@
 **描画・Workflow・評価・学習に関する変更の場合は、Issueを読む前に目的を必ず確認する。**
 
 1. [コンセプト](../kadoka/concept.md)（最上位の目的）
-2. [制作過程v1](../developers/drawing_process_v1.md)（状態・行動の契約）
+2. **[画像だけで描いて学ぶ正本](../developers/image_only_learning_v1.md)と[固定制作工程](../developers/fixed_drawing_workflow_v2.md)**（ラフ→下書き→本描きを飛ばせない）
+3. [制作過程v1](../developers/drawing_process_v1.md)（旧形式のAction画素Replay互換契約）
 3. [描画受け入れ試験](../developers/drawing_process_acceptance.md)（合否）
-4. [データ品質と学習精度の正本](../developers/drawing_data_quality_v1.md)・[DrawingPolicy学習設計](../developers/drawing_policy_accuracy_v1.md)
+5. [画像の登録・タグ/文章の自動抽出](../developers/drawing_data_quality_v1.md)・[DrawingPolicy自己試行学習](../developers/drawing_policy_accuracy_v1.md)
 5. [実装計画](../kadoka/implementation_plan.md)（優先順位）
 6. 対象Issueと依存Issue
 7. [ソースコードガイド](../developers/source_code_guide.md)、対象componentの開発者文書と関連test
@@ -68,7 +69,7 @@ entrypointやbuilt artifactへ影響する変更では、生成したwheelをfre
 - provenance、version、seedなど再現性情報を理由なく落とす。
 - test/buildが壊れた状態を完成として扱う。
 - dataset、model checkpoint、secretをrepositoryへcommitする。
-- 画像部品の配置や完成画像の変換を「人間の筆跡・制作過程の学習」と偽って実装完了にする。
+- 画像部品の配置や完成画像の一括変換を「AI自身が固定工程で描いて学習した」と偽って実装完了にする。
 - `COLOR` を意味確認なしにbucket fill・画像の塗りつぶしと同義にする。
 - 固定256色パレットの番号対応を独断で変える。
 
