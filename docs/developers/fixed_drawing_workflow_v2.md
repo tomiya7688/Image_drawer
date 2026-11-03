@@ -133,7 +133,7 @@ AIが予測する操作と、固定工程Controllerが実行する操作を分�
 
 ## 8. 受け入れ試験
 
-**機械可読な正本**：[drawing_stage_workflow_v2.json](drawing_stage_workflow_v2.json)。以下を自動テストへ落とす。
+**機械可読な正本**：[drawing_stage_workflow_v2.json](drawing_stage_workflow_v2.json)。工程移行の原子性・書込権限・選択状態・失敗時の扱いは[StageControllerの詳細な実装契約](stage_controller_contract_v2.md)に、画像からの段階別採点は[工程別Rewardの仕様](stage_reward_v2.md)に分離して記載する。以下を自動テストへ落とす。
 
 1. `rough → sketch → final_drawing → base_color → shading → refine → finish`以外を拒否。**全工程を通り、skipなし**。
 2. rough/sketch/final_drawingでそれぞれ専用roleのレイヤーに有効な筆跡が残る。レイヤー作成や工程変更だけでは合格しない。
