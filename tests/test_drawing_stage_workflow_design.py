@@ -81,7 +81,13 @@ def test_model_and_controller_actions_do_not_overlap():
     assert not model & controller
     assert not model & forbidden
     assert {"advance_stage", "stroke_v2", "erase_v2"} <= model
-    assert {"enter_stage", "exit_stage", "set_layer_visibility", "clear_active_layer", "finish"} <= controller
+    assert {
+        "enter_stage",
+        "exit_stage",
+        "set_layer_visibility",
+        "clear_active_layer",
+        "finish",
+    } <= controller
     assert {"skip_stage", "set_phase"} <= forbidden
     assert "finish" not in model
     assert "finish" in controller
@@ -166,6 +172,7 @@ def test_image_target_is_never_policy_observation():
     assert spec["workflow_is_not_human_traces"] is True
     assert spec["legacy_v1_phase_mode"] == "legacy golden replay only"
 
+
 def test_entry_layers_and_selection_reset_are_defined():
     spec = _spec()
     assert spec["stage_entry_default_layer_roles"] == {
@@ -208,7 +215,9 @@ def test_review_cannot_be_used_without_prompt_justification():
     guard = spec["review_only_guard"]
     assert guard["target_image_forbidden"] is True
     assert guard["unknown_intent_policy"] == "reject"
-    assert _can_advance("base_color", 0, None, "monochrome_line_art_only", style_intent_confirmed=True)
+    assert _can_advance(
+        "base_color", 0, None, "monochrome_line_art_only", style_intent_confirmed=True
+    )
     assert not _can_advance(
         "base_color", 0, None, "monochrome_line_art_only", style_intent_confirmed=False
     )
@@ -226,13 +235,3 @@ def test_budgets_count_invalid_attempts_and_do_not_auto_finish():
     assert spec["attempts_include_rejected_and_accepted"] is True
     assert spec["no_auto_stage_advance_on_exhaustion"] is True
     assert "Draft" in spec["exhaustion"]
-
-def test_temporary_ruff_difference():
-    import subprocess
-
-    result = subprocess.run(
-        ["ruff", "format", "--diff", __file__],
-        capture_output=True,
-        text=True,
-    )
-    assert result.returncode == 0, result.stdout + result.stderr
