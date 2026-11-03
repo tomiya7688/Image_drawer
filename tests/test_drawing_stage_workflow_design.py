@@ -8,10 +8,7 @@ from pathlib import Path
 import pytest
 
 WORKFLOW = (
-    Path(__file__).resolve().parents[1]
-    / "docs"
-    / "developers"
-    / "drawing_stage_workflow_v2.json"
+    Path(__file__).resolve().parents[1] / "docs" / "developers" / "drawing_stage_workflow_v2.json"
 )
 
 
