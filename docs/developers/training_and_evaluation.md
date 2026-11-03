@@ -1,107 +1,74 @@
-> **対象読者:** 学習器・評価器・データ収集器を実装する開発者
-> **目的:** 「制作過程を学習した」という主張を検証可能にし、画像品質評価と混同しない。
+> **対象読者:** 学習・評価・データ登録の実装者
+> **目的:** 画像だけで「実際に描いて上達」する学習の最短手順と、成功/失敗の測定方法を共有する。
 
-# 学習と評価：DrawingPolicyを学ぶ
+# 学習と評価：画像を見本に、AI自身が描いて上達する
 
-モデルの詳細は[階層型Action・学習損失・精度評価](drawing_policy_accuracy_v1.md)、人間の実演収集とリーク防止は[データ品質仕様](drawing_data_quality_v1.md)を**正本**とする。
+## 1. 入力は画像だけ
 
-## 1. 何を学習するのか
+利用者が学習素材として用意するのは**画像ファイルだけ**。人間の筆跡、タグ、prompt、筆圧履歴は**必須ではない**。
 
-主対象は**次の描画行動の予測**。
+画像からタグと自然言語のpromptを抽出する処理はソフト内で行う。**利用者がTagExtractorとCaptionExtractorをそれぞれ切り替えられる**ことを必須とする。詳細は[画像だけで学ぶ仕様](image_only_learning_v1.md)と[データ登録・抽出器の品質仕様](drawing_data_quality_v1.md)。
 
-```text
-入力:  prompt + DrawingState(t) + ActionHistory(<t)
-予測:  DrawingAction(t)
-適用:  DrawingEngine.apply(state, action) -> DrawingState(t+1)
-次へ:  新しい状態で同じpolicyを繰り返す
-```
+## 2. 決められた工程に沿って実際に描く
 
-`DrawingAction`の型と意味、固定256色、レイヤーとブラシ、描画計算は [制作過程 v1](drawing_process_v1.md) を参照する。この文書では再定義しない。
+[固定制作工程](fixed_drawing_workflow_v2.md)に沿って**ラフ→下書き→本描き→基本色→陰影→仕上げ**の順で描く。工程間の順序は固定するが、ブラシ・色・座標・筆圧・修正はモデルが自分で選ぶ。
 
-**学習の成功と呼ばない例**：
+\`\`\`text
+登録画像
+  ├─ TagExtractorがタグを自動生成
+  └─ CaptionExtractorが文章を自動生成
+             ↓
+Policyへ渡すのは「文章＋白紙＋自分の途中状態」
+             ↓
+ラフ → 下書き → 本描き → 基本色 → 陰影 → 仕上げ
+             ↓
+生成画像（＋自分で実際に実行したAction履歴）
+             ↓
+Evaluatorだけが登録画像と比較
+             ↓
+Rewardを使ってPolicyの学習パラメータを更新
+\`\`\`
 
-- 画像だけを見て色を塗りつぶす変換器。
-- 固定されたストローク列を毎回再生するだけのScript。
-- 画像のPartやWorkflow templateをランキングするだけのモデル。
-- 人間の制作履歴ではなく、完成PNGから逆算して生成した疑似行動だけを用いた結果。
+「目標画像をPolicyへ渡さずにどう学ぶのか？」：目標画像は**Evaluator/Trainerが学習損失を計算するときだけ**参照する。Policyは自分の失敗・成功を報酬として受けて、次の試行の行動確率を更新する。元の画像から人間の過去の筆跡を推定するわけではない。
 
-これらは補助技術・smoke testには使えるが、主目的の達成には該当しない。
+## 3. 学習のBaseline
 
-## 2. Dataset作成
+最初は小さなキャンバス・単純な形で、更新可能なPolicyが**少数の候補Actionを生成→実行→報酬を測定→最適化**するところまでを確認する。
 
-データ単位は`DrawingEpisode`。**保存された全イベントを最初から順に再生**し、各時点で`state_before`、`history_before`、`target_action`を生成する。**教師ラベルに使えるのは許諾のある`actor=human`の行動だけ**。同じEpisode内のmodel/system/derivedイベントは教師にしない。人間がモデルを修正したmixed episodeは独立した人間実演とは別cohortで評価する。
+- **Policy**：Action type・ブラシ12クラス・固定256色・サイズ19・不透明度11・各点の筆圧11・筆圧パターン5、レイヤーと軌跡を予測。
+- **Controller**：ラフ→下書き→本描きの必須3工程を飛ばさずに進行。後半の色・陰影は作品条件に応じ、明示的なskipを記録。
+- **Renderer**：全Actionを適用し、各段階の画像とレイヤーを保持。
+- **Evaluator**：訓練用の目標画像と生成画像の差を、形・輪郭・色・知覚距離・行動効率等で計算。
+- **Optimizer**：Actionに対する報酬でPolicyを更新。REINFORCE＋Baseline等を最初の比較対象とする。差分可能Rendererは将来の比較方式。
 
-| 分類 | 用途 |
+報酬の計算だけ、あるいは最もよい画像を後から選ぶだけでは「学習した」ことにならない。**学習前後のcheckpointが違い、次の試行の行動選択が改善すること**を検証する。
+
+詳細な損失・必要なログ・限界は[DrawingPolicyの精度仕様](drawing_policy_accuracy_v1.md)。
+
+## 4. 学習の成果をどう評価するか
+
+| 評価対象 | 合格の考え方 |
 | --- | --- |
-| `origin=human` | **出所と利用権限を確認できたものだけ**、人間の制作工程の学習と評価に使用 |
-| `origin=model` | モデルの生成行動を観察・比較。人間の教師として扱わない |
-| `origin=synthetic` | 描画器・Dataset builder・checkpointの自動テスト用 |
-| `origin=derived` | 完成画像等から推定された行動。人間が実際に実施した操作として扱わない |
+| 画像を登録できるか | 画像だけで登録し、タグ・promptが自動生成される |
+| 抽出器を切り替えられるか | モデル・設定・キャッシュ・Dataset versionが正しく切り替わる |
+| 目標画像を隠しているか | Policyは文章と自分の描画状態しか見ない |
+| 固定工程を守るか | ラフ→下書き→本描き→…→仕上げをスキップ/逆順にしない |
+| 筆を実際に動かしたか | 本物のActionがあり、全工程をReplayできる |
+| 学習したか | Policyのパラメータ更新と未見画像での改善が確認できる |
+| 品質がよいか | 画像距離、文章一致、独立の人間評価を別々に保存 |
 
-作成時に`episode_id`、出所・許諾、作品または収集セッションのID、palette/brush/renderer version、prompt、イベント列を保持。作品の途中までをtrainとvalidationへ跨らせない。重複・派生系列も同じsplitに配置し、データ漏洩を防ぐ。人間の実演が確保できなければ学習成果を宣言しない。
+固定工程を守っただけで高精度ではない。画像だけを一括変換して出力しても、実際のActionがないため不合格。
 
-`state_before`へ完成キャンバスや将来イベントを混入させてはならない。時刻`time_ms`は記録するが、未来の所要時間を特徴にしない。
+## 5. 画像データの分割と再現性
 
-## 3. 最初の学習方法
+元画像の内容ハッシュ・近重複グループを使い、train/validation/testを**抽出器の調整より先に固定**する。Tag/Caption抽出器・PromptBuilder・画像の正規化・palette/brush/段階表/StageWorkflow/Renderer/Reward/Policyのバージョンとseedを保存する。
 
-初期ベースラインは**Behavior Cloning（教師あり模倣）**。
+Policyは**目標画像を観測しない**。train/validation/testの間で作品や派生画像を共有しない。同一promptの似た作品も意識して分割する。
 
-予測対象は1回の`DrawingAction`を構成する型とパラメータ全体。
+各試行について生成Action・途中画像・報酬と更新前後checkpointを保存し、失敗例を消さない。完成画像の再生一致と「画質が良い」は別の条件。
 
-- `type`：`create_layer`、`select_layer`、`set_phase`、`select_color`、`select_brush`、`stroke`、`erase`、`finish`。
-- `color_id`：**固定256クラスの分類**。色番号とRGB値の対応はすべてのrunで同じ。
-- `brush_id`：色とは独立。v1では`hard_round_v1`のみ（ブラシの選択はActionとして残す）。
-- `points`、`width_px`、`opacity_u8`、`layer_id`、`phase`、`finish`は、それぞれAction typeに必要な場合に予測する。
-- 人間の未来行動を直接入力してはいけない。学習時は教師Actionをtargetとして使い、推論時はモデルがActionを選ぶ。
+## 6. 出来ていることと未実装
 
-階層型Action decoderでは`type`と条件付きpayloadを分け、可変長strokeの`POINT_END`、既存レイヤーindex、固定256色分類を別々に予測する（[精度設計](drawing_policy_accuracy_v1.md)）。
+現状は**設計の段階**。TagExtractor/CaptionExtractor、画像だけのTrial Trainer、固定工程Controller、高精度12ブラシのRenderer、絵を描いて上達するPolicyが実装完了・高品質に収束したという意味ではない。
 
-**モデルの内部構造**（Transformer、RNN、別の模倣学習器等）は別Issueで比較・決定する。どの実装であっても**同じDrawingActionを出力**しなければならない。予測が契約違反なら`DrawingEngine`が拒否し、失敗をログに残す。仕様外の色や「代わりにPNGを生成する」回避は禁止。
-
-## 4. 2種類の評価を必ず分離する
-
-### 4.1 教師強制による次行動の予測（offline）
-
-`state_before`と`history_before`を入力して、実演の次Actionを予測する。
-
-- Action typeの正解率・混同行列（全イベント対象）。
-- `select_color`のみ色番号top-1正解率（出現しないときはN/A）。
-- `select_brush`のみbrush選択正解率（v1は1種類であり、難易度が低いことを明記）。
-- `stroke/erase`の点列長・位置・線幅・不透明度に関する誤差をパラメータ別に記録。
-- レイヤー操作・phase変更・`finish`の正誤を個別に記録。
-
-未来情報を入力に混ぜて正解率を上げた実験は無効。作品単位で分割し、比較したDatasetバージョンとcheckpointを残す。
-
-### 4.2 モデル自身のclosed-loop描画（online rollout）
-
-`DrawingPolicy`が自分の予測した1Actionを`DrawingEngine`へ渡す。次の予測入力は**その結果のState**。人間の実演から次の一手を抜き出して強制適用するテストで代用しない。
-
-測定：
-
-- 有効Action率、拒否されたActionと原因、レイヤー／色／ブラシの使用履歴。
-- 最後に`finish`まで到達した割合、最大Action数超過・例外率。
-- 制作途中のStateをどこまで再生・検査できるか。
-- 中間画像と完成画像の品質・人間評価（自動数値と区別して記録）。
-- Action選択と最終品質の関係（同じprompt/seeds・比較条件を保存）。
-
-**推論画像が見栄え良くても、行動履歴がない／再生できないなら不合格。**
-
-## 5. 評価器と選択器の位置づけ
-
-`EVALUATE`、`SELECT`、`ScoreSet`は引き続き使う。Sketch、line、color、finalの各段階の画質や選好を評価してよいが、以下を守る。
-
-- **画像品質のScore**と**描画行動予測のScore**を別の名前・評価器versionで保存。
-- 各Scoreのcomponentを潰さず保持し、aggregate方式・weightを記録。
-- `SELECT`が画像候補を選んでも、`DrawingPolicy`の次行動予測を学習したことにはならない。
-- 人間A/B評価は評価者の判断として保存する。実際に描いたActionとは別のデータ。
-- 最終的な「制作過程を学習できた」判定は、描画行動の教師予測とclosed-loopの両方に根拠があること。
-
-## 6. 再現性・機密性とDone
-
-学習runには`dataset_id/split`、`schema_version`、`palette_id`、`brush_set_id`、`renderer_version`、`model/checkpoint_id`、`seed`、学習設定、評価器versionを記録する。モデルのAction出力と拒否／適用結果は`DrawingEpisode`またはrunの関連ログに残す。個人データ・権利のない実演を勝手に学習へ投入しない。
-
-**Done条件**は [受け入れ試験 F](drawing_process_acceptance.md) と [実装計画 S3](../kadoka/implementation_plan.md) に従う。[精度向上の公開ゲート](drawing_policy_accuracy_v1.md#8-精度に関する公開ゲート実データ確保後)を満たしていない結果を「高精度」と呼ばない。synthetic fixtureだけの模倣学習テストに成功した場合は、**「学習系のテストは成功。実演学習は未検証」**と明記する。
-
-## 7. 後続研究
-
-十分な人間の実演と安定した行動契約が揃った後、モデル比較、action preference、self-correction、Action policyのRL、Workflow Search、Part Bankの選択学習などへ拡張する。上位Workflow最適化の成功を、基礎となる「筆で描く過程」の学習の代わりにはしない。
+[受け入れ試験](drawing_process_acceptance.md)の将来のv2学習ゲートを満たすまで「画像だけから学習した」や「高精度なイラストが描ける」と報告しない。旧\`drawing-episode/v1\`のgoldenは引き続きReplay検査用に維持する。
