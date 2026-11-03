@@ -38,6 +38,7 @@ def _can_advance(
     write_role: str | None,
     review_reason: str | None = None,
     pixels_remain: bool = True,
+    style_intent_confirmed: bool = True,
 ) -> bool:
     """既知の合格条件だけを検査する独立の簡易オラクル。"""
     stage = _stage(stage_id)
@@ -45,6 +46,7 @@ def _can_advance(
         return (
             stroke_count == 0
             and review_reason in stage["review_only_reason_codes"]
+            and style_intent_confirmed
         )
     if stroke_count == 0:
         return False
@@ -79,8 +81,11 @@ def test_model_and_controller_actions_do_not_overlap():
     assert not model & controller
     assert not model & forbidden
     assert {"advance_stage", "stroke_v2", "erase_v2"} <= model
-    assert {"enter_stage", "set_layer_visibility", "finish"} <= controller
-    assert {"skip_stage", "set_phase", "finish"} <= forbidden
+    assert {"enter_stage", "exit_stage", "set_layer_visibility", "clear_active_layer", "finish"} <= controller
+    assert {"skip_stage", "set_phase"} <= forbidden
+    assert "finish" not in model
+    assert "finish" in controller
+    assert "finish" not in forbidden
 
 
 @pytest.mark.parametrize("stage_id", ["rough", "sketch", "final_drawing"])
@@ -160,3 +165,64 @@ def test_image_target_is_never_policy_observation():
     assert spec["target_image_policy"] == "evaluator_only_never_policy_observation"
     assert spec["workflow_is_not_human_traces"] is True
     assert spec["legacy_v1_phase_mode"] == "legacy golden replay only"
+
+def test_entry_layers_and_selection_reset_are_defined():
+    spec = _spec()
+    assert spec["stage_entry_default_layer_roles"] == {
+        "rough": "rough",
+        "sketch": "sketch",
+        "final_drawing": "final_drawing",
+        "base_color": "base_color",
+        "shading": "shade",
+        "refine": None,
+    }
+    assert spec["state_entry_reset"]["active_layer_id"] is None
+    assert spec["state_entry_reset"]["selected_color_id"] == "preserve"
+    assert spec["state_entry_reset"]["selected_brush_id"] == "preserve"
+
+
+def test_transition_events_are_atomic_and_auditable():
+    data = _spec()["transition_acceptance"]
+    assert data["atomic_stage_boundary"] is True
+    assert data["event_commit_order"] == [
+        "advance_stage",
+        "exit_stage",
+        "set_layer_visibility(if needed)",
+        "enter_stage(next stage)",
+        "create_layer(if entry role needed)",
+        "clear_active_layer",
+    ]
+    assert data["final_stage_commit_order"] == [
+        "advance_stage",
+        "exit_stage",
+        "finish",
+    ]
+    assert data["rejected_proposal_has_no_event_seq"] is True
+    assert data["rejected_proposal_is_logged_as_trial"] is True
+    assert data["controller_event_actor"] == "system"
+    assert data["model_proposal_actor"] == "model"
+
+
+def test_review_cannot_be_used_without_prompt_justification():
+    spec = _spec()
+    guard = spec["review_only_guard"]
+    assert guard["target_image_forbidden"] is True
+    assert guard["unknown_intent_policy"] == "reject"
+    assert _can_advance("base_color", 0, None, "monochrome_line_art_only", style_intent_confirmed=True)
+    assert not _can_advance(
+        "base_color", 0, None, "monochrome_line_art_only", style_intent_confirmed=False
+    )
+    assert _can_advance("shading", 0, None, "flat_style_no_shading", style_intent_confirmed=True)
+    assert not _can_advance(
+        "shading", 0, None, "flat_style_no_shading", style_intent_confirmed=False
+    )
+
+
+def test_budgets_count_invalid_attempts_and_do_not_auto_finish():
+    spec = _spec()["resource_policy"]
+    assert spec["max_actions_default_current_workflow"] == 1000
+    assert spec["max_actions_hard_limit_current_workflow"] == 100000
+    assert spec["attempt_limit_formula"] == "max(100, 5 * max_actions)"
+    assert spec["attempts_include_rejected_and_accepted"] is True
+    assert spec["no_auto_stage_advance_on_exhaustion"] is True
+    assert "Draft" in spec["exhaustion"]
