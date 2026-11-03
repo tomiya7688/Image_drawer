@@ -256,3 +256,24 @@ def test_http_adapter_http_content_filter_is_detected(monkeypatch):
         "https://example.com/v1/chat/completions",
     )
     assert backend.describe(b"image bytes", "image/png", "describe").refusal is True
+
+def test_subject_color_and_count_evidence_are_preserved():
+    router, _, _ = make_pipeline(VisionResponse(caption_json()))
+    scene = router.extract(b"image bytes", "image/png").scene
+    assert scene.subjects[0].name == "リンゴ"
+    assert scene.subjects[0].count == 1
+    assert scene.subjects[0].attributes == ("赤い",)
+
+
+def test_vision_provider_connection_settings_change_cache_fingerprint():
+    a = OpenAICompatibleVisionProvider(
+        "primary", "accurate-vlm", "https://example.com/v1/chat/completions"
+    )
+    b = OpenAICompatibleVisionProvider(
+        "primary",
+        "accurate-vlm",
+        "https://example.com/v1/chat/completions",
+        model_revision="revision-2",
+    )
+    assert a.config_fingerprint != b.config_fingerprint
+    assert "api_key" not in a.config_fingerprint
