@@ -13,7 +13,7 @@
 
 [固定制作工程](fixed_drawing_workflow_v2.md)に沿って**ラフ→下書き→本描き→基本色→陰影→仕上げ**の順で描く。工程間の順序は固定するが、ブラシ・色・座標・筆圧・修正はモデルが自分で選ぶ。
 
-\`\`\`text
+```text
 登録画像
   ├─ TagExtractorがタグを自動生成
   └─ CaptionExtractorが文章を自動生成
@@ -27,7 +27,7 @@ Policyへ渡すのは「文章＋白紙＋自分の途中状態」
 Evaluatorだけが登録画像と比較
              ↓
 Rewardを使ってPolicyの学習パラメータを更新
-\`\`\`
+```
 
 「目標画像をPolicyへ渡さずにどう学ぶのか？」：目標画像は**Evaluator/Trainerが学習損失を計算するときだけ**参照する。Policyは自分の失敗・成功を報酬として受けて、次の試行の行動確率を更新する。元の画像から人間の過去の筆跡を推定するわけではない。
 
@@ -71,4 +71,4 @@ Policyは**目標画像を観測しない**。train/validation/testの間で作�
 
 現状は**設計の段階**。TagExtractor/CaptionExtractor、画像だけのTrial Trainer、固定工程Controller、高精度12ブラシのRenderer、絵を描いて上達するPolicyが実装完了・高品質に収束したという意味ではない。
 
-[受け入れ試験](drawing_process_acceptance.md)の将来のv2学習ゲートを満たすまで「画像だけから学習した」や「高精度なイラストが描ける」と報告しない。旧\`drawing-episode/v1\`のgoldenは引き続きReplay検査用に維持する。
+[受け入れ試験](drawing_process_acceptance.md)の将来のv2学習ゲートを満たすまで「画像だけから学習した」や「高精度なイラストが描ける」と報告しない。旧`drawing-episode/v1`のgoldenは引き続きReplay検査用に維持する。
