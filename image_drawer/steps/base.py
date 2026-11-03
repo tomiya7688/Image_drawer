@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from typing import Any
 
@@ -35,6 +36,11 @@ class StepSchema:
     output_type: str
     parameters: dict[str, ParameterSpec] = field(default_factory=dict)
     capabilities: frozenset[str] = field(default_factory=frozenset)
+    output_resolver: Callable[[dict[str, Any]], str] | None = None
+
+    def output_for(self, params: dict[str, Any]) -> str:
+        """パラメータで出力型が変わるStepは、解決後の出力型を返す。"""
+        return self.output_resolver(params) if self.output_resolver else self.output_type
 
 
 @dataclass(slots=True)

@@ -34,7 +34,7 @@ OUTPUT image
 - `DRAW_EPISODE`（**新設予定**）：PromptとPolicyを使い、固定StageControllerの**ラフ→下書き→本描き→基本色→陰影・仕上げ→修正・確認→完成**に沿って1行動ずつ`DrawingEngine`へ適用し、`finish`までの`DrawingEpisode`を返す。Stageを飛ばす・逆行する単一画像生成は不可。
 - `REPLAY_EPISODE`（**新設予定**）：保存済み`DrawingEpisode`を厳密に再生して最終`Image`を返す。関連するEpisode URIとIDをArtifact系譜へ残す。
 - **v2固定工程**：`rough/sketch/final_drawing/base_color/shading/refine`の順序は[工程v2](fixed_drawing_workflow_v2.md)で固定する。`SKETCH`／`LINE`／`COLOR`／`CORRECT`は旧互換名または各工程内部の説明に過ぎず、**任意の順序をAIに選ばせない**。工程移行は新v2の`advance_stage`で記録する。旧v1の`set_phase`は画素Replay互換だけに残す。
-- `EVALUATE`／`SELECT`（一部既存）：上位Artifactの比較に使う。描画時の次アクション推論を代替しない。
+- `EVALUATE`／`SELECT`（既存）：上位Artifactの比較に使う。`SELECT`は`top`・`weights`・`component`を受け取り、`top=1`はImage、`top`が2以上のときはImageSetを返す。描画時の次アクション推論を代替しない。
 
 Stepの**契約案**（実装IssueでStepSchemaに反映するまで未実装）：
 
