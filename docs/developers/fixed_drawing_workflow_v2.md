@@ -28,7 +28,7 @@ Image Drawerが固定するのは **絵を完成させるまでの工程の順�
 
 「本描き」は**必ず黒の線画を描く**という意味ではない。厚塗りや水彩風でも、下書きを経て**本番の主要な形・面・線を描く段階**が存在する。これでイラスト全般に共通の枠組みを維持する。
 
-**例外**：明示的なモノクロ・線画指示で基本色が不要なら \`base_color\` を、フラットな作品で陰影が不要なら \`shading\` を**明示的にskip**できる。このときも**ステージの並びは変わらない**。理由と判断を履歴に残し、文章に反して安易にskipした場合は評価で減点する。ラフ・下書き・本描き・仕上げはskip不可。
+**例外**：明示的なモノクロ・線画指示で基本色が不要なら `base_color` を、フラットな作品で陰影が不要なら `shading` を**明示的にskip**できる。このときも**ステージの並びは変わらない**。理由と判断を履歴に残し、文章に反して安易にskipした場合は評価で減点する。ラフ・下書き・本描き・仕上げはskip不可。
 
 この段階設定はImage Drawerの**製品上の共通制作手順**。全てのプロの絵師が必ずこう描くという事実を主張するものではない。
 
@@ -57,22 +57,22 @@ Image Drawerが固定するのは **絵を完成させるまでの工程の順�
 
 工程一覧の唯一のデータ正本は [drawing_stage_workflow_v2.json](drawing_stage_workflow_v2.json)。
 
-- \`DrawingState.stage_id\` を持ち、**初期値は必ず\`rough\`**。ユーザーの外部画像からキャンバスを初期化しない。
-- v2の工程移行Actionは \`advance_stage\`。**次の工程は一覧で次にあるものだけ**。予測出力に任意のstage名を入れてジャンプさせない。
-- 必須工程では **少なくとも1件の有効な\`stroke_v2\`** を行い、更新された画素が存在してから \`advance_stage\` を許可する。単に\`create_layer\`や\`set_phase\`を発行しただけでは完了しない。
-- \`rough/sketch/final_drawing\`は、それぞれ**専用レイヤーを作り**、そのレイヤーに筆跡を残す。上の工程で下の工程のレイヤーを編集してもよいが、**工程そのものは戻さない**。本描きがラフを消しても、過去のラフAction履歴はReplayできる。
-- \`refine\` は修正や追加描画を行う段階であり、必要なら以前のレイヤーへ描ける。最低1件の有効な描画Actionを要求し、修正しないときも必要な仕上げを描画する。
-- \`base_color\`と\`shading\`は**適用する場合は最低1件のstroke**、不要と判断した場合は \`skip_stage\`で**明示的に理由を記録**。\`skip_stage\`は \`no_color_required\` / \`flat_style_requested\` など、各工程に許可された理由しか使えない。どの理由が妥当かは学習時に評価する。
-- \`finish\` は \`refine\`を完了した後の最終Action。予算切れは**不完全なDraft＋失敗理由**であり、完成画像として成功扱いしない。
-- Stage切り替え・skip・finishにモデルの提案を使ってよいが、Controllerが受理/拒否を判断する。Stage境界とActionは全て\`DrawingEpisode/v2\`へ記録し、Replayできる。
+- `DrawingState.stage_id` を持ち、**初期値は必ず`rough`**。ユーザーの外部画像からキャンバスを初期化しない。
+- v2の工程移行Actionは `advance_stage`。**次の工程は一覧で次にあるものだけ**。予測出力に任意のstage名を入れてジャンプさせない。
+- 必須工程では **少なくとも1件の有効な`stroke_v2`** を行い、更新された画素が存在してから `advance_stage` を許可する。単に`create_layer`や`set_phase`を発行しただけでは完了しない。
+- `rough/sketch/final_drawing`は、それぞれ**専用レイヤーを作り**、そのレイヤーに筆跡を残す。上の工程で下の工程のレイヤーを編集してもよいが、**工程そのものは戻さない**。本描きがラフを消しても、過去のラフAction履歴はReplayできる。
+- `refine` は修正や追加描画を行う段階であり、必要なら以前のレイヤーへ描ける。最低1件の有効な描画Actionを要求し、修正しないときも必要な仕上げを描画する。
+- `base_color`と`shading`は**適用する場合は最低1件のstroke**、不要と判断した場合は `skip_stage`で**明示的に理由を記録**。`skip_stage`は `no_color_required` / `flat_style_requested` など、各工程に許可された理由しか使えない。どの理由が妥当かは学習時に評価する。
+- `finish` は `refine`を完了した後の最終Action。予算切れは**不完全なDraft＋失敗理由**であり、完成画像として成功扱いしない。
+- Stage切り替え・skip・finishにモデルの提案を使ってよいが、Controllerが受理/拒否を判断する。Stage境界とActionは全て`DrawingEpisode/v2`へ記録し、Replayできる。
 
-**新v2 Episodeがまだ実装されていない**ため、ここでのAction名と\`stage_id\`は新しい設計契約。旧 [drawing-episode/v1](drawing_process_v1.md)の\`set_phase\`（自由順序）に無断で適用しない。v1 fixturesの画素再生は今後も完全一致させる。
+**新v2 Episodeがまだ実装されていない**ため、ここでのAction名と`stage_id`は新しい設計契約。旧 [drawing-episode/v1](drawing_process_v1.md)の`set_phase`（自由順序）に無断で適用しない。v1 fixturesの画素再生は今後も完全一致させる。
 
 ## 5. 学習では「描いた結果」で改善する
 
 固定の工程の中で、モデルが自分で筆を操作する。
 
-\`\`\`text
+```text
 画像だけ登録
     ↓
 タグ・文章を自動抽出
@@ -85,7 +85,7 @@ Image Drawerが固定するのは **絵を完成させるまでの工程の順�
 Actionを選ぶモデルのパラメータを改善
     ↓
 新しい試行で、同じ工程順を保ちつつ描き方を改善
-\`\`\`
+```
 
 評価器は最終画像を用いて、工程別の**代理指標**も作成できる。例えばラフでは低解像度の大きな形、下書きは輪郭、本描きは明確な形、基本色は主要色、陰影では明暗、仕上げでは完成度を見る。これは**正解の人間のラフ/下書き/本描き画像が存在するという意味ではない**。代理指標が偏る可能性も別途測る。
 
@@ -93,11 +93,11 @@ Actionを選ぶモデルのパラメータを改善
 
 ## 6. 完了・再生・評価の受け入れ試験
 
-1. **有効な工程順**：\`rough→sketch→final_drawing→base_color→shading→refine→finish\`を通ったAction列がReplayできる。
+1. **有効な工程順**：`rough→sketch→final_drawing→base_color→shading→refine→finish`を通ったAction列がReplayできる。
 2. **必須工程を飛ばせない**：rough未描画→sketch、sketch未描画→final_drawing、final_drawing未描画→base_color、refineなし→finishは全て拒否。
 3. **任意の順序は禁止**：sketchからroughへ戻す、roughからfinal_drawingへ飛ぶ、finish後に描画するActionは全て拒否。
-4. **任意の工程を空白skipできない**：モノクロ等の正当な条件がないのに \`base_color/shading\`を無条件で飛ばす場合は、学習時の評価ペナルティ/ログへ残す。必須工程のskipは禁止。
-5. **実際の筆跡が必要**：必須工程はその専用レイヤーに有効な筆跡と画素変化を持ち、\`create_layer\`と\`advance_stage\`の羅列だけなら不合格。
+4. **任意の工程を空白skipできない**：モノクロ等の正当な条件がないのに `base_color/shading`を無条件で飛ばす場合は、学習時の評価ペナルティ/ログへ残す。必須工程のskipは禁止。
+5. **実際の筆跡が必要**：必須工程はその専用レイヤーに有効な筆跡と画素変化を持ち、`create_layer`と`advance_stage`の羅列だけなら不合格。
 6. **学習時の画像隔離**：Policyには自分の現在のcanvasとpromptだけを与え、元画像はReward/Evaluatorだけが持つ。元画像を差し替えてもPolicyの初回Actionは変わらない。
 7. **工程別Reward**：工程順を守るだけの固定スクリプトは不合格。Policyパラメータが実際に更新され、未見画像で作品品質が改善して初めて「学習した」と報告。
 8. **黒線に限定しない**：本描きは画風に応じた本番の形・面・線を許す。モノクロ／フラット画でも工程が壊れず、skipを履歴に明記できる。
