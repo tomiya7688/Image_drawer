@@ -30,6 +30,9 @@
 
 ## 3. 正規化の境界（raw・action・trainingを混同しない）
 
+**ブラシの行動履歴**：絵師が[標準ブラシセットv2](brush_presets_v2.md)のどの`brush_id`を選び、`size_q8`・`opacity_u16`をいつ調整したかは、色選択とは別のActionEventで保持。データは`brush_set_id`とmanifest SHA-256を保持し、途中でブラシIDの意味を変更したら新しいデータセットバージョンにする。ペンの`pressure_u16`・`tilt_x_cdeg`・`tilt_y_cdeg`が計測できない場合は`null`とし、推定値を人間の実測と混ぜない。
+
+
 ```text
 raw pointer/tool events（不変、収集順）
   -> versioned input normalizer（表示座標→画素、切断、重複処理）
