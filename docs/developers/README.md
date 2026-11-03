@@ -7,6 +7,8 @@
 
 **まずは [Image Drawer 設計ガイド](start_here.md)**。txt2imgの仕組み、何が決まっているか、ブラシ・筆圧の例、何が未実装かを説明します。
 
+**固定制作工程を実装する場合**：[7工程の説明](fixed_drawing_workflow_v2.md) → [StageControllerの詳細契約](stage_controller_contract_v2.md) → [各工程の画像評価](stage_reward_v2.md) の順に読みます。
+
 **特にブラシを実装する場合**：[サイズ・不透明度・筆圧の段階表とパターン](brush_control_levels_v2.md) → [12種のブラシと高精度操作](brush_presets_v2.md) の順に読みます。
 
 ## 描画実装前の必読（この順）
