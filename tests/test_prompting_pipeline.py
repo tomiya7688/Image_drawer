@@ -320,3 +320,13 @@ def test_file_entry_does_not_require_mime_or_txt(tmp_path):
     router, _, _ = make_pipeline(VisionResponse(caption_json()))
     with pytest.raises(ValueError, match="PNG/JPEG/WebP"):
         router.extract_image_file(path)
+
+def test_temporary_format_diff():
+    import subprocess
+
+    result = subprocess.run(
+        ["ruff", "format", "--diff", __file__],
+        capture_output=True,
+        text=True,
+    )
+    assert result.returncode == 0, result.stdout + result.stderr
