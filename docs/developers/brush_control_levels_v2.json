@@ -1,0 +1,136 @@
+{
+  "schema_version": "idraw-brush-control-levels/2",
+  "control_set_id": "brush-controls-v2-levels-20261103",
+  "description": "AIが選ぶ値を固定段階にする設計案。元デバイスの実測値とモデル用分類ラベルは別々に保持する。",
+  "size_px": [
+    1,
+    2,
+    3,
+    4,
+    5,
+    6,
+    8,
+    10,
+    12,
+    16,
+    20,
+    24,
+    32,
+    50,
+    64,
+    100,
+    128,
+    200,
+    256
+  ],
+  "opacity_percent": [
+    5,
+    10,
+    20,
+    30,
+    40,
+    50,
+    60,
+    70,
+    80,
+    90,
+    100
+  ],
+  "pressure_percent": [
+    0,
+    10,
+    20,
+    30,
+    40,
+    50,
+    60,
+    70,
+    80,
+    90,
+    100
+  ],
+  "tilt_cdeg": [
+    -9000,
+    -7500,
+    -6000,
+    -4500,
+    -3000,
+    -1500,
+    0,
+    1500,
+    3000,
+    4500,
+    6000,
+    7500,
+    9000
+  ],
+  "tilt_missing_id": null,
+  "pressure_missing_id": null,
+  "pressure_pattern_profile_positions_percent": [
+    0,
+    25,
+    50,
+    75,
+    100
+  ],
+  "pressure_pattern_min_valid_samples": 3,
+  "pressure_pattern_other_threshold_mae_percent": 20,
+  "pressure_patterns": [
+    {
+      "id": "constant",
+      "label_ja": "一定",
+      "normalized_pressure_percent": [
+        100,
+        100,
+        100,
+        100,
+        100
+      ]
+    },
+    {
+      "id": "increase",
+      "label_ja": "徐々に強く",
+      "normalized_pressure_percent": [
+        20,
+        40,
+        65,
+        85,
+        100
+      ]
+    },
+    {
+      "id": "decrease",
+      "label_ja": "徐々に弱く",
+      "normalized_pressure_percent": [
+        100,
+        85,
+        65,
+        40,
+        20
+      ]
+    },
+    {
+      "id": "taper_both",
+      "label_ja": "入りと抜きが弱い",
+      "normalized_pressure_percent": [
+        20,
+        70,
+        100,
+        70,
+        20
+      ]
+    },
+    {
+      "id": "other",
+      "label_ja": "その他・不規則",
+      "normalized_pressure_percent": null
+    }
+  ],
+  "pressure_pattern_unknown_id": null,
+  "quantize_tie_break": "choose_lower_level_value",
+  "pressure_pattern_tie_break": "first_defined_pattern",
+  "policy_pressure_output": "categorical_pressure_level_per_sample",
+  "policy_pressure_pattern_output": "auxiliary_conditioning_category",
+  "renderer_uses_pressure": "pressure_level_id_only",
+  "raw_sensor_capture": "preserve_exact_when_available_as_versioned_sidecar"
+}
