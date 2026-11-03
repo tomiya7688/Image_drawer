@@ -12,12 +12,14 @@
 ## 描画実装前の必読（この順）
 
 1. [最上位コンセプト](../kadoka/concept.md)
-2. [制作過程の状態・行動・再生仕様 v1](drawing_process_v1.md)
-3. [描画行動 v1 受け入れ試験](drawing_process_acceptance.md)（[JSON Schema](schemas/drawing_episode_v1.schema.json)・[再生fixture](../../tests/fixtures/drawing_process_v1/golden_episode.json)・[境界画素fixture](../../tests/fixtures/drawing_process_v1/golden_geometry.json)）
-4. [人間の操作を正しく収集・学習データ化する契約](drawing_data_quality_v1.md)
-5. [次Actionの学習と精度評価の契約](drawing_policy_accuracy_v1.md)
-6. [アーキテクチャ](architecture.md)
-7. [実装計画](../kadoka/implementation_plan.md)
+2. **[画像だけで描いて学ぶ方式](image_only_learning_v1.md)**
+3. **[固定制作工程：ラフ→下書き→本描き](fixed_drawing_workflow_v2.md)**
+4. [制作過程の状態・行動・再生仕様 v1（旧画素再生）](drawing_process_v1.md)
+5. [描画行動 v1 受け入れ試験とv2学習条件](drawing_process_acceptance.md)（[JSON Schema](schemas/drawing_episode_v1.schema.json)・[再生fixture](../../tests/fixtures/drawing_process_v1/golden_episode.json)・[境界画素fixture](../../tests/fixtures/drawing_process_v1/golden_geometry.json)）
+6. [画像の登録とTag/Caption抽出の品質仕様](drawing_data_quality_v1.md)
+7. [自己描画Policyの学習と精度評価](drawing_policy_accuracy_v1.md)
+8. [アーキテクチャ](architecture.md)
+9. [実装計画](../kadoka/implementation_plan.md)
 
 **画像パーツの検索・合成は補助機能。人間の制作行動の学習と取り違えないこと。**
 
@@ -27,6 +29,8 @@
 
 ## 設計
 
+- [固定制作工程（ラフ→下書き→本描き）の仕様](fixed_drawing_workflow_v2.md)
+- [画像だけで描いて学ぶ仕様](image_only_learning_v1.md)
 - [定番ブラシ12種の独自プリセット・高精度ペンサンプル仕様（v2）](brush_presets_v2.md)
 - [ブラシ設定の機械可読な正本](brush_presets_v2.json)
 - [固定段階表・筆圧パターンの機械可読な正本](brush_control_levels_v2.json)
@@ -57,7 +61,7 @@
 
 ## 開発開始
 
-描画・学習に関わる実装では、最初に上記の**描画仕様と受け入れ条件**を読んでください。その後 [ソースコードガイド](source_code_guide.md) と対象Issueに対応するtestを確認してください。
+描画・学習に関わる実装では、最初に**画像-only学習・固定制作工程と受け入れ条件**を読んでください。その後 [ソースコードガイド](source_code_guide.md) と対象Issueに対応するtestを確認してください。
 
 基本的なlocal確認:
 
