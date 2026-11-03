@@ -19,6 +19,9 @@
 
 ## 1. Policyの厳密な入出力
 
+**推論時の外部入力は文章promptのみ**。下記の`DrawingObservation`に現れるcanvas/layers/historyは、白紙初期状態から**モデル自身の行動で更新される内部状態**である。学習データに含まれる完成画像や人間の未来の筆跡を推論側に与えず、`text -> blank canvas -> autoregressive actions -> image`を成立させる。外部から下書き画像を与えないと推論できないモデルは、本プロジェクトの基幹txt2imgを満たさない。
+
+
 ```python
 class DrawingPolicy:
     def predict(self, observation: DrawingObservation, rng: RandomState) -> DrawingAction:
