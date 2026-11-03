@@ -53,3 +53,13 @@ def test_action_cost_and_failure_reward_are_explicit():
     assert reward["episode_failure_penalty"] < 0
     assert reward["weights_are_initial_hypothesis_not_guarantee"] is True
     assert reward["feature_numeric_renderer"].startswith("pending-")
+
+def test_temporary_ruff_difference():
+    import subprocess
+
+    result = subprocess.run(
+        ["ruff", "format", "--diff", __file__],
+        capture_output=True,
+        text=True,
+    )
+    assert result.returncode == 0, result.stdout + result.stderr
