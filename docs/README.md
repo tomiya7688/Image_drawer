@@ -2,7 +2,9 @@
 
 Image Drawerの文書は、**誰が・何のために読むか**で分けています。
 
-**設計の最短読み順**：[目的（Kadoka向け）](kadoka/concept.md) → [描画行動・レイヤー・固定256色の正本](developers/drawing_process_v1.md) → [受け入れ試験](developers/drawing_process_acceptance.md) → [人間の操作データの品質](developers/drawing_data_quality_v1.md) → [学習器と精度評価](developers/drawing_policy_accuracy_v1.md) → [実装計画](kadoka/implementation_plan.md)。**既存のPart Bank中心の説明を最優先仕様として読まないでください。**
+**初めて読む方は [Image Drawer 設計ガイド](developers/start_here.md) から始めてください。** 制作工程、定番ブラシ、段階表、学習と未実装範囲を平易な言葉で説明しています。
+
+**実装者向けの詳細な読み順**：[目的（Kadoka向け）](kadoka/concept.md) → [描画行動・レイヤー・固定256色の正本](developers/drawing_process_v1.md) → [受け入れ試験](developers/drawing_process_acceptance.md) → [人間の操作データの品質](developers/drawing_data_quality_v1.md) → [学習器と精度評価](developers/drawing_policy_accuracy_v1.md) → [実装計画](kadoka/implementation_plan.md)。**既存のPart Bank中心の説明を最優先仕様として読まないでください。**
 
 ## 利用者向け
 
@@ -20,7 +22,7 @@ Image Drawerを使う人向けです。
 
 ## 開発者向け
 
-ブラシの採用方針は **既存ソフト間で共通する用途を集約した独自の12プリセット＋サイズ/不透明度調整**。初期パラメータと高精度ペンサンプルは [ブラシv2の仕様](developers/brush_presets_v2.md)にまとめています。従来の単一ブラシは再生契約の検証用であり、イラスト全般向けの完成品ではありません。
+ブラシは **独自の12プリセット** から選び、サイズ19段階・不透明度11段階・筆圧11段階と筆圧変化5パターンを扱います。初見の方には[段階表と具体例](developers/brush_control_levels_v2.md)、実装者には[ブラシv2仕様](developers/brush_presets_v2.md)を用意しています。従来の単一ブラシは再生契約の検証用であり、イラスト全般向けの完成品ではありません。
 
 
 [docs/developers/](developers/)
