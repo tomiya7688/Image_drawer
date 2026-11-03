@@ -99,6 +99,8 @@ Controllerが「sketchレイヤーに有効な筆跡が残る」を確認
 
 最後の`refine→finish`では`advance_stage`、`exit_stage(refine)`、`finish`を一つの原子的記録グループとして確定。途中で落ちた場合、**部分的に工程が変わった完成Episodeを公開しない**。Recoveryで最後の確定グループへ戻す。グループIDと永続化方式はEpisode v2設計に必ず含める。
 
+Controllerが自動発行したイベントは`actor=system`、AI自身の描画と工程進行提案は`actor=model`。そのため**同一Episodeに両者がある場合`origin=mixed`となっても正常**。これは人間の実演が混じったという意味ではない。人間の履歴と混同しない。
+
 旧v1のJSONイベント`set_phase`や、旧「create_layerは常に最上層」の再生を**書き換えない**。上記はv2の契約。
 
 ## 6. レイヤーを重ねる順番
@@ -120,7 +122,7 @@ Controllerが「sketchレイヤーに有効な筆跡が残る」を確認
 
 `DRAW_EPISODE.max_actions`を受理済みの**モデルAction提案数の上限**とする。Controllerの自動イベントは別で記録してよいが、**提案だけして拒否されたActionもattempt数として別途カウント**し、無限に不正提案を繰り返せないようにする。
 
-- 受理済みActionと拒否attemptを混同しない。どちらも研究・評価時には分母へ含める。
+- 受理済みActionと拒否attemptを混同しない。どちらも研究・評価時には分母へ含める。**試行（受理＋拒否）の上限は`max(100, 5 × max_actions)`**。たとえば`max_actions=1000`なら最大5000試行。すべての拒否理由をログに残し、無限ループを禁止する。
 - Action予算またはattempt上限に達したときは**未完成のDraft＋終了理由**。Controllerが残り工程を自動スキップ・描画・finishしてはならない。
 - 画質が悪いのに工程を形だけ移動させる場合、Stageの合法性は通っても**画質評価は不合格**になり得る。Controllerは品質を保証しない。
 - モデルが故意に一画素だけ描いて進む回避を防ぐには、工程別の画像品質報酬を併用し、筆跡の個数だけを高く評価しない。
