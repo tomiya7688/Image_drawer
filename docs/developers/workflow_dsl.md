@@ -40,7 +40,7 @@ Stepの**契約案**（実装IssueでStepSchemaに反映するまで未実装）
 
 | Operation | Input Artifact | 必須/既定parameter | 主出力 | 不合格となる挙動 |
 | --- | --- | --- | --- | --- |
-| `DRAW_EPISODE` | `Text` | `policy: str`必須、`max_actions: int=1000`（1..100000） | `DrawingEpisode` | Pixelだけを直接書き換える／行動ログを作らない |
+| `DRAW_EPISODE` | `Text` | `policy: str`必須、`max_actions: int=1000`（1..19999、`finish`を除くAction上限。Stage移行も含む） | `DrawingEpisode` | Pixelだけを直接書き換える／行動ログを作らない |
 | `REPLAY_EPISODE` | `DrawingEpisode` | なし | `Image` | 正本eventsを再生せず画像をそのまま返す |
 
 `max_actions`の上限に達して`finish`が出ない場合、エラーを記録し**完成エピソードと偽らない**。既存Workflowの`Artifact.uri`を使ってJSONを参照し、画像は追加Artifactとして独立保持してよい。
