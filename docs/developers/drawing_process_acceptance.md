@@ -28,6 +28,9 @@
 [独自ブラシプリセットの正本](brush_presets_v2.md) と [機械可読12種の設定](brush_presets_v2.json)を参照する。実装時は次を満たすこと。
 
 - 全12種のID・並び・デフォルト値・用途`mode`をそのまま読み込み、[静的契約テスト](../../tests/test_brush_presets_design.py)に合格する。
+- [段階表と圧パターン](brush_control_levels_v2.md)の19/11/11レベル、5パターン、同点丸め、未取得値の`null`区別を[自動テスト](../../tests/test_brush_control_levels_design.py)で確認する。
+- 元の筆圧73%が学習用70%に変換されても、**生値73%を保全**し、Actionの段階IDから同じ筆跡をReplayできることを検証する。
+- `pressure_pattern_id`はモデルの補助予測であり、画素を描く際は各点の`pressure_level_id`を使う。パターンだけで筆跡を固定する実装は不合格。
 - `select_color`／`select_brush`／`set_brush_params`が独立し、筆種別を変えても固定256色の`palette`は変更しない。
 - 消しゴム2種が色を参照せず、描画ブラシでの`erase_v2`や消しゴムでの`stroke_v2`を拒否する。
 - 同じブラシ・サイズ・不透明度・サブピクセル軌跡・筆圧・seed・renderer versionで、保存／再生後の画素が一致する。
