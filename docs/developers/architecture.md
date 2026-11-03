@@ -58,6 +58,8 @@
 - **DrawingEpisode**：空白から完成までの**実際のActionの列**。推論・学習のtrialで同じ形式。
 - **WorkflowSpec**：学習・生成・評価の上位処理とデータの受け渡し。Action一件ごとの代わりではない。
 
+**新しい固定工程Controllerの動作**：[工程移行・レイヤー・atomic記録](stage_controller_contract_v2.md)。**画像による工程別採点**：[Stage Reward](stage_reward_v2.md)。Controllerは対象画像を観測せず、Trainerは試行後の報酬からPolicyを更新する。
+
 **v1互換性契約**：[制作過程v1](drawing_process_v1.md)。**新しい固定工程・画像only学習**：[固定工程v2](fixed_drawing_workflow_v2.md)・[画像だけで学ぶ](image_only_learning_v1.md)。v2のRendererとEpisodeはまだ実装されていない。
 
 ## 4. 既存コードの入口と再利用
