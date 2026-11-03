@@ -44,7 +44,7 @@ Image Drawer は **txt2img**。モデルは文章だけから白紙上に一筆�
 - `tip` は `round / flat / soft_round / grain_round`。道具の見た目のラベルではなく、rendererが実装する幾何カーネルを特定する。
 - プリセット値は全て**JSON整数**。実数を使わず、色とブラシを混ぜず、外部ブラシデータを参照しない。`q8` は256を1px、`u16` と `q16` は0〜65535を0〜1とする固定小数のスケールである。
 - プリセットのindexはJSON配列の順序が正本。AI学習用のclass番号はこの順番（0〜11）。CSV・Pythonの辞書順やusage rankingで並べ替えない。
-- **モデルcheckpointとDrawingEpisodeにはbrush_set_idとmanifest SHA-256（canonical JSON）を保存する**。canonical bytesはUTF-8で `json.dumps(manifest, sort_keys=True, ensure_ascii=False, separators=(",",":"), allow_nan=False).encode("utf-8")` と同一の結果になるよう定義し、そのSHA-256を記録する。空白やキー順の違いでhashが変化しない一方、プリセット値や順番の変更ではhashが変わる。異なる構成で同じbrush_set_idを使わず、checksum不一致なら学習・推論・Replayを停止。
+- **モデルcheckpointとDrawingEpisodeにはbrush_set_idとmanifest SHA-256（canonical JSON）を保存する**。同時に独立した`control_set_id`と[段階表](brush_control_levels_v2.json)のcanonical SHA-256も保存する。canonical bytesはUTF-8で `json.dumps(manifest, sort_keys=True, ensure_ascii=False, separators=(",",":"), allow_nan=False).encode("utf-8")` と同一の結果になるよう定義し、そのSHA-256を記録する。空白やキー順の違いでhashが変化しない一方、プリセット値や順番の変更ではhashが変わる。異なる構成で同じbrush_set_idを使わず、checksum不一致なら学習・推論・Replayを停止。
 
 各プリセットが持つ固定フィールドは `tip`、`family`、`spacing_q16`、`hardness_u16`、`flow_u16`、`grain_u16`、`aspect_u16`、`angle_cdeg`、`pressure_min_size_u16`、`pressure_min_opacity_u16`。
 
