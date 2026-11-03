@@ -21,6 +21,10 @@
 
 ## 設計
 
+- [定番ブラシ12種の独自プリセット・高精度ペンサンプル仕様（v2）](brush_presets_v2.md)
+- [ブラシ設定の機械可読な正本](brush_presets_v2.json)
+
+
 - [アーキテクチャ](architecture.md)
 - [Workflow DSL](workflow_dsl.md)
 - [GUI実装仕様](gui.md)
