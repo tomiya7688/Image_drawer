@@ -16,7 +16,7 @@
 
 ## 2. 一枚の画像から生成する内容
 
-\`\`\`text
+```text
 学習画像だけを登録
        ↓
 高精度の画像理解VLM（優先）
@@ -34,7 +34,7 @@ TextEncoder → DrawingPolicy
 固定7工程で白紙から自分で描く
        ↓
 Evaluatorだけが目標画像と比較 → Trainerで学習
-\`\`\`
+```
 
 **抽出器から得るのは元画像からの説明であり、人間の過去の筆跡ではない。** DrawingPolicyは正解画像を観測しない。
 
@@ -88,14 +88,14 @@ Evaluatorだけが目標画像と比較 → Trainerで学習
 
 [CVPR 2026のCCCaption](https://openaccess.thecvf.com/content/CVPR2026/html/Tang_CCCaption_Dual-Reward_Reinforcement_Learning_for_Complete_and_Correct_Image_Captioning_CVPR_2026_paper.html)の考え方を参考に、**Completeness（重要情報の取りこぼし）とCorrectness（画像にない情報の捏造）を分けて評価**する。
 
-現在のコードでは構造化JSONの検査と、**設定された独立VLMによる支持／不一致の再照合**を提供する。ただし照合モデル自身も間違えるので、\`verified_by_model\`は真実の保証ではない。実画像の正答率・検証器間の偏りは実測で報告する。
+現在のコードでは構造化JSONの検査と、**設定された独立VLMによる支持／不一致の再照合**を提供する。ただし照合モデル自身も間違えるので、`verified_by_model`は真実の保証ではない。実画像の正答率・検証器間の偏りは実測で報告する。
 
 ## 5. 高精度モデル → Qwen自動フォールバック
 
 **優先順位を固定**する。
 
 1. **高精度VLM（Primary）**：既知の画像・画風・文章指示で検証して精度が高いモデルをアプリの設定で指定する。プロバイダ名は固定せず、APIやローカルのVision modelを差し替え可能。
-2. **Qwen系VLM（Fallback）**：Primaryが拒否・空文・壊れたJSON・重大な画像不一致を返したら、自動で代替する。まずは [Qwen3-VL-8B-Instruct](https://huggingface.co/Qwen/Qwen3-VL-8B-Instruct) 等の**実際に画像入力が可能な**ローカルVision modelを候補にする。軽量構成ではOllamaの\`qwen3-vl:8b\`などに接続できる。
+2. **Qwen系VLM（Fallback）**：Primaryが拒否・空文・壊れたJSON・重大な画像不一致を返したら、自動で代替する。まずは [Qwen3-VL-8B-Instruct](https://huggingface.co/Qwen/Qwen3-VL-8B-Instruct) 等の**実際に画像入力が可能な**ローカルVision modelを候補にする。軽量構成ではOllamaの`qwen3-vl:8b`などに接続できる。
 3. **どちらも失敗**：空の文章や「何かの画像」などのニセ教師を保存せず、画像IDと失敗理由を記録してその画像のテキスト条件付き学習だけを停止する。**ユーザーに新しいTXTやタグを用意させない**。
 
 ### 切替とエラーの意味
@@ -103,7 +103,7 @@ Evaluatorだけが目標画像と比較 → Trainerで学習
 | Primaryの結果 | 動作 |
 | --- | --- |
 | 成功・構造と画像内容に重大不一致なし | Primary採用 |
-| Providerの\`refusal\`または\`content_filter\` | **Qwenへ自動切替** |
+| Providerの`refusal`または`content_filter` | **Qwenへ自動切替** |
 | 文章による明確な拒否 | **Qwenへ自動切替** |
 | 空文字、JSON形式不正、何も説明しない汎用文 | **Qwenへ自動切替** |
 | 画像にない主要対象・色・人数等を検証器が検出 | **Qwenへ自動切替** |
@@ -115,11 +115,11 @@ Evaluatorだけが目標画像と比較 → Trainerで学習
 
 **検証器も回答拒否する場合**：Primaryの説明が不十分だと判定されればQwenへ切り替える。ただし、Qwenが文章生成に成功しているのに独立検証器だけが拒否した場合は、Qwenの文章を**`verifier_refused_unverified`（未照合）**として保持する。確認済みの事実として扱わず、後続の品質測定で未照合件数を分けて報告する。検証器の拒否だけを理由に有効な代替モデルを無限に探し続けない。
 
-**実装場所**：\`image_drawer/prompting/core.py\`（選択と検証）と\`openai_compatible.py\`（ローカルQwenを含むOpenAI互換API接続）。既存Image Drawerには実学習用Dataset/GUIがないため、**この段階では前処理の独立モジュール**。実モデルの重みやAPIキーは含まれない。
+**実装場所**：`image_drawer/prompting/core.py`（選択と検証）と`openai_compatible.py`（ローカルQwenを含むOpenAI互換API接続）。既存Image Drawerには実学習用Dataset/GUIがないため、**この段階では前処理の独立モジュール**。実モデルの重みやAPIキーは含まれない。
 
 ## 6. 失敗と学習再現性
 
-- 1枚の入力画像だけで\`ImagePromptPipeline.extract(image_bytes, mime_type)\`を実行できる。モデルの選択は既存のアプリ設定。
+- 1枚の入力画像だけで`ImagePromptPipeline.extract_image_file(image_path)`を実行できる。**PNG/JPEG/WebPはファイル内容から自動判定**し、MIME・TXT・タグ・キャプションの提出を要求しない。下位の`extract(image_bytes, mime_type)`は内部処理。
 - どのモデルが成功したか、どの理由でフォールバックしたか、何回試したかを**内部の試行記録**に残す。ユーザーには追加ファイルを要求しない。
 - キャッシュには画像hash、Prompt profileとモデルID、検証器のID、抽出指示のversion等を含める。モデルを変更したら別の結果と見なす。
 - モデル内部の画像から生成したプロンプトを**元画像とのペアで保持**する。タグ・説明文は外部の学習入力ではなく内部生成物。
@@ -130,9 +130,9 @@ Evaluatorだけが目標画像と比較 → Trainerで学習
 
 **人間が生成時に入力する文章**は、その意味を保ったまま空白の整理だけを行い、**学習時に使ったTextEncoderと同じ入力経路**へ渡す。
 
-例：\`青い服の少女が左に一人、犬は右。影なし\`という生成指示で、画像の枚数・左/右・服色・影なしを保持する。学習画像を説明するときも**それと同種の自然なプロンプト**を生成する。
+例：`青い服の少女が左に一人、犬は右。影なし`という生成指示で、画像の枚数・左/右・服色・影なしを保持する。学習画像を説明するときも**それと同種の自然なプロンプト**を生成する。
 
-タグを無条件にカンマで並べただけ、毎回長い文学的説明、毎回\`masterpiece\`を付けただけでは、普段の人間のプロンプトとの分布がずれやすい。**生成時の短い自然文・日本語/英語・タグ列**を独立した評価コホートで検査する。
+タグを無条件にカンマで並べただけ、毎回長い文学的説明、毎回`masterpiece`を付けただけでは、普段の人間のプロンプトとの分布がずれやすい。**生成時の短い自然文・日本語/英語・タグ列**を独立した評価コホートで検査する。
 
 ## 8. 受け入れ試験・未完成の境界
 
