@@ -6,12 +6,7 @@ import hashlib
 import json
 from pathlib import Path
 
-CATALOG = (
-    Path(__file__).resolve().parents[1]
-    / "docs"
-    / "developers"
-    / "brush_presets_v2.json"
-)
+CATALOG = Path(__file__).resolve().parents[1] / "docs" / "developers" / "brush_presets_v2.json"
 
 FIELDS = {
     "id",
@@ -51,9 +46,7 @@ def test_preset_catalog_is_fixed_and_independent_from_color():
     assert len(presets) == len(set(ids)) == 12
     assert sum(p["mode"] == "stroke" for p in presets) == 10
     assert sum(p["mode"] == "erase" for p in presets) == 2
-    assert {"round", "flat", "soft_round", "grain_round"} == {
-        p["tip"] for p in presets
-    }
+    assert {"round", "flat", "soft_round", "grain_round"} == {p["tip"] for p in presets}
     assert ids[-2:] == ["eraser_hard", "eraser_soft"]
     assert raw["adjustable_fields"] == ["size_q8", "opacity_u16"]
     assert all(set(p.keys()) == FIELDS for p in presets)
@@ -78,9 +71,9 @@ def test_preset_catalog_is_fixed_and_independent_from_color():
 
 def test_brush_catalog_hash_is_deterministic():
     data = json.loads(CATALOG.read_text(encoding="utf-8"))
-    canonical = json.dumps(
-        data, ensure_ascii=False, sort_keys=True, separators=(",", ":")
-    ).encode("utf-8")
+    canonical = json.dumps(data, ensure_ascii=False, sort_keys=True, separators=(",", ":")).encode(
+        "utf-8"
+    )
     digest = hashlib.sha256(canonical).hexdigest()
     reversed_keys = dict(reversed(list(data.items())))
     reordered = json.dumps(
@@ -108,10 +101,3 @@ def test_preset_names_and_indices_are_stable():
         "eraser_soft",
     ]
     assert [p["id"] for p in presets] == expected
-
-
-def test_temporary_show_formatter_diff():
-    import subprocess
-
-    r = subprocess.run(["ruff", "format", "--diff", __file__], capture_output=True, text=True)
-    assert r.returncode == 0, r.stdout + r.stderr
