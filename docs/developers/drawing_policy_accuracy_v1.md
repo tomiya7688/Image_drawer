@@ -6,7 +6,11 @@
 
 ## 0. まず、学習の目的
 
-正解として渡せるのは**完成画像だけ**。タグと文章は自動抽出器が生成する。人間が何色を選んだか、どこへ線を引いたか、どんな筆圧だったかは分からないし、**学習に必要ない**。
+> 学習に必要な外部入力は画像のみとする。
+> ユーザーおよび開発者は、画像以外の補助データを用意する必要はない。
+> タグ・説明文・プロンプトは、必要に応じてシステム側で自動抽出する。
+
+学習では画像をもとに**内部プロンプトを生成してTextEncoderに入力する**。モデルが学ぶのは「文章条件 + 自分の描画途中の状態 → 次のAction」という関係。人間の筆跡は学習の必須入力ではない。
 
 DrawingPolicyは**文章と白紙**から自分でラフ・下書き・本描き・着色・仕上げを行い、描いた結果を元画像と比較した報酬によって、次回のAction選択を改善する。
 
@@ -20,8 +24,10 @@ DrawingPolicyは**文章と白紙**から自分でラフ・下書き・本描き
 ## 1. 何をPolicyに渡すか
 
 ```text
+TextEncoder(prompt) -> text_condition
+
 DrawingPolicy(
-    prompt,
+    text_condition,
     own_canvas_and_layers,
     tool_state,
     current_stage,
@@ -33,7 +39,7 @@ DrawingPolicy(
 
 **禁止**：target_image、target_image_embedding、教師Action、未来の自分のAction、targetとの距離/差分画像、学習用RewardをPolicyの**観測入力**に含めること。
 
-- **学習中も**Policyへ入るのは文章と自分で描いた途中状態だけ。Evaluatorが目標画像を見てRewardを計算し、Trainerがそれを使ってパラメータを更新するのは許可。
+- **学習中も**Policyへ入るのはTextEncoderが自動抽出promptから作った文章特徴と、自分で描いた途中状態だけ。生成時はユーザーのpromptを**同じTextEncoder**に通す。Evaluatorが目標画像を見てRewardを計算し、Trainerがそれを使ってパラメータを更新するのは許可。
 - 教師画像に由来する**固定の中間下書き・ラフ画像**をPolicyへ渡さない。正解画像から「人間が描いたであろう筆跡」を逆算しない。
 - 各Stageの現在位置、残予算、直近の描画状態はPolicyの正当な入力。自分が出したActionとその画素のReplayは完全に記録する。
 - 履歴が長い場合の要約／局所高解像度cropは自分のstateとhistoryのみから計算し、学習時・推論時で同じ規則を使用する。
@@ -53,7 +59,7 @@ DrawingPolicy(
 
 ストローク座標を一つの巨大分類にせず、点を1つずつ予測して最後に`POINT_END`を出す。幅、色、ブラシと座標の直積分類は禁止。工程外Action、ブラシ不一致、予算超過はEngine/Controllerが拒否する。
 
-最初のAction decoderの実装候補は、現在画像の視覚encoder＋文章encoder＋自己履歴要約＋条件付き分類headで構成する。各headを事前に用意しても、その数だけ学習できたと主張しない。
+最初のAction decoderの実装候補は、現在画像の視覚encoder＋**TextEncoder（自動生成promptの意味特徴）**＋自己履歴要約＋条件付き分類headで構成する。各headを事前に用意しても、その数だけ学習できたと主張しない。
 
 **学習中のtarget漏洩を防ぐ**：正解画像とそれから計算した輪郭・埋め込み・一筆ごとのスコアはEvaluator/Trainerだけが保持し、**同じ試行中の次Actionの観測へ渡さない**。試行後の報酬でパラメータを更新して次の試行に反映する。[評価器の具体的な成分と初期重み](stage_reward_v2.md)に従い、目標画像から作者の正解筆跡を逆算しない。
 
@@ -96,6 +102,8 @@ Trainerが報酬を用いてPolicyのパラメータを更新
 
 ## 5. 何を精度と呼ぶか
 
+**txt2imgの独立した合格条件**：画像の再現性だけではなく、文章条件の意味を学んだことを評価する。未見プロンプトの「赤／青」「一つ／二つ」「左／右」などの指示を変え、生成された対象・個数・色・位置を比較する。文章を変えても常に同じ画像を返すモデルは不合格。
+
 | 検証段階 | 必須指標 |
 | --- | --- |
 | レンダラ再生 | 保存EpisodeをReplayした各レイヤーRGBA完全一致 |
@@ -111,17 +119,17 @@ Trainerが報酬を用いてPolicyのパラメータを更新
 
 ## 6. 最初の実装で確認すること
 
-1. **画像だけ**で登録でき、TagExtractor/CaptionExtractorを利用者が独立に変更できる。
+1. **画像だけ**で登録でき、TagExtractor/CaptionExtractorを利用者が独立に変更できる。画像以外の追加資料をユーザーに求めず、非空の内部promptがTextEncoderへ渡る。
 2. Policyが目標画像を見ず、同一prompt/seed/checkpointなら**目標画像だけ変えても最初のActionが変わらない**。
 3. 全7工程の順番を必須とし、**すべての`skip_stage`・後戻り・不正レイヤー書込み**をStageControllerが拒否する。基本色・陰影・修正で無操作なら工程内の理由付きレビューが必要。
 4. 学習画像の目標を使うEvaluatorからRewardを取得し、**Policyの実際の選択分布/重みが変わる**。
 5. 単純な図形の画像数件だけから、自分で描いたものを比較して、学習前よりRewardと画質が改善する。
-6. 未見画像・未見promptで再評価する。訓練画像のまるごと暗記だけでは成功と呼ばない。
+6. 未見画像・未見promptで再評価し、**色・対象・個数・配置**の指示を反映できるか測る。訓練画像のまるごと暗記やprompt無視では成功と呼ばない。
 7. 学習後は**文章だけ**で画像を生成し、全Action履歴から画像が再生できる。
 
 ## 7. Version、データと学習ログ
 
-画像datasetのhash・権利・train/val/test group、Tag/Caption抽出器ID/hash、PromptBuilder、palette、brush set、control levels、Renderer、Stage workflow、Rewardのversion、Policy checkpoint、seedを一緒に記録。
+画像datasetのhash・train/val/test group、Tag/Caption抽出器ID/hash、PromptBuilder、**TextEncoder**、palette、brush set、control levels、Renderer、Stage workflow、Rewardのversion、Policy checkpoint、seedを**システム内部で**記録。ユーザーが補助メタデータを提供する必要はない。
 
 それぞれの試行に`target_image_id`（**Policyの観測ではなくEvaluatorの参照**）、自動抽出したprompt、各Action、各Reward、最終画像、Policy更新前後を保存する。失敗trialやbudget超過を隠さない。
 
