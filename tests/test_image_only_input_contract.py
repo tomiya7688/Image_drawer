@@ -83,3 +83,9 @@ def test_no_manual_rights_field_in_dataset_example():
     assert "rights_status" not in content
     assert "使用権限を確認したデータを利用" not in content
     assert "TextEncoder" in content
+
+def test_temporary_show_formatter_diff():
+    import subprocess
+
+    result = subprocess.run(["ruff", "format", "--diff", __file__], capture_output=True, text=True)
+    assert result.returncode == 0, result.stdout + result.stderr
