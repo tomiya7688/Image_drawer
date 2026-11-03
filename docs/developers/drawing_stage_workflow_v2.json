@@ -151,6 +151,7 @@
     "enter_stage",
     "exit_stage",
     "set_layer_visibility",
+    "clear_active_layer",
     "finish"
   ],
   "require_stage_entry_and_exit": true,
@@ -202,7 +203,9 @@
       "advance_stage",
       "exit_stage",
       "set_layer_visibility(if needed)",
-      "enter_stage(next stage)"
+      "enter_stage(next stage)",
+      "create_layer(if entry role needed)",
+      "clear_active_layer"
     ],
     "final_stage_commit_order": [
       "advance_stage",
@@ -230,7 +233,12 @@
     "count_rejected_proposals_in_separate_attempt_budget": true,
     "count_controller_events_separately": true,
     "exhaustion": "incomplete Draft with failure; no auto-finish, no implicit stage jump",
-    "no_stage_soft_quota_as_legal_action_mask": true
+    "no_stage_soft_quota_as_legal_action_mask": true,
+    "attempt_limit_formula": "max(100, 5 * max_actions)",
+    "max_actions_default_current_workflow": 1000,
+    "max_actions_hard_limit_current_workflow": 100000,
+    "attempts_include_rejected_and_accepted": true,
+    "no_auto_stage_advance_on_exhaustion": true
   },
   "policy_observation_excludes": [
     "target_image",
@@ -240,5 +248,27 @@
     "future_stage_result"
   ],
   "stage_layer_creation_rule": "The controller creates a transparent role layer on entering each stage requiring a new role; action create_layer(role) can create more allowed-role layers; initial layer order is not final z order",
-  "layer_blend_profile": "normal-rgba, fixed z order independent of creation order; precise pixel compositing is a separate Renderer v2 contract"
+  "layer_blend_profile": "normal-rgba, fixed z order independent of creation order; precise pixel compositing is a separate Renderer v2 contract",
+  "stage_entry_default_layer_roles": {
+    "rough": "rough",
+    "sketch": "sketch",
+    "final_drawing": "final_drawing",
+    "base_color": "base_color",
+    "shading": "shade",
+    "refine": null
+  },
+  "state_entry_reset": {
+    "active_layer_id": null,
+    "selected_brush_id": "preserve",
+    "selected_color_id": "preserve",
+    "brush_size_and_opacity": "preserve"
+  },
+  "review_only_guard": {
+    "base_color": "StyleIntent.monochrome_line_art_only == true, inferred solely from prompt; unknown=false",
+    "shading": "StyleIntent.flat_style_no_shading == true, inferred solely from prompt; unknown=false",
+    "refine": "Policy asserts no_correction_needed; stage is exited but final quality is separately evaluated",
+    "target_image_forbidden": true,
+    "no_prior_effectful_stroke_or_erase_in_current_stage": true,
+    "unknown_intent_policy": "reject"
+  }
 }
