@@ -104,9 +104,10 @@ class OpenAICompatibleVisionProvider:
                 "content_filter",
                 "content_policy_violation",
                 "safety_refusal",
-            } or (exc.code in {400, 403} and (
-                "content policy" in message or "safety filter" in message
-            )):
+            } or (
+                exc.code in {400, 403}
+                and ("content policy" in message or "safety filter" in message)
+            ):
                 return VisionResponse(refusal=True, finish_reason="content_filter")
             kind = "unavailable" if exc.code in {408, 429, 500, 502, 503, 504} else "invalid_input"
             raise PromptExtractionError(kind, f"VLM HTTP {exc.code}") from exc
@@ -122,9 +123,7 @@ class OpenAICompatibleVisionProvider:
         except (TypeError, ValueError, IndexError, KeyError) as exc:
             raise PromptExtractionError("invalid_format", "VLMレスポンスが不正") from exc
         if isinstance(content, list):
-            content = "\n".join(
-                item.get("text", "") for item in content if isinstance(item, dict)
-            )
+            content = "\n".join(item.get("text", "") for item in content if isinstance(item, dict))
         if not isinstance(content, str):
             raise PromptExtractionError("invalid_format", "VLM文章が不正")
         return VisionResponse(
