@@ -7,6 +7,7 @@ import json
 import random
 import re
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Protocol
 
 
@@ -253,6 +254,17 @@ def verify_scene(
         raise PromptExtractionError("unverified_facts", "画像との不一致または重要情報の欠落")
 
 
+def _detect_mime(image: bytes) -> str:
+    """外部からMIMEの指定を要求せず画像のシグネチャで識別する。"""
+    if image.startswith(b"\x89PNG\r\n\x1a\n"):
+        return "image/png"
+    if image.startswith(b"\xff\xd8"):
+        return "image/jpeg"
+    if image.startswith(b"RIFF") and image[8:12] == b"WEBP":
+        return "image/webp"
+    raise ValueError("PNG/JPEG/WebP画像のみ対応")
+
+
 class ImagePromptPipeline:
     """精度優先のモデルを試し、拒否・出力不備時は指定Qwen等へ自動切替。"""
 
@@ -309,6 +321,14 @@ class ImagePromptPipeline:
         }
         canonical = json.dumps(settings, sort_keys=True, separators=(",", ":")).encode()
         return hashlib.sha256(canonical).hexdigest()
+
+    def extract_image_file(self, image_path: str | Path) -> ExtractionResult:
+        """ユーザーの学習入力は画像ファイル一つのみ。MIMEを自動判定する。"""
+        path = Path(image_path)
+        if path.stat().st_size > 32 * 1024 * 1024:
+            raise ValueError("画像ファイルが32MiBを超えています")
+        image = path.read_bytes()
+        return self.extract(image, _detect_mime(image))
 
     def extract(self, image: bytes, mime_type: str) -> ExtractionResult:
         if not isinstance(image, bytes) or not image:
