@@ -63,7 +63,9 @@ def make_pipeline(
     verifier: FakeVision | None = None,
 ) -> tuple[ImagePromptPipeline, FakeVision, FakeVision]:
     a = FakeVision("accurate", "best-vlm", [primary])
-    b = FakeVision("qwen_local", "Qwen3-VL-8B-Instruct", [fallback or VisionResponse(caption_json())])
+    b = FakeVision(
+        "qwen_local", "Qwen3-VL-8B-Instruct", [fallback or VisionResponse(caption_json())]
+    )
     return ImagePromptPipeline(a, b, verifier=verifier), a, b
 
 
@@ -135,9 +137,7 @@ def test_both_models_failed_never_generates_generic_fake_prompt():
 
 
 def test_unavailable_fallback_is_configurable():
-    primary = FakeVision(
-        "accurate", "best-vlm", [PromptExtractionError("unavailable", "timeout")]
-    )
+    primary = FakeVision("accurate", "best-vlm", [PromptExtractionError("unavailable", "timeout")])
     backup = FakeVision("qwen", "qwen-vl", [VisionResponse(caption_json())])
     router = ImagePromptPipeline(primary, backup, fallback_on_unavailable=False)
     with pytest.raises(PromptExtractionError, match="accurate:unavailable"):
@@ -155,9 +155,7 @@ def test_cache_key_tracks_model_and_extraction_profile():
     assert a.extract(b"image bytes", "image/png").cache_key == (
         b.extract(b"image bytes", "image/png").cache_key
     )
-    assert a._cache_key(b"image bytes", "image/png") != c._cache_key(
-        b"image bytes", "image/png"
-    )
+    assert a._cache_key(b"image bytes", "image/png") != c._cache_key(b"image bytes", "image/png")
 
 
 def test_invalid_subject_count_cannot_enter_training():
@@ -257,6 +255,7 @@ def test_http_adapter_http_content_filter_is_detected(monkeypatch):
     )
     assert backend.describe(b"image bytes", "image/png", "describe").refusal is True
 
+
 def test_subject_color_and_count_evidence_are_preserved():
     router, _, _ = make_pipeline(VisionResponse(caption_json()))
     scene = router.extract(b"image bytes", "image/png").scene
@@ -277,23 +276,3 @@ def test_vision_provider_connection_settings_change_cache_fingerprint():
     )
     assert a.config_fingerprint != b.config_fingerprint
     assert "api_key" not in a.config_fingerprint
-
-def test_temporary_ruff_diff_report():
-    import subprocess
-    from pathlib import Path
-
-    root = Path(__file__).resolve().parents[1]
-    diffs = []
-    for item in (
-        "image_drawer/prompting/openai_compatible.py",
-        "tests/test_prompt_extraction_contract.py",
-        "tests/test_prompting_pipeline.py",
-    ):
-        result = subprocess.run(
-            ["ruff", "format", "--diff", str(root / item)],
-            capture_output=True,
-            text=True,
-        )
-        if result.returncode:
-            diffs.append(f"{item}\n{result.stdout}\n{result.stderr}")
-    assert not diffs, "\n".join(diffs)
