@@ -30,7 +30,7 @@
 
 ## 3. 正規化の境界（raw・action・trainingを混同しない）
 
-**ブラシの行動履歴**：絵師が[標準ブラシセットv2](brush_presets_v2.md)のどの`brush_id`を選び、`size_q8`・`opacity_u16`をいつ調整したかは、色選択とは別のActionEventで保持。データは`brush_set_id`とmanifest SHA-256を保持し、途中でブラシIDの意味を変更したら新しいデータセットバージョンにする。ペンの`pressure_u16`・`tilt_x_cdeg`・`tilt_y_cdeg`が計測できない場合は`null`とし、推定値を人間の実測と混ぜない。
+**ブラシの行動履歴**：絵師が[標準ブラシセットv2](brush_presets_v2.md)のどの`brush_id`を選び、[段階表](brush_control_levels_v2.md)の`size_level_id`・`opacity_level_id`をいつ調整したかは、色選択とは別のActionEventで保持。**実際の入力サイズ・透明度の生値は別のraw sidecarに保存する。**データは`brush_set_id`とmanifest SHA-256を保持し、途中でブラシIDの意味を変更したら新しいデータセットバージョンにする。ペンの実測`pressure_raw_u16`・`tilt_x_raw_cdeg`・`tilt_y_raw_cdeg`が計測できない場合は`null`とし、推定値を人間の実測と混ぜない。Episode v2には段階化された`pressure_level_id`と`tilt_*_level_id`を保存する。筆圧の5パターンは**学習側が生成する補助ラベル**であり、人間の実演Actionに捏造して追加しない。
 
 
 ```text
