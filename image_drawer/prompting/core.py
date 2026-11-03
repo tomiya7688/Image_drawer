@@ -34,12 +34,19 @@ class VisionProvider(Protocol):
 
 
 @dataclass(frozen=True)
+class Subject:
+    name: str
+    count: int | None
+    attributes: tuple[str, ...]
+
+
+@dataclass(frozen=True)
 class SceneDescription:
     short: str
     standard: str
     detailed: str
     summary: str
-    subjects: tuple[tuple[str, int | None], ...]
+    subjects: tuple[Subject, ...]
     relations: tuple[str, ...]
     tags: tuple[str, ...]
     style: str
@@ -188,15 +195,15 @@ def parse_scene(response: VisionResponse) -> SceneDescription:
     raw_subjects = data.get("subjects", [])
     if not isinstance(raw_subjects, list) or len(raw_subjects) > 32:
         raise PromptExtractionError("invalid_format", "subjectsの形式が不正")
-    subjects: list[tuple[str, int | None]] = []
+    subjects: list[Subject] = []
     for item in raw_subjects:
         if not isinstance(item, dict):
             raise PromptExtractionError("invalid_format", "subjectの形式が不正")
         count = item.get("count")
         if count is not None and (type(count) is not int or not 1 <= count <= 100):
             raise PromptExtractionError("invalid_format", "countは1..100またはnull")
-        _list(item.get("attributes", []), "attributes")
-        subjects.append((_text(item.get("name"), "subject.name"), count))
+        attributes = _list(item.get("attributes", []), "attributes")
+        subjects.append(Subject(_text(item.get("name"), "subject.name"), count, attributes))
     return SceneDescription(
         short=short,
         standard=standard,
@@ -220,7 +227,10 @@ def verify_scene(
     proposal = json.dumps(
         {
             "summary": scene.summary,
-            "subjects": scene.subjects,
+            "subjects": [
+                {"name": s.name, "count": s.count, "attributes": s.attributes}
+                for s in scene.subjects
+            ],
             "relations": scene.relations,
             "prompts": [scene.short, scene.standard, scene.detailed],
         },
@@ -262,10 +272,30 @@ class ImagePromptPipeline:
             "image": hashlib.sha256(image).hexdigest(),
             "mime": mime_type,
             "profile": self.profile_id,
-            "primary": [self.primary.provider_id, self.primary.model_id],
-            "fallback": [self.fallback.provider_id, self.fallback.model_id],
+            "caption_instruction_sha256": hashlib.sha256(
+                CAPTION_INSTRUCTION.encode("utf-8")
+            ).hexdigest(),
+            "verifier_instruction_sha256": hashlib.sha256(
+                VERIFY_INSTRUCTION.encode("utf-8")
+            ).hexdigest(),
+            "primary": [
+                self.primary.provider_id,
+                self.primary.model_id,
+                getattr(self.primary, "config_fingerprint", ""),
+            ],
+            "fallback": [
+                self.fallback.provider_id,
+                self.fallback.model_id,
+                getattr(self.fallback, "config_fingerprint", ""),
+            ],
             "verifier": (
-                [self.verifier.provider_id, self.verifier.model_id] if self.verifier else None
+                [
+                    self.verifier.provider_id,
+                    self.verifier.model_id,
+                    getattr(self.verifier, "config_fingerprint", ""),
+                ]
+                if self.verifier
+                else None
             ),
         }
         canonical = json.dumps(settings, sort_keys=True, separators=(",", ":")).encode()
