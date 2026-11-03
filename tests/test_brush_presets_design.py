@@ -82,7 +82,12 @@ def test_brush_catalog_hash_is_deterministic():
         data, ensure_ascii=False, sort_keys=True, separators=(",", ":")
     ).encode("utf-8")
     digest = hashlib.sha256(canonical).hexdigest()
-    assert digest == hashlib.sha256(canonical).hexdigest()
+    reversed_keys = dict(reversed(list(data.items())))
+    reordered = json.dumps(
+        reversed_keys, ensure_ascii=False, sort_keys=True, separators=(",", ":")
+    ).encode("utf-8")
+    assert canonical == reordered
+    assert digest == hashlib.sha256(reordered).hexdigest()
     assert len(digest) == 64
 
 
@@ -103,3 +108,10 @@ def test_preset_names_and_indices_are_stable():
         "eraser_soft",
     ]
     assert [p["id"] for p in presets] == expected
+
+
+def test_temporary_show_formatter_diff():
+    import subprocess
+
+    r = subprocess.run(["ruff", "format", "--diff", __file__], capture_output=True, text=True)
+    assert r.returncode == 0, r.stdout + r.stderr
