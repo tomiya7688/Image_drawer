@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import base64
+import hashlib
 import json
 from dataclasses import dataclass
 from urllib.error import HTTPError, URLError
@@ -25,6 +26,7 @@ class OpenAICompatibleVisionProvider:
     api_key: str = ""
     timeout_seconds: int = 120
     json_mode: bool = False
+    model_revision: str = ""
 
     def __post_init__(self) -> None:
         parsed = urlsplit(self.endpoint)
@@ -42,6 +44,20 @@ class OpenAICompatibleVisionProvider:
             raise ValueError("モデルIDと接続先識別子を指定してください")
         if not 1 <= self.timeout_seconds <= 3600:
             raise ValueError("タイムアウトは1〜3600秒です")
+
+    @property
+    def config_fingerprint(self) -> str:
+        """認証秘密を含めず、結果に影響するモデル設定をキャッシュ識別する。"""
+        settings = {
+            "endpoint": self.endpoint,
+            "model": self.model_id,
+            "revision": self.model_revision,
+            "json_mode": self.json_mode,
+            "temperature": 0.1,
+            "max_tokens": 2048,
+        }
+        body = json.dumps(settings, sort_keys=True, separators=(",", ":")).encode()
+        return hashlib.sha256(body).hexdigest()
 
     def describe(self, image: bytes, mime_type: str, instruction: str) -> VisionResponse:
         if not image:
