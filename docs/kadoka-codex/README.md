@@ -26,6 +26,8 @@
 
 ## 3. 実装前に読む順番
 
+**人間が初見で分かる入口**：[設計ガイド](../developers/start_here.md)。実装者もまずここで目的と既実装・未実装の区別を確認する。ブラシ実装の場合は[固定段階表と筆圧変化](../developers/brush_control_levels_v2.md)および[12種ブラシ](../developers/brush_presets_v2.md)の正本を読む。
+
 **描画・Workflow・評価・学習に関する変更の場合は、Issueを読む前に目的を必ず確認する。**
 
 1. [コンセプト](../kadoka/concept.md)（最上位の目的）
