@@ -1,76 +1,194 @@
 {
   "schema_version": "idraw-stage-workflow/v2",
   "workflow_id": "illustration-standard-v2",
-  "description": "作品の描き方自体はAIが試行学習する。制作工程だけはラフ→下書き→本描き→ベース色→陰影→仕上げ→完成の固定順序とする。人間の筆跡は不要。",
+  "description": "工程は必ずラフ→下書き→本描き→基本色→陰影・仕上げ→修正・確認→完成。工程のスキップは不可。筆跡や道具はAIが画像を見本に試行学習する。人間の筆跡データは不要。",
   "stages": [
     {
       "id": "rough",
       "name_ja": "ラフ",
-      "purpose": "全体の配置・大まかな形を描く",
+      "purpose": "配置・シルエット・全体バランスを大まかに描く",
       "required": true,
-      "min_strokes": 1,
-      "dedicated_layer": true
+      "layer_roles": [
+        "rough"
+      ],
+      "write_layer_roles": [
+        "rough"
+      ],
+      "min_effectful_strokes": 1,
+      "review_only_reason_codes": [],
+      "suggested_brush_families": [
+        "sketch",
+        "ink"
+      ]
     },
     {
       "id": "sketch",
       "name_ja": "下書き",
-      "purpose": "形状・比率・構造を具体化する",
+      "purpose": "大まかな形を具体化し、比率・構造・位置を整える",
       "required": true,
-      "min_strokes": 1,
-      "dedicated_layer": true
+      "layer_roles": [
+        "sketch"
+      ],
+      "write_layer_roles": [
+        "sketch"
+      ],
+      "min_effectful_strokes": 1,
+      "review_only_reason_codes": [],
+      "suggested_brush_families": [
+        "sketch",
+        "ink"
+      ]
     },
     {
       "id": "final_drawing",
       "name_ja": "本描き",
-      "purpose": "本番の形・線・面を描き上げる。必ずしも黒い線画に限らない",
+      "purpose": "清書する。輪郭線に限らず厚塗りの本番の形・面も許す",
       "required": true,
-      "min_strokes": 1,
-      "dedicated_layer": true
+      "layer_roles": [
+        "final_drawing"
+      ],
+      "write_layer_roles": [
+        "final_drawing"
+      ],
+      "min_effectful_strokes": 1,
+      "review_only_reason_codes": [],
+      "suggested_brush_families": [
+        "ink",
+        "paint"
+      ]
     },
     {
       "id": "base_color",
       "name_ja": "基本色",
-      "purpose": "作品に必要な色や大きな明暗面を置く",
-      "required": false,
-      "min_strokes": 1,
-      "dedicated_layer": true,
-      "skip_reason_codes": [
-        "no_color_required"
+      "purpose": "主要色・広い色面を描く。モノクロの線画作品ならレビューのみ可",
+      "required": true,
+      "layer_roles": [
+        "base_color"
+      ],
+      "write_layer_roles": [
+        "base_color"
+      ],
+      "min_effectful_strokes": 1,
+      "review_only_reason_codes": [
+        "monochrome_line_art_only"
+      ],
+      "suggested_brush_families": [
+        "color",
+        "paint"
       ]
     },
     {
       "id": "shading",
-      "name_ja": "陰影・質感",
-      "purpose": "影・光・材質感を描く",
-      "required": false,
-      "min_strokes": 1,
-      "dedicated_layer": true,
-      "skip_reason_codes": [
-        "flat_style_requested"
+      "name_ja": "陰影・仕上げ",
+      "purpose": "影・光・質感・ハイライトを描く。陰影不要のフラットな画風ならレビューのみ可",
+      "required": true,
+      "layer_roles": [
+        "shade",
+        "highlight"
+      ],
+      "write_layer_roles": [
+        "shade",
+        "highlight"
+      ],
+      "min_effectful_strokes": 1,
+      "review_only_reason_codes": [
+        "flat_style_no_shading"
+      ],
+      "suggested_brush_families": [
+        "shade",
+        "paint",
+        "texture"
       ]
     },
     {
       "id": "refine",
-      "name_ja": "仕上げ・修正",
-      "purpose": "小さな描き込みや消去・修正を行う",
+      "name_ja": "修正・確認",
+      "purpose": "必要な箇所を直し、修正不要ならレビューして完成を承認する",
       "required": true,
-      "min_strokes": 1,
-      "dedicated_layer": false
+      "layer_roles": [
+        "correction"
+      ],
+      "write_layer_roles": [
+        "base_color",
+        "shade",
+        "final_drawing",
+        "highlight",
+        "correction"
+      ],
+      "min_effectful_strokes": 0,
+      "review_only_reason_codes": [
+        "no_correction_needed"
+      ],
+      "suggested_brush_families": [
+        "ink",
+        "paint",
+        "erase"
+      ]
     }
   ],
   "terminal": "finish",
-  "stage_change_action": "advance_stage",
-  "skip_action": "skip_stage",
   "initial_stage": "rough",
-  "action_stage_source": "episode-v2-state",
+  "stage_change_action": "advance_stage",
+  "stage_change_payload": "{} unless review_only; review_only uses {review_reason:<allowed-code>}",
+  "stage_action_source": "drawing-policy-model-proposal-checked-by-controller",
+  "forbidden_action_types": [
+    "skip_stage",
+    "set_phase",
+    "finish",
+    "direct_pixel_write",
+    "copy_target_image"
+  ],
+  "allowed_model_actions": [
+    "create_layer",
+    "select_layer",
+    "select_brush",
+    "set_brush_params",
+    "select_color",
+    "stroke_v2",
+    "erase_v2",
+    "advance_stage"
+  ],
+  "controller_only_actions": [
+    "enter_stage",
+    "set_layer_visibility",
+    "finish"
+  ],
+  "require_stage_entry_and_exit": true,
+  "allow_skip_stage": false,
+  "forbid_backwards_transition": true,
+  "forbid_stage_reordering": true,
+  "allow_editing_prior_layers_only_in_refine": true,
+  "layer_z_order_bottom_to_top": [
+    "rough",
+    "sketch",
+    "base_color",
+    "shade",
+    "final_drawing",
+    "highlight",
+    "correction"
+  ],
+  "layer_visibility_transitions": [
+    {
+      "on_enter_stage": "final_drawing",
+      "hide_layer_roles": [
+        "rough"
+      ]
+    },
+    {
+      "on_enter_stage": "base_color",
+      "hide_layer_roles": [
+        "sketch"
+      ]
+    }
+  ],
+  "no_op_review_requires_evaluator_justification": true,
+  "stage_ready_rule": "At least min_effectful_strokes changes on eligible stage layer(s), except explicit reviewed no-op with allowed reason code. All stages are entered/exited; review-only is not a skip.",
   "mandatory_stage_stroke_actions": [
     "stroke_v2"
   ],
-  "optional_stage_skip_constraints": "skip only if the condition is justified by prompt; evaluator checks and logs misuse",
-  "forbid_backwards_transition": true,
-  "forbid_stage_reordering": true,
-  "allow_editing_prior_layers_without_stage_reentry": true,
-  "workflow_is_not_human_traces": true,
+  "terminal_after": "refine",
   "renderer_kind": "sequential-actions",
+  "workflow_is_not_human_traces": true,
+  "target_image_policy": "evaluator_only_never_policy_observation",
   "legacy_v1_phase_mode": "legacy golden replay only"
 }
