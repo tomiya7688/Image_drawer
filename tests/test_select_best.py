@@ -99,7 +99,7 @@ def test_select_rejects_changed_score_value():
 
 
 @pytest.mark.parametrize(
-    "case", ["foreign", "missing", "misaligned", "top", "no_overall", "bool_top"]
+    "case", ["foreign", "missing", "misaligned", "no_overall", "bool_top", "top_too_large"]
 )
 def test_select_rejects_inconsistent_inputs(case):
     images, scores = make_inputs()
@@ -116,8 +116,8 @@ def test_select_rejects_inconsistent_inputs(case):
         scores.scores[0].overall = None
     elif case == "bool_top":
         top = True
-    else:
-        top = 2
+    elif case == "top_too_large":
+        top = 3
     context = StepContext(run_id="run", step_id="select", backend="mock", external_inputs={})
     with pytest.raises(ValueError):
         SelectStep().run([images, scores], {"top": top}, context)

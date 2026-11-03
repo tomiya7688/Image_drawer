@@ -3,15 +3,15 @@
 from __future__ import annotations
 
 from image_drawer.core import Artifact, Score, ScoreSet
-from image_drawer.evaluation.mock import image_candidates
+from image_drawer.evaluation.select_images import select_images
 
 
 # {
 #   責務: [
-#     select_best_image: 得点集合に対応する候補から最良の画像を選ぶ
+#     select_best_image: 得点集合に対応する候補から総合得点が最良の画像を選ぶ
 #   ]
 #   処理: [
-#     入力の由来と候補IDを検証し、総合得点とIDで決定的に選ぶ
+#     select_imagesをtop=1・総合得点で呼び、先頭の候補を返す
 #   ]
 #   引数: [
 #     source: 画像または画像集合
@@ -26,27 +26,5 @@ from image_drawer.evaluation.mock import image_candidates
 def select_best_image(
     source: Artifact, scores_artifact: Artifact
 ) -> tuple[Artifact, Score, ScoreSet]:
-    if scores_artifact.artifact_type != "ScoreSet":
-        raise TypeError("SELECT expects a ScoreSet artifact")
-    if source.id not in scores_artifact.parent_artifact_ids:
-        raise ValueError("ScoreSet does not originate from the input image artifact")
-    score_set = ScoreSet.from_dict(scores_artifact.metadata.get("score_set"))
-    # Trajectoryに保存される得点と、選択に使う得点を一致させる。
-    if scores_artifact.scores != score_set.scores:
-        raise ValueError("ScoreSet artifact scores do not match metadata.score_set")
-    candidates = image_candidates(source)
-    candidates_by_id = {candidate.id: candidate for candidate in candidates}
-    scores_by_id = score_set.scores_by_candidate()
-    if len(candidates_by_id) != len(candidates) or set(candidates_by_id) != set(scores_by_id):
-        raise ValueError("candidate IDs must match ScoreSet exactly")
-    # 明示された候補IDがある場合は、保存形式内の順序ずれを拒否する。
-    for candidate_id, score in scores_by_id.items():
-        recorded_id = score.metadata.get("candidate_artifact_id")
-        if recorded_id is not None and recorded_id != candidate_id:
-            raise ValueError("score candidate ID does not match ScoreSet order")
-        if score.overall is None:
-            raise ValueError("SELECT requires an overall score for each candidate")
-    best_id = min(
-        scores_by_id, key=lambda candidate_id: (-scores_by_id[candidate_id].overall, candidate_id)
-    )
-    return candidates_by_id[best_id], scores_by_id[best_id], score_set
+    selection = select_images(source, scores_artifact, top=1)
+    return selection.candidates[0], selection.scores[0], selection.score_set

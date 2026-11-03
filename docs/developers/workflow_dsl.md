@@ -31,7 +31,7 @@ DSLはGUIで操作したWorkflowを保存するためのserialized representatio
 
 ## 3. 構文案
 
-以下は構文案です。現在のSELECTは `top=1` のみ対応し、top-kは未対応です。
+以下は構文案です。SELECTは `top`、`weights`、`component` を受け取ります。`top=1` はImage、`top` が2以上のときはImageSetを返します。
 
     INPUT prompt: Text
 
