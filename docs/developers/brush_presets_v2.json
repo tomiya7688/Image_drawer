@@ -1,13 +1,13 @@
 {
   "schema_version": "idraw-brush-presets/2",
-  "description": "Image Drawerが独自に定義する高精度描画向け初期プリセット案。メーカー製データやテクスチャは含まない。",
+  "description": "定番12種のブラシ基準値。描画器v2はbrush_control_levels_v2.jsonの固定段階IDを解決する。メーカー製データの転用はしない。",
   "palette_reference": "fixed-256-independent",
   "renderer_profile": "brush-raster-v2-proposal",
   "coordinate_format": "pixel-q8",
   "brush_selection": "categorical-id",
   "adjustable_fields": [
-    "size_q8",
-    "opacity_u16"
+    "size_level_id",
+    "opacity_level_id"
   ],
   "fixed_fields": [
     "tip",
@@ -28,8 +28,6 @@
       "mode": "stroke",
       "tip": "grain_round",
       "family": "sketch",
-      "default_size_q8": 768,
-      "default_opacity_u16": 53739,
       "spacing_q16": 7864,
       "hardness_u16": 27525,
       "flow_u16": 58982,
@@ -37,7 +35,9 @@
       "aspect_u16": 65535,
       "angle_cdeg": 0,
       "pressure_min_size_u16": 13107,
-      "pressure_min_opacity_u16": 36044
+      "pressure_min_opacity_u16": 36044,
+      "default_size_level_id": 2,
+      "default_opacity_level_id": 8
     },
     {
       "id": "ink_gpen",
@@ -45,8 +45,6 @@
       "mode": "stroke",
       "tip": "round",
       "family": "ink",
-      "default_size_q8": 1280,
-      "default_opacity_u16": 65535,
       "spacing_q16": 6554,
       "hardness_u16": 64224,
       "flow_u16": 65535,
@@ -54,7 +52,9 @@
       "aspect_u16": 65535,
       "angle_cdeg": 0,
       "pressure_min_size_u16": 7864,
-      "pressure_min_opacity_u16": 65535
+      "pressure_min_opacity_u16": 65535,
+      "default_size_level_id": 4,
+      "default_opacity_level_id": 10
     },
     {
       "id": "ink_fine",
@@ -62,8 +62,6 @@
       "mode": "stroke",
       "tip": "round",
       "family": "ink",
-      "default_size_q8": 512,
-      "default_opacity_u16": 65535,
       "spacing_q16": 6554,
       "hardness_u16": 65535,
       "flow_u16": 65535,
@@ -71,7 +69,9 @@
       "aspect_u16": 65535,
       "angle_cdeg": 0,
       "pressure_min_size_u16": 51117,
-      "pressure_min_opacity_u16": 65535
+      "pressure_min_opacity_u16": 65535,
+      "default_size_level_id": 1,
+      "default_opacity_level_id": 10
     },
     {
       "id": "marker_chisel",
@@ -79,8 +79,6 @@
       "mode": "stroke",
       "tip": "flat",
       "family": "color",
-      "default_size_q8": 3584,
-      "default_opacity_u16": 52428,
       "spacing_q16": 7864,
       "hardness_u16": 58982,
       "flow_u16": 52428,
@@ -88,7 +86,9 @@
       "aspect_u16": 19661,
       "angle_cdeg": 4500,
       "pressure_min_size_u16": 53739,
-      "pressure_min_opacity_u16": 49151
+      "pressure_min_opacity_u16": 49151,
+      "default_size_level_id": 8,
+      "default_opacity_level_id": 8
     },
     {
       "id": "paint_round_opaque",
@@ -96,8 +96,6 @@
       "mode": "stroke",
       "tip": "round",
       "family": "paint",
-      "default_size_q8": 4608,
-      "default_opacity_u16": 65535,
       "spacing_q16": 8520,
       "hardness_u16": 55705,
       "flow_u16": 65535,
@@ -105,7 +103,9 @@
       "aspect_u16": 65535,
       "angle_cdeg": 0,
       "pressure_min_size_u16": 29491,
-      "pressure_min_opacity_u16": 52428
+      "pressure_min_opacity_u16": 52428,
+      "default_size_level_id": 9,
+      "default_opacity_level_id": 10
     },
     {
       "id": "paint_flat",
@@ -113,8 +113,6 @@
       "mode": "stroke",
       "tip": "flat",
       "family": "paint",
-      "default_size_q8": 6656,
-      "default_opacity_u16": 62914,
       "spacing_q16": 9175,
       "hardness_u16": 52428,
       "flow_u16": 65535,
@@ -122,7 +120,9 @@
       "aspect_u16": 26214,
       "angle_cdeg": 0,
       "pressure_min_size_u16": 40632,
-      "pressure_min_opacity_u16": 58982
+      "pressure_min_opacity_u16": 58982,
+      "default_size_level_id": 11,
+      "default_opacity_level_id": 10
     },
     {
       "id": "watercolor_soft",
@@ -130,8 +130,6 @@
       "mode": "stroke",
       "tip": "soft_round",
       "family": "paint",
-      "default_size_q8": 7680,
-      "default_opacity_u16": 27525,
       "spacing_q16": 6554,
       "hardness_u16": 17039,
       "flow_u16": 31457,
@@ -139,7 +137,9 @@
       "aspect_u16": 65535,
       "angle_cdeg": 0,
       "pressure_min_size_u16": 47185,
-      "pressure_min_opacity_u16": 31457
+      "pressure_min_opacity_u16": 31457,
+      "default_size_level_id": 12,
+      "default_opacity_level_id": 4
     },
     {
       "id": "airbrush_soft",
@@ -147,8 +147,6 @@
       "mode": "stroke",
       "tip": "soft_round",
       "family": "shade",
-      "default_size_q8": 11264,
-      "default_opacity_u16": 15728,
       "spacing_q16": 5243,
       "hardness_u16": 5243,
       "flow_u16": 22937,
@@ -156,7 +154,9 @@
       "aspect_u16": 65535,
       "angle_cdeg": 0,
       "pressure_min_size_u16": 55705,
-      "pressure_min_opacity_u16": 29491
+      "pressure_min_opacity_u16": 29491,
+      "default_size_level_id": 13,
+      "default_opacity_level_id": 2
     },
     {
       "id": "pastel_oil",
@@ -164,8 +164,6 @@
       "mode": "stroke",
       "tip": "grain_round",
       "family": "texture",
-      "default_size_q8": 5120,
-      "default_opacity_u16": 56360,
       "spacing_q16": 7864,
       "hardness_u16": 41942,
       "flow_u16": 57671,
@@ -173,7 +171,9 @@
       "aspect_u16": 65535,
       "angle_cdeg": 0,
       "pressure_min_size_u16": 31457,
-      "pressure_min_opacity_u16": 52428
+      "pressure_min_opacity_u16": 52428,
+      "default_size_level_id": 10,
+      "default_opacity_level_id": 9
     },
     {
       "id": "dry_texture",
@@ -181,8 +181,6 @@
       "mode": "stroke",
       "tip": "grain_round",
       "family": "texture",
-      "default_size_q8": 7168,
-      "default_opacity_u16": 47185,
       "spacing_q16": 10486,
       "hardness_u16": 36700,
       "flow_u16": 53739,
@@ -190,7 +188,9 @@
       "aspect_u16": 49151,
       "angle_cdeg": 0,
       "pressure_min_size_u16": 35389,
-      "pressure_min_opacity_u16": 42598
+      "pressure_min_opacity_u16": 42598,
+      "default_size_level_id": 11,
+      "default_opacity_level_id": 7
     },
     {
       "id": "eraser_hard",
@@ -198,8 +198,6 @@
       "mode": "erase",
       "tip": "round",
       "family": "erase",
-      "default_size_q8": 4608,
-      "default_opacity_u16": 65535,
       "spacing_q16": 7209,
       "hardness_u16": 65535,
       "flow_u16": 65535,
@@ -207,7 +205,9 @@
       "aspect_u16": 65535,
       "angle_cdeg": 0,
       "pressure_min_size_u16": 29491,
-      "pressure_min_opacity_u16": 65535
+      "pressure_min_opacity_u16": 65535,
+      "default_size_level_id": 9,
+      "default_opacity_level_id": 10
     },
     {
       "id": "eraser_soft",
@@ -215,8 +215,6 @@
       "mode": "erase",
       "tip": "soft_round",
       "family": "erase",
-      "default_size_q8": 8192,
-      "default_opacity_u16": 48496,
       "spacing_q16": 5898,
       "hardness_u16": 11796,
       "flow_u16": 45875,
@@ -224,8 +222,11 @@
       "aspect_u16": 65535,
       "angle_cdeg": 0,
       "pressure_min_size_u16": 42598,
-      "pressure_min_opacity_u16": 45875
+      "pressure_min_opacity_u16": 45875,
+      "default_size_level_id": 12,
+      "default_opacity_level_id": 7
     }
   ],
-  "brush_set_id": "brush-v2-core12"
+  "brush_set_id": "brush-v2-core12",
+  "control_set_id": "brush-controls-v2-levels-20261103"
 }
