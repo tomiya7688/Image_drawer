@@ -283,6 +283,7 @@ def test_temporary_ruff_diff_report():
     from pathlib import Path
 
     root = Path(__file__).resolve().parents[1]
+    diffs = []
     for item in (
         "image_drawer/prompting/openai_compatible.py",
         "tests/test_prompt_extraction_contract.py",
@@ -293,4 +294,6 @@ def test_temporary_ruff_diff_report():
             capture_output=True,
             text=True,
         )
-        assert result.returncode == 0, f"{item}\n{result.stdout}\n{result.stderr}"
+        if result.returncode:
+            diffs.append(f"{item}\n{result.stdout}\n{result.stderr}")
+    assert not diffs, "\n".join(diffs)
