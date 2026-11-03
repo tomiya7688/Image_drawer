@@ -9,6 +9,8 @@
 
 **固定制作工程を実装する場合**：[7工程の説明](fixed_drawing_workflow_v2.md) → [StageControllerの詳細契約](stage_controller_contract_v2.md) → [各工程の画像評価](stage_reward_v2.md) の順に読みます。
 
+**画像からの学習前プロンプト生成を実装する場合**：[精度向上とQwen自動切替](prompt_extraction_v1.md) → [画像学習仕様](image_only_learning_v1.md) → [抽出ルータ](../../image_drawer/prompting/core.py) の順に読みます。
+
 **特にブラシを実装する場合**：[サイズ・不透明度・筆圧の段階表とパターン](brush_control_levels_v2.md) → [12種のブラシと高精度操作](brush_presets_v2.md) の順に読みます。
 
 ## 描画実装前の必読（この順）
