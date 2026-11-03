@@ -6,7 +6,7 @@
 
 ## 0. 最初に知ってほしいこと
 
-**提供する学習素材は完成した画像だけ。** タグ、説明文、プロンプト、人間が描いた筆跡・筆圧・レイヤー履歴を利用者に要求しない。文章の説明・タグはソフトが画像から自動抽出する。**抽出器は利用者が選択・切り替えできる**。
+**提供する学習素材は完成した画像だけ。** **描く工程の順序は[固定制作工程v2](fixed_drawing_workflow_v2.md)のラフ→下書き→本描き→基本色→陰影→仕上げに固定**する。人間の筆跡の模倣は不要であり、工程内でどう描くかをAIが試行から学ぶ。 タグ、説明文、プロンプト、人間が描いた筆跡・筆圧・レイヤー履歴を利用者に要求しない。文章の説明・タグはソフトが画像から自動抽出する。**抽出器は利用者が選択・切り替えできる**。
 
 AIは正解画像を見ながら「作者の過去の筆跡」を復元するのではない。**自分自身が白紙へブラシで描き、結果と目標画像を比較して、次回の描き方を改善する。** 学習が進むほど、文章だけから自分で描けることを目指す。
 
@@ -24,9 +24,9 @@ AIは正解画像を見ながら「作者の過去の筆跡」を復元するの
 例として、学習用に「赤いリンゴのイラスト画像」を1枚登録した場合。
 
 1. **画像登録**：画像を読み込み、ファイルハッシュと画像サイズ・色空間を記録する。
-2. **自動説明**：設定済みの抽出器が「赤いリンゴ、白い背景」などの文章と \`apple, red, fruit\` などのタグを出す。抽出文が画像内容と一致しているかは別途評価する。
+2. **自動説明**：設定済みの抽出器が「赤いリンゴ、白い背景」などの文章と `apple, red, fruit` などのタグを出す。抽出文が画像内容と一致しているかは別途評価する。
 3. **白紙開始**：描画Policyは文章と白紙、固定256色・ブラシの選択肢を受け取る。**正解リンゴ画像は渡さない**。
-4. **まず描く**：Policyがレイヤー作成、ブラシ選択、色選択、座標列、筆圧、修正を実際に選び、DrawingEngineが一つずつ描画する。
+4. **まず描く**：固定StageControllerのもとで**ラフ→下書き→本描き→基本色→陰影→仕上げ**の順に進め、Policyが各工程のレイヤー作成、ブラシ選択、色選択、座標列、筆圧、修正を実際に選び、DrawingEngineが一つずつ描画する。必須のラフ・下書き・本描きは飛ばせない。
 5. **採点**：評価器だけが「試し描きの画像」と「元のリンゴ画像」を比較し、似ている部分・違う部分・行動の無駄を数値化する。
 6. **学習更新**：採点を使ってPolicyの**パラメータを本当に更新**する。次の試行で描画が改善するか同条件で測る。
 7. **繰り返す**：同じ画像だけで暗記しないよう、多数の画像・未見画像で改善を確認する。
@@ -37,12 +37,12 @@ AIは正解画像を見ながら「作者の過去の筆跡」を復元するの
 
 画像から出す情報は次の二つ。
 
-- \`tags\`：対象・画風・色・背景・構図等を表すラベル群。不要なタグ・不確かなタグはconfidenceとともに扱う。
-- \`prompt\`：学習時に描画AIへ渡す自然言語の説明。「赤いリンゴが白い背景に1個」等。存在しない特徴を勝手に足した場合は不確かな抽出結果として記録する。
+- `tags`：対象・画風・色・背景・構図等を表すラベル群。不要なタグ・不確かなタグはconfidenceとともに扱う。
+- `prompt`：学習時に描画AIへ渡す自然言語の説明。「赤いリンゴが白い背景に1個」等。存在しない特徴を勝手に足した場合は不確かな抽出結果として記録する。
 
 **抽出器の選択は利用者の設定**。タグ抽出と文章抽出を**別々に**選択できる。両機能を一つで満たすモデルもアダプタを通して登録可能。GUI・CLI・設定ファイルから同じレジストリを参照する。モデル名をソースコードへハードコードしない。
 
-\`\`\`text
+```text
 登録された画像
   ├─ TagExtractor（ユーザー選択）
   │    └─ tags: [ ... ]
@@ -50,19 +50,19 @@ AIは正解画像を見ながら「作者の過去の筆跡」を復元するの
        └─ prompt: "..."
   → PromptBuilder（バージョン固定）
   → 学習に使用するpromptとメタデータ
-\`\`\`
+```
 
 共通API（概念。まだ実装済みではない）：
 
-\`\`\`text
+```text
 TagExtractor.extract(image) -> {tags, confidence, language, model_id, model_hash, config_hash}
 CaptionExtractor.extract(image) -> {caption, language, model_id, model_hash, config_hash}
 PromptBuilder.build(caption,tags,version) -> prompt
-\`\`\`
+```
 
-- レジストリは少なくとも \`id\`、\`version\`、\`capabilities\`（tag/caption）、\`model_hash\`、\`license\`、対応言語、実行環境を持つ。
+- レジストリは少なくとも `id`、`version`、`capabilities`（tag/caption）、`model_hash`、`license`、対応言語、実行環境を持つ。
 - 利用者は**データセット登録時と再抽出時**に両抽出器を切り替えられる。選択内容をDatasetのmanifestへ保存。**同じ画像でも別抽出器では別の学習条件**としてバージョン管理する。
-- \`cache_key = SHA256(image_bytes_hash, tagger_id/version/hash/config, captioner_id/version/hash/config, prompt_builder_version)\`。選択器や設定が変わったらキャッシュは再利用しない。
+- `cache_key = SHA256(image_bytes_hash, tagger_id/version/hash/config, captioner_id/version/hash/config, prompt_builder_version)`。選択器や設定が変わったらキャッシュは再利用しない。
 - 抽出不可／空文字／破綻した文になった場合は品質警告・除外理由を記録し、**ユーザーにプロンプトを必須入力させない**。学習用画像を勝手に捨てた件数も出す。
 - 利用者が手でタグや説明文を修正するのは**任意**。画像だけで学習を進められることが通常の受け入れ条件。
 - 出力文章の日本語・英語は実装選択可能。生成時のpromptと学習時の言語分布が違う場合は評価対象にする。
@@ -71,13 +71,13 @@ PromptBuilder.build(caption,tags,version) -> prompt
 
 ## 3. 学習データは「目標画像」であり「正解の筆跡」ではない
 
-教師素材は \`TrainingImage{image, image_hash, extracted_tags, extracted_prompt, extractor_versions, rights, group_id}\`。
+教師素材は `TrainingImage{image, image_hash, extracted_tags, extracted_prompt, extractor_versions, rights, group_id}`。
 
 **正解とするのは目標画像と説明の内容**。正解の「次のブラシ」「次の線」「筆圧」は入力に存在しない。画像から教師用の架空の操作列を作らない。
 
-- \`target_image\`を参照できるのは**学習時のEvaluator/Reward計算**のみ。
-- \`DrawingPolicy(prompt, current_canvas, layers, history, remaining_budget)\`は**目標画像を絶対に受け取らない**。Targetへのencoderや埋め込みをPolicyの入力に隠しても不合格。
-- Policyが描いた各Actionは \`actor=model\` として正直に記録し、成功・失敗候補を含むtrialを \`TrainingRollout\` として残す。元画像を人間の制作履歴だと称さない。
+- `target_image`を参照できるのは**学習時のEvaluator/Reward計算**のみ。
+- `DrawingPolicy(prompt, current_canvas, layers, history, remaining_budget)`は**目標画像を絶対に受け取らない**。Targetへのencoderや埋め込みをPolicyの入力に隠しても不合格。
+- Policyが描いた各Actionは `actor=model` として正直に記録し、成功・失敗候補を含むtrialを `TrainingRollout` として残す。元画像を人間の制作履歴だと称さない。
 - 学習中の「描いた画像」は**モデル自身の行動**で生成する。Part配置・img2img変換・正解画像のコピーで報酬を稼いではいけない。
 - 権利/利用条件はファイルと共に管理。ソフトのUI上の権利確認やソースの自動記録はしてよいが、外部からタグ/人間の履歴等の別ファイルを必須にしない。
 
@@ -85,14 +85,16 @@ PromptBuilder.build(caption,tags,version) -> prompt
 
 これは単なる生成後ランキングではなく、**モデルのパラメータを改善する学習**である。
 
-\`\`\`text
+```text
 for 目標画像 in train_dataset:
     prompt, tags = frozen_extractor_results(目標画像)
     for trial_seed in training_seeds:
         state = blank_canvas()  # 外部画像で初期化しない
+        stages = fixed_stage_controller("illustration-standard-v2")
         actions = []
         while not finish and budget_left:
-            action = trainable_policy.sample(prompt, state, history)
+            action = trainable_policy.sample(prompt, state, history, stages.current)
+            stages.validate(action)  # ラフ→下書き→本描き等の順序と必須strokeを強制
             state = drawing_engine.apply(action, state)
             actions.append(action)
             reward = evaluator.compare(target_image, state.render(), action_cost)
@@ -100,9 +102,9 @@ for 目標画像 in train_dataset:
         loss = optimize_policy(actions, reward, policy_parameters)
         update_parameters(loss)
         store_rollout_and_metrics()
-\`\`\`
+```
 
-**更新方法のベースライン**：候補Actionを複数試す → 目標との距離の改善により報酬を算出 → **Policy-gradient/actor-critic等の確率的方策最適化**でActionの選択確率を更新する。候補軌跡を再利用する場合も、\`actor=model\` の自己生成データであることと、更新前Policyのバージョンを保持する。
+**更新方法のベースライン**：候補Actionを複数試す → 目標との距離の改善により報酬を算出 → **Policy-gradient/actor-critic等の確率的方策最適化**でActionの選択確率を更新する。候補軌跡を再利用する場合も、`actor=model` の自己生成データであることと、更新前Policyのバージョンを保持する。
 
 将来、微分可能なブラシ描画器を導入して画像損失から**モデルの出力に勾配を伝播**してもよい。ただしそれも「実際に描いて結果を評価する」手法であり、**人間の過去の筆跡を推定したことにはしない**。
 
@@ -118,10 +120,11 @@ for 目標画像 in train_dataset:
 | 輪郭・領域の距離 | 線画や形状の改善を測る | 目標画像から**評価専用**の特徴を計算してよい |
 | 知覚特徴の距離 | 単純な画素一致に依存しない | 特徴量のモデル・バージョンを保存する |
 | テキスト適合 | 抽出した説明と描画結果が対応するか | 抽出器の誤説明に引きずられないかを別途確認 |
-| 途中進捗 \`D(before,target)-D(after,target)\` | 一筆ずつの改善を可視化 | 無意味な細かい一筆を大量に繰り返す対策が必要 |
+| 途中進捗 `D(before,target)-D(after,target)` | 一筆ずつの改善を可視化 | 無意味な細かい一筆を大量に繰り返す対策が必要 |
 | Action/時間/不正操作コスト | 無限に描き続ける抜け道を防ぐ | 早期finishだけが最適にならないよう最終達成も評価 |
+| **工程別の進捗と順序** | ラフの大きな形→下書きの構造→本描き→色→陰影→仕上げ | ステージ順序は固定。学習で自由に選ぶのは各工程内の描き方 |
 
-**最終画質と行動効率の両方**で更新を評価する。\`finish\`には最終画像品質の評価を必須とし、「すぐ終了して罰則を回避」できない設計にする。画像が完全に一致することは、固定256色やRendererの表現上の限界により必須としない。
+**最終画質と行動効率の両方**で更新を評価する。`finish`には最終画像品質の評価を必須とし、「すぐ終了して罰則を回避」できない設計にする。画像が完全に一致することは、固定256色やRendererの表現上の限界により必須としない。
 
 報酬を「人間の正解Action」による直接分類と混同しない。**何をしたら作品に近づいたか**を試行から学ぶ。
 
@@ -138,10 +141,10 @@ for 目標画像 in train_dataset:
 
 ## 7. 訓練・評価・再現性の契約
 
-- 画像を受け取った時点で\`image_hash\`と近重複グループを作り、**作品・作者が分かれば作者も含めてsplitを固定**。タグ/文章抽出器の出力でsplitを操作しない。
+- 画像を受け取った時点で`image_hash`と近重複グループを作り、**作品・作者が分かれば作者も含めてsplitを固定**。タグ/文章抽出器の出力でsplitを操作しない。
 - train/test画像を同一のプロンプトや類似画像を介して実質混入させない。抽出器・報酬のモデルがtest画像を暗記できる設定ならその影響を開示。**testの目標画像や抽出文章を使ってModelや抽出器をチューニングしない**。
-- 抽出器ID/hashと出力・fallback理由、\`prompt_builder_version\`、パレット/ブラシ/Control表/Renderer/Rewardのversion・SHA、seed、ハードウェア依存性をmanifestへ保存する。
-- 各trialに\`target_image_id\`（**Policy入力ではない**）、\`prompt\`、\`policy_before\`、行動列、各stepのReward成分、完成画像URI、終了理由、\`policy_after\`を保存する。モデルはどのActionが採択されたか確認できる。
+- 抽出器ID/hashと出力・fallback理由、`prompt_builder_version`、パレット/ブラシ/Control表/Renderer/Rewardのversion・SHA、seed、ハードウェア依存性をmanifestへ保存する。
+- 各trialに`target_image_id`（**Policy入力ではない**）、`prompt`、`policy_before`、行動列、各stepのReward成分、完成画像URI、終了理由、`policy_after`を保存する。モデルはどのActionが採択されたか確認できる。
 - 学習途中の失敗・無効Action・予算上限は**Datasetから勝手に除外しない**。失敗分母を保存し、成果を選別した画像だけで報告しない。
 - 未見画像・未見promptの改善、複数seed、95%信頼区間、失敗例を評価する。**収束・高精度は保証しない**。
 
@@ -149,18 +152,20 @@ for 目標画像 in train_dataset:
 
 1. **画像だけでデータ登録**：ユーザーが画像1枚を選んだ後、タグ・promptの別ファイルを要求せず、選択した抽出器が実行される。
 2. **抽出器の切替**：Tagger A/B、Captioner A/Bを別々に変えられ、設定変更後はcache・manifest・実験IDが切り替わる。抽出器がない場合は理由を示して停止し、ユーザーに人間の筆跡を要求しない。
-3. **Policyの情報隔離**：Policyへ渡す観測に\`target_image\`・target特徴・正解Actionを混入させない。Evaluatorだけがtarget画像を取得する。目標画像を別画像にすり替えても、**同一prompt/seed/checkpointの最初のPolicy Actionは変わらず**、Rewardのみ変わる（Policyに勾配を適用する前）。
-4. **本当に描いたか**：空白からレイヤー・色・ブラシ・ストローク・修正をActionとして呼び出す。完成画像が正解画像へのコピーや一括img2img生成ではない。ActionからReplayで再現できる。
-5. **本当に学んだか**：報酬に基づく更新で重みまたは訓練可能なPolicyパラメータが変わる。更新前後の確率/損失を比較する。選択された筆跡を固定スクリプトとして保存しただけでは不合格。
-6. **最小の収束試験**：許諾のある**少数の単純画像だけ**から学習し、固定seedで多数trial後、停止条件と比較対象を固定して、モデルの未学習baselineより画質・報酬が改善することを確認する。Toy画像に対応するAction列は学習器へ絶対に渡さない。
-7. **一般化の検証**：trainと異なる画像/色/単語で評価し、出力が同じ画像の暗記やprompt無視になっていないかを測る。
-8. **推論は文章のみ**：学習済みモデルが外部画像なしで白紙から自分で描き、PNG/画像とAction履歴を返す。target画像を必要とする学習Evaluatorは推論で起動しない。
+3. **固定制作工程**：ラフ→下書き→本描きの3つはそれぞれ独立した実際の筆跡を持ち、飛ばす・戻る・空のまま進むActionは拒否。基本色/陰影の省略は理由付きで記録する。各工程の筆運びはPolicyが学習する。
+4. **Policyの情報隔離**：Policyへ渡す観測に`target_image`・target特徴・正解Actionを混入させない。Evaluatorだけがtarget画像を取得する。目標画像を別画像にすり替えても、**同一prompt/seed/checkpointの最初のPolicy Actionは変わらず**、Rewardのみ変わる（Policyに勾配を適用する前）。
+5. **本当に描いたか**：空白からレイヤー・色・ブラシ・ストローク・修正をActionとして呼び出す。完成画像が正解画像へのコピーや一括img2img生成ではない。ActionからReplayで再現できる。
+6. **本当に学んだか**：報酬に基づく更新で重みまたは訓練可能なPolicyパラメータが変わる。更新前後の確率/損失を比較する。選択された筆跡を固定スクリプトとして保存しただけでは不合格。
+7. **最小の収束試験**：許諾のある**少数の単純画像だけ**から学習し、固定seedで多数trial後、停止条件と比較対象を固定して、モデルの未学習baselineより画質・報酬が改善することを確認する。Toy画像に対応するAction列は学習器へ絶対に渡さない。
+8. **一般化の検証**：trainと異なる画像/色/単語で評価し、出力が同じ画像の暗記やprompt無視になっていないかを測る。
+9. **推論は文章のみ**：学習済みモデルが外部画像なしで白紙から自分で描き、PNG/画像とAction履歴を返す。target画像を必要とする学習Evaluatorは推論で起動しない。
 
 本項のテストは**将来実装する必須要件**。CIで仕様文書・JSONだけが通っても、自己描画学習が完成したと主張しない。
 
 ## 9. 他仕様との関係
 
 - [初見向け設計ガイド](start_here.md)：「何を作るか」と全体像。
+- [固定制作工程](fixed_drawing_workflow_v2.md)：ラフ→下書き→本描きの必須順序とAIが学習する行動の境界。
 - [DrawingPolicy 学習仕様](drawing_policy_accuracy_v1.md)：Action decoder、loss、閉ループ評価。
 - [画像データと抽出器の品質仕様](drawing_data_quality_v1.md)：画像の登録・品質・split・抽出結果。
 - [制作過程 v1](drawing_process_v1.md)：古いRendererのAction/Replay/JSON契約。この文書によって過去のgoldenを壊さない。
