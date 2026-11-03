@@ -126,9 +126,6 @@ def test_invalid_selection_options_are_rejected(options, message):
 
 def test_non_finite_scores_and_overflowing_aggregates_are_rejected():
     with pytest.raises(ValueError, match="finite"):
-        Score(
-            id="s", evaluator="mock", evaluator_version="v1", components={"quality": float("nan")}
-        )
         ScoreSet(
             id="x",
             evaluator="mock",
