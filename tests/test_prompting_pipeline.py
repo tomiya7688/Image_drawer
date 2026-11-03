@@ -46,7 +46,7 @@ class FakeVision:
     instructions: list[str] = field(default_factory=list)
 
     def describe(self, image: bytes, mime_type: str, instruction: str) -> VisionResponse:
-        assert image == b"image bytes"
+        assert isinstance(image, bytes) and image
         assert mime_type == "image/png"
         self.instructions.append(instruction)
         if not self.responses:
@@ -302,3 +302,19 @@ def test_verifier_refusal_does_not_discard_valid_qwen_fallback():
     assert result.fallback_used is True
     assert result.verifier_status == "verifier_refused_unverified"
     assert result.attempts[-1].status == "ok"
+
+def test_user_facing_file_entry_only_needs_an_image(tmp_path):
+    path = tmp_path / "apple.png"
+    path.write_bytes(b"\x89PNG\r\n\x1a\n" + b"test image")
+    router, primary, _ = make_pipeline(VisionResponse(caption_json()))
+    result = router.extract_image_file(path)
+    assert result.scene.short == "赤いリンゴ"
+    assert len(primary.instructions) == 1
+
+
+def test_file_entry_does_not_require_mime_or_txt(tmp_path):
+    path = tmp_path / "not_image.bin"
+    path.write_bytes(b"not an image")
+    router, _, _ = make_pipeline(VisionResponse(caption_json()))
+    with pytest.raises(ValueError, match="PNG/JPEG/WebP"):
+        router.extract_image_file(path)
