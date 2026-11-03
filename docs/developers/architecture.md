@@ -1,124 +1,95 @@
-> **対象読者:** 開発者・設計レビュアー
-> **目的:** Image Drawerの実装責務を分割し、Part合成と筆による制作・学習を混同させない。
+> **対象読者:** Image Drawerの各モジュールを実装する人
+> **目的:** 学習画像・抽出器・描画Policy・固定工程・Renderer・Evaluatorの責務を分ける。
+> **状態:** 目標アーキテクチャ。下記の新コンポーネントが実装済みであることを意味しない。
 
-# アーキテクチャ（目的と実装境界）
+# Image Drawerのアーキテクチャ
 
-## 1. 最初に守る不変条件
+## 1. 全体像
 
-Image Drawerが学ぶのは**人間の絵師の制作途中の判断・行動の時系列**である。最終画像の生成に成功することは十分条件ではない。
+**学習素材は画像だけ、生成時の外部入力は文章だけ**。描く順序はラフ→下書き→本描き→基本色→陰影→仕上げで固定するが、その中の色・ブラシ・筆跡はAI自身が学習する。
 
-**具体的な型・色番号・描画計算の正本は [制作過程 v1](drawing_process_v1.md)**。同じ数値やスキーマをこの文書で二重定義しない。[受け入れ試験](drawing_process_acceptance.md)を通らない実装は、既存の画像処理が動いても完成ではない。
+\`\`\`text
+学習画像だけ
+    │
+    ├── ImageDataset（画像の検査/rights/hash/split）
+    │       │
+    │       └── TagExtractor/CaptionExtractor（ユーザー選択式）
+    │                       │
+    │                  学習用Prompt
+    │                       │
+    │                 DrawingPolicy（学習対象）
+    │                       │  prompt＋自分のCanvas/履歴のみ
+    │                FixedStageController
+    │                       │  ラフ→下書き→本描き→…→仕上げ
+    │                DrawingEngine/Renderer
+    │                       │  実際の一筆を実行
+    │                生成Canvas＋DrawingEpisode
+    │                       │
+    │      元画像──→ Evaluator/Reward ←──生成Canvas
+    │                       │
+    │                    Trainer（重み更新）
+    └───────────────────────┘
 
-## 2. 目標システムの構成
+生成モード：文章 → DrawingPolicy → Controller → Engine → 完成画像＋Episode
+\`\`\`
 
-```text
-              人間の絵師
-                  |
-             入力操作の収集
-                  v
-          Recorder -> DrawingEpisode <- Replay
-                  |             |           |
-                  v             v           v
-           学習Dataset       ActionHistory  DrawingEngine
-                  |             ^           |
-                  v             |           v
-          DrawingPolicy --------+------> DrawingState
-              （次の行動予測）        （各レイヤー／画素）
-                  |                           |
-                  +------ DrawingAction ------+
-                                              |
-                                              v
-                                        Canvas preview
-                                              |
-                  WorkflowRuntime / Artifact / Trajectory
-                  （上位Step・評価・系譜・実験結果）
-```
+**元画像を見られるのは学習用のEvaluatorだけ**。Policyへの観測入力に目標画像、差分画像、目標画像のembeddingを渡したら不合格。
 
-**人間入力とモデル予測は同じDrawingAction契約に従う。** 画素に変更を加える権限を持つのは`DrawingEngine`。`DrawingPolicy`は行動を予測するだけで、レイヤー画像を直接上書きしない。
+## 2. モジュールの責務
 
-## 3. 基本コンポーネントの担当
-
-| Component | 所有する責務 | やってはいけないこと |
+| モジュール | 責務 | 絶対にしないこと |
 | --- | --- | --- |
-| `Palette` | 共通固定256色の`color_id -> RGB`とバージョン | エピソードごとに色番号を入れ替える |
-| `DrawingEngine` | 状態、レイヤー、ブラシ、ストローク、消去、再生可能な状態遷移、描画エラー | 学習モデルを内部に持ち色・ストロークを勝手に決める |
-| `Recorder` | 人間の操作をActionEventとして記録。時刻と出所の保持 | 最終PNGから人間が描いたことにする |
-| `Replay` | 保存された行動から初期状態を再構築し、全イベントを順に適用 | 中間行動を省略して最終画像だけ読む |
-| `DrawingPolicy` | Prompt + 状態 + 過去の行動を見て次のActionを予測 | 固定の決め打ちScriptだけを「学習済み」とする |
-| `Dataset / Trainer` | 出所・権利・splitを管理し、人間の実演から次行動を学習 | 未来の状態を入力に混ぜる |
-| `WorkflowRuntime` | 上位Stepの実行・検証・接続・Errorの記録 | Strokeごとの意味論を独自に作る |
-| `Evaluator` | 予測した行動と最終結果を別々に評価 | 画像評価のみを工程学習の成果として扱う |
-| `Part Bank` | 必要に応じ画像部品を参照・検索・配置 | Part配置を筆跡や人間の描画実演と称する |
+| \`ImageDataset\` | 画像だけの登録、正規化、split、権利・重複・version管理 | 実演Actionを教材の必須入力にする |
+| \`TagExtractor/CaptionExtractor\` | 選択されたモデルで画像からタグと文章を抽出 | 利用者にprompt/タグを書かせることを必須にする |
+| \`PromptBuilder\` | タグと説明文をversion付きで学習promptへ整形 | 抽出器を勝手に切り替えキャッシュを混ぜる |
+| \`DrawingPolicy\` | prompt＋自分のstateから次の合法Actionを予測 | 元画像やその特徴を観測する |
+| \`FixedStageController\` | ラフ→下書き→本描きの必須順序、stage進行/skip/予算管理 | 筆跡や位置を固定Scriptで決める |
+| \`DrawingEngine\` | Actionを画素・レイヤー・ブラシで実行、拒否を返す | Policyの代わりに色や構図を独断で選ぶ |
+| \`Recorder / Replay\` | **モデルが実際に描いた**Action、stage、RGBA中間状態を記録/再生 | 元画像からActionを捏造する |
+| \`Evaluator / Reward\` | 学習時に元画像と生成画像を比較、形・色・文章一致・コストの報酬を出す | 元画像・差分画像をPolicyに観測させる |
+| \`Trainer\` | Rewardを用いてPolicyのパラメータを更新、checkpointとtrialを保存 | 選択だけ行い学習したと称する |
+| \`Workflow Runtime\` | 上記の実行をArtifact/Trajectoryへ結び付ける | 完成画像だけをActionEpisodeに偽装する |
+| \`Part Bank\` | 任意の補助素材参照 | Part配置を筆跡の代わりにする |
 
-## 4. 三つの異なる粒度を区別する
+## 3. DrawingEpisode とWorkflowを混同しない
 
-### 4.1 DrawingAction（小さな1行動）
+- **DrawingAction**：色変更、ブラシ切替、サイズ変更、筆で描く、消す、Stageを進める、完成するなどの1操作。
+- **DrawingState**：自分が今まで描いたキャンバス、透明レイヤー、工具状態、現在のStage。
+- **DrawingEpisode**：空白から完成までの**実際のActionの列**。推論・学習のtrialで同じ形式。
+- **WorkflowSpec**：学習・生成・評価の上位処理とデータの受け渡し。Action一件ごとの代わりではない。
 
-「色を番号180に変更する」「筆でこの座標列をなぞる」「上レイヤーを選ぶ」「消す」など。学習器が予測する最小単位。状態は1Actionずつ変化する。
+**v1互換性契約**：[制作過程v1](drawing_process_v1.md)。**新しい固定工程・画像only学習**：[固定工程v2](fixed_drawing_workflow_v2.md)・[画像だけで学ぶ](image_only_learning_v1.md)。v2のRendererとEpisodeはまだ実装されていない。
 
-### 4.2 DrawingEpisode（一枚を制作する時系列）
+## 4. 既存コードの入口と再利用
 
-1枚を制作する全ActionEvent、prompt、palette/brush/rendererバージョン、実演か推論かという出所を持つ。**時系列に再生して初めて制作工程を復元できる。** `DrawingEpisode`は学習Datasetの単位。
+現在の主要な既存資産：
 
-### 4.3 WorkflowStep（大きな制作区間）
+- \`image_drawer/runtime/engine.py\`：Workflow RuntimeとTrajectory。
+- \`image_drawer/core/models.py\`：ArtifactやScore、Trajectory等の共通型。
+- \`image_drawer/steps/\`：既存StepとPart合成など。
+- \`image_drawer/dsl/\`：Workflow DSLのparser/serializer。
 
-`SKETCH`、`LINE`、`COLOR`、`CORRECT`、`EVALUATE`、`SELECT`など。Phase/Workflowの「何をするか」と、内部Actionの「実際に何を描いたか」は別階層。`COLOR` Stepの実行中に複数の色選択・筆跡・消去が起きてよい。描画工程を別モデルやバックエンドに切り替えても、Action契約・再生意味論は変えない。
+これらは**新しい学習・描画器が既に実装されたことを意味しない**。既存のCI、Artifact URI/lineage、実験ログを利用し、DrawingAction/Stage/Rewardの責務を新しいモジュールに切り出す。
 
-```text
-Workflow: INPUT -> SKETCH -> EVALUATE -> COLOR -> OUTPUT
-                         |                 |
-                         +------ DrawingEpisode（継続）
-                                [create_layer, select_brush, select_color,
-                                 stroke, ..., create_layer, select_layer,
-                                 select_color, stroke, erase, finish]
-```
+## 5. 学習時と生成時の違い
 
-上記Workflow図は**上位区間の例で、現在動くDSLの証明ではない**。SKETCH/COLORのAdapterを実装したときも、工程を跨いで同じDrawingStateとActionHistoryを維持する。`finish`は制作全体の最後に1回。Step終了とEpisode終了は別。
+| | 学習 | 生成（txt2img） |
+| --- | --- | --- |
+| ユーザーの必須入力 | **画像だけ** | **文章だけ** |
+| 文章の用意 | 選択したTag/Caption抽出器 | ユーザー |
+| 元画像を読む | **Evaluatorが読み採点** | 不要・存在しない |
+| Policyが見る | 文章＋自分の途中状態 | 同じ |
+| 固定制作工程 | 同じ | 同じ |
+| モデル更新 | **報酬を使って更新** | 更新しない |
+| 出力 | Trial・Reward・checkpoint・Episode | 画像・Episode |
 
-## 5. 既存コードとの接続（現状と目標の区別）
+学習時だけの元画像を使って推論で直接なぞってはいけない。
 
-現在のリポジトリには次が存在する。
+## 6. 実装の優先順位と合格条件
 
-- `image_drawer/runtime/engine.py`：`WorkflowRuntime.execute()`がWorkflowSpecを実行し、`Trajectory`を生成。
-- `image_drawer/core/models.py`：`Artifact`・`Score`・`Trajectory`・Part関連モデル。
-- `image_drawer/steps/base.py`：`Step.run` は主出力`Artifact`または追加Artifact付き`StepResult`を返す。
-- `image_drawer/steps/retrieve_parts.py`・`compose.py`：既存Part Bankから素材を検索・合成する補助機能。
-- `image_drawer/dsl/`：WorkflowSpecをparse/serializeする仕組み。
+1. **Engine/Stage Controller**：12ブラシ、固定256色、ラフ→下書き→本描きの順序と各工程のstroke、Replayが成立する。
+2. **ImageDataset/Extractor**：画像だけで学習に登録し、Tagger/Captionerを切り替え、versionとcacheを整合させる。
+3. **Policy/Trainer**：実際に描いた画像との比較でパラメータを更新し、学習前後の改善を測る。
+4. **txt2img**：文章だけを入力し、画像とEpisodeを出力。元画像なしで動作する。
 
-**ただし、現在の主要コードにはここで規定したDrawingEngine、DrawingEpisode、DrawingPolicyが実装されているとは限らない。** この仕様PRは機能実装を行ったことを意味しない。
-
-追加の目標インターフェース（型の詳細はv1正本、下記は責務のイメージ）：
-
-```python
-class DrawingEngine:
-    def initial_state(self, canvas) -> DrawingState: ...
-    def apply(self, state: DrawingState, action: DrawingAction) -> DrawingState: ...
-    def render(self, state: DrawingState) -> RGBAImage: ...
-
-class DrawingRecorder:
-    def record(self, event: ActionEvent) -> None: ...
-    def save(self) -> DrawingEpisode: ...
-
-class DrawingPolicy:
-    def next_action(self, prompt, state, history) -> DrawingAction: ...
-```
-
-新しい`DrawingEpisode`は型付きArtifactのURI・SHA-256・versionでWorkflow Runtimeへ紐付ける。**EpisodeファイルとArtifact/Trajectory参照を別々に書いて終わらせない。** 保存は一時ファイル→fsync→原子的rename→manifest/outboxのtransaction確定を順に行い、起動時に孤立blob・破損参照を照合する。[制作過程v1の復旧仕様](drawing_process_v1.md#62-途中保存クラッシュ復旧と参照の一貫性)に従う。`Trajectory.executions`は**上位Stepの実行履歴**。何千回ものstrokeを1個の`StepExecution`へ押し込まず、`DrawingEpisode.events`に順序と`actor`を保存する。
-
-## 6. 学習ループの契約
-
-- **収集**：人間・モデル・systemの各Actionをイベント単位の`actor`とともに区別し、Stateを再生可能な形で保存する。生の収集データと学習可能Episodeの区別は[データ品質仕様](drawing_data_quality_v1.md)に従う。
-- **Training**：ActionEventの直前までの状態から次Actionを予測する。固定256色、道具、レイヤー、工程、可変長筆跡、修正・終了を条件付きに予測する。教師強制とClosed-loopの設計は[DrawingPolicy精度仕様](drawing_policy_accuracy_v1.md)を参照。
-- **Inference**：予測したActionを`DrawingEngine`へ適用し、新しいStateを次の入力にする。人間の未来行動や最終画像をpeekしない。
-- **Evaluation**：教師あり予測、閉ループで描かれた過程、最終画像の品質を区別して記録する。
-
-単純なReplayはS1〜S2の検証であり、モデルの学習成功ではない。実データでの`DrawingPolicy`の学習・推論は別の完了条件とする。
-
-## 7. 設計優先度と拡張
-
-1. [コンセプト](../kadoka/concept.md)・[v1契約](drawing_process_v1.md)・[受け入れ試験](drawing_process_acceptance.md)を正とする。
-2. まずDrawingEngine → Recorder/Replay → 次行動Policy → Workflow/GUI統合の順に成立させる。
-3. Part Bank、Workflow Search、品質評価器は**拡張**として再利用してよいが、上位の目的を置き換えない。
-4. 変更したくなった場合はAction/Stateのschema version・migration・golden testsと共に設計レビューする。
-
-現在のソースの入口は [source_code_guide.md](source_code_guide.md)。実装順は [Kadoka向け実装計画](../kadoka/implementation_plan.md)。
+詳しい実装順は[実装計画](../kadoka/implementation_plan.md)。文書・ビルドだけが成功しても学習モデルや高品質なイラストができたとは呼ばない。
