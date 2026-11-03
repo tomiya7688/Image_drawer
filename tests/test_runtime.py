@@ -66,9 +66,7 @@ def test_full_mock_workflow_validates_and_executes_end_to_end():
 
     trajectory = result.trajectory
     assert trajectory.prompt == "cat"
-    assert [execution.step_id for execution in trajectory.executions] == list(
-        plan.order
-    )
+    assert [execution.step_id for execution in trajectory.executions] == list(plan.order)
     assert len(trajectory.artifacts) == len(workflow.nodes)
     assert all(execution.error is None for execution in trajectory.executions)
     assert len(trajectory.evaluations) == 1
@@ -80,16 +78,18 @@ def test_full_mock_workflow_validates_and_executes_end_to_end():
 
     output = result.outputs["output"]
     assert output.artifact_type == "Image"
-    assert output.metadata["value"] == (
-        "mock-image[generic:cat:0|generic:cat:1]"
-    )
+    assert output.metadata["value"] == ("mock-image[generic:cat:0|generic:cat:1]")
     assert output.id == "artifact:runtime-test:output"
+    selection = next(item for item in trajectory.selections if item["step_id"] == "select")
+    assert selection["candidate_artifact_id"] == "artifact:runtime-test:compose"
+    assert selection["score_id"] == "score:runtime-test:evaluate:0"
+    assert (
+        selection["candidate_artifact_id"] == output.metadata["selection"]["candidate_artifact_id"]
+    )
+    assert selection["score_id"] == output.metadata["selection"]["score_id"]
     assert trajectory.final_output_ids == [output.id]
 
-    by_step = {
-        artifact.producing_step_id: artifact
-        for artifact in trajectory.artifacts
-    }
+    by_step = {artifact.producing_step_id: artifact for artifact in trajectory.artifacts}
     assert by_step["retrieve"].parent_artifact_ids == [by_step["prompt"].id]
     assert by_step["select"].parent_artifact_ids == [
         by_step["compose"].id,
@@ -122,6 +122,35 @@ def test_validator_rejects_incompatible_artifact_types():
         assert "got Text" in str(error)
     else:
         raise AssertionError("invalid artifact type should be rejected")
+
+
+def test_selection_metadata_cannot_override_trajectory_ids():
+    registry = create_mock_registry()
+    original = registry.resolve("SELECT")
+
+    class SelectWithConflictingMetadata(Step):
+        backend = "test"
+        schema = original.schema
+
+        def run(self, inputs, params, context):
+            artifact = original.run(inputs, params, context)
+            artifact.metadata["selection"].update(
+                step_id="wrong", input_artifact_ids=[], output_artifact_id="wrong", marker="custom"
+            )
+            return artifact
+
+    registry.register(SelectWithConflictingMetadata(), default=True)
+    result = WorkflowRuntime(registry).execute(
+        build_full_mock_workflow(), external_inputs={"prompt": "cat"}, run_id="protected"
+    )
+    selection = result.trajectory.selections[-1]
+    assert selection["marker"] == "custom"
+    assert selection["step_id"] == "select"
+    assert selection["input_artifact_ids"] == [
+        "artifact:protected:compose",
+        "artifact:protected:evaluate",
+    ]
+    assert selection["output_artifact_id"] == "artifact:protected:select"
 
 
 def test_validator_rejects_cycles():

@@ -31,6 +31,8 @@ DSLはGUIで操作したWorkflowを保存するためのserialized representatio
 
 ## 3. 構文案
 
+以下は構文案です。現在のSELECTは `top=1` のみ対応し、top-kは未対応です。
+
     INPUT prompt: Text
 
     sketches = SKETCH(
