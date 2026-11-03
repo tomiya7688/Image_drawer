@@ -24,7 +24,7 @@ Image Drawerが最初に必要とするGUIは、**人間が筆で線を引き、
 
 ## 2. 人間の操作は必ずDrawingActionに対応
 
-**高精度制作GUIの目標**：ブラシ選択画面には[標準12プリセット](brush_presets_v2.md)を用途別に表示し、AI/人間が変更できるのは最初はサイズ・不透明度の2項目。`select_brush`と`set_brush_params`を別Actionとして記録する。ペンのサブピクセル座標・筆圧・時刻・傾きは[ブラシv2のサンプル仕様](brush_presets_v2.md#5-高精度のペンサンプル形式v2共通)に従い、未取得の筆圧・傾きは`null`。**v1の整数座標・単一hard_round UIは描画器の試験用であり、最終目標の制作GUIではない。**
+**高精度制作GUIの目標**：ブラシ選択画面には[標準12プリセット](brush_presets_v2.md)を用途別に表示し、AI/人間が変更できるのは最初はサイズ・不透明度の2項目。**任意の小数を入力するUIではなく、[固定段階表](brush_control_levels_v2.md)の19サイズ・11透明度を選択させる**。`select_brush`と`set_brush_params`（`size_level_id`, `opacity_level_id`）を別Actionとして記録する。筆圧は11段階と5種類のパターンで学習し、ユーザーの生の筆圧センサー値は消さない。ペンのサブピクセル座標・筆圧・時刻・傾きは[ブラシv2のサンプル仕様](brush_presets_v2.md#5-高精度のペンサンプル形式v2共通)に従い、未取得の筆圧・傾きは`null`。**v1の整数座標・単一hard_round UIは描画器の試験用であり、最終目標の制作GUIではない。**
 
 
 | UI操作 | 記録するAction | 表示が変わる対象 |
