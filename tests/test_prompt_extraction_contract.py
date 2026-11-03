@@ -55,9 +55,7 @@ def test_related_research_and_support_tools_are_documented():
     c = _config()
     assert "tomiya7688/comfyUI_support_tools" in c["related_repository"]
     assert len(c["research"]) >= 3
-    d = (ROOT / "docs" / "developers" / "prompt_extraction_v1.md").read_text(
-        encoding="utf-8"
-    )
+    d = (ROOT / "docs" / "developers" / "prompt_extraction_v1.md").read_text(encoding="utf-8")
     assert "Qwen" in d
     assert "短文" in d
     assert "Completeness" in d
