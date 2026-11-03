@@ -50,6 +50,8 @@
 - 工程ごとに描ける**レイヤー役割**をControllerで制限。本描きの線を基本色が覆わない固定の重ね順、ラフ/下書きの非表示、修正ステージからの可視レイヤー編集を[工程仕様](../developers/fixed_drawing_workflow_v2.md)どおりに実装する。
 - 筆の動かし方は固定Scriptにしない。
 
+**StageControllerの実装必読**：[操作許可・工程移行の原子性・レイヤー・レビュー](../developers/stage_controller_contract_v2.md)。進行・レイヤーリセット・表示変更・Controllerが発行するfinishが、Replay可能な一まとまりのイベントとして永続化されること。
+
 **Done**：v1のgoldenが全合格し、v2の全12ブラシの画素golden、工程順序、必須Stageでの有効stroke、保存/Replayが実装されている。現時点でv2の数値カーネルとGoldenは**未完成**。
 
 ### S2：画像だけのDataset登録と抽出器選択
