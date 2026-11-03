@@ -33,6 +33,7 @@
 
 - [固定制作工程（ラフ→下書き→本描き）の仕様](fixed_drawing_workflow_v2.md)
 - [画像だけで描いて学ぶ仕様](image_only_learning_v1.md)
+- [画像のみのDataset（実装）](image_dataset.md)：登録、抽出器の契約、target隔離。
 - [定番ブラシ12種の独自プリセット・高精度ペンサンプル仕様（v2）](brush_presets_v2.md)
 - [ブラシ設定の機械可読な正本](brush_presets_v2.json)
 - [固定段階表・筆圧パターンの機械可読な正本](brush_control_levels_v2.json)
