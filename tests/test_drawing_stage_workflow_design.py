@@ -226,3 +226,13 @@ def test_budgets_count_invalid_attempts_and_do_not_auto_finish():
     assert spec["attempts_include_rejected_and_accepted"] is True
     assert spec["no_auto_stage_advance_on_exhaustion"] is True
     assert "Draft" in spec["exhaustion"]
+
+def test_temporary_ruff_difference():
+    import subprocess
+
+    result = subprocess.run(
+        ["ruff", "format", "--diff", __file__],
+        capture_output=True,
+        text=True,
+    )
+    assert result.returncode == 0, result.stdout + result.stderr
