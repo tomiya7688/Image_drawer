@@ -6,17 +6,19 @@
 
 ## 1. 全体像
 
-**学習素材は画像だけ、生成時の外部入力は文章だけ**。描く順序はラフ→下書き→本描き→基本色→陰影・仕上げ→修正・確認→完成で固定するが、その中の色・ブラシ・筆跡はAI自身が学習する。
+**学習素材は画像だけ、生成時の外部入力は文章だけ**。タグ・説明文・prompt・権利情報などの別の入力ファイルは要求しない。学習の内部では文章を自動生成してTextEncoderへ渡す。描く順序はラフ→下書き→本描き→基本色→陰影・仕上げ→修正・確認→完成で固定するが、その中の色・ブラシ・筆跡はAI自身が学習する。
 
 ```text
 学習画像だけ
     │
-    ├── ImageDataset（画像の検査/rights/hash/split）
+    ├── ImageDataset（画像の検査/hash/split）
     │       │
     │       └── TagExtractor/CaptionExtractor（ユーザー選択式）
     │                       │
     │                  学習用Prompt
     │                       │
+    │                   TextEncoder
+    │                       │  文章の意味を表す内部条件
     │                 DrawingPolicy（学習対象）
     │                       │  prompt＋自分のCanvas/履歴のみ
     │                FixedStageController
@@ -39,9 +41,10 @@
 
 | モジュール | 責務 | 絶対にしないこと |
 | --- | --- | --- |
-| `ImageDataset` | 画像だけの登録、正規化、split、権利・重複・version管理 | 実演Actionを教材の必須入力にする |
+| `ImageDataset` | 画像だけの登録、正規化、重複・split・version管理。内部ID/ハッシュは自動生成 | 画像以外のファイルや権利情報を利用者に要求する |
 | `TagExtractor/CaptionExtractor` | 選択されたモデルで画像からタグと文章を抽出 | 利用者にprompt/タグを書かせることを必須にする |
-| `PromptBuilder` | タグと説明文をversion付きで学習promptへ整形 | 抽出器を勝手に切り替えキャッシュを混ぜる |
+| `PromptBuilder` | 抽出したタグ/説明文から**非空の学習用プロンプト**を生成する | 利用者に別途テキストを書かせる |
+| `TextEncoder` | プロンプトを描画Policyが使う**意味特徴**へ変換。学習/生成で同じ条件形式を使用 | 学習時だけ正解画像の特徴を紛れ込ませる |
 | `DrawingPolicy` | prompt＋自分のstateから次の合法Actionを予測 | 元画像やその特徴を観測する |
 | `FixedStageController` | 全7工程の必須順序、工程別の書込可能レイヤー、レビュー理由、レイヤー表示/上下、終了/予算管理 | 筆跡や位置を固定Scriptで決める／Stageをskippingする |
 | `DrawingEngine` | Actionを画素・レイヤー・ブラシで実行、拒否を返す | Policyの代わりに色や構図を独断で選ぶ |
@@ -78,7 +81,8 @@
 | | 学習 | 生成（txt2img） |
 | --- | --- | --- |
 | ユーザーの必須入力 | **画像だけ** | **文章だけ** |
-| 文章の用意 | 選択したTag/Caption抽出器 | ユーザー |
+| 文章の用意 | システムが選択済みTag/Caption抽出器とPromptBuilderで自動生成 | ユーザー |
+| TextEncoderの入力 | システム内部の生成プロンプト | ユーザー入力プロンプト |
 | 元画像を読む | **Evaluatorが読み採点** | 不要・存在しない |
 | Policyが見る | 文章＋自分の途中状態 | 同じ |
 | 固定制作工程 | 同じ | 同じ |
