@@ -53,25 +53,18 @@ def resolve_parameters(step: StepSpec, registry: StepRegistry) -> dict[str, Any]
         elif parameter_spec.has_default:
             value = parameter_spec.default
         elif parameter_spec.required:
-            raise WorkflowValidationError(
-                f"{step.id}: missing required parameter {name}"
-            )
+            raise WorkflowValidationError(f"{step.id}: missing required parameter {name}")
         else:
             continue
 
         if not _parameter_matches(value, parameter_spec):
             expected = parameter_spec.value_type
             raise WorkflowValidationError(
-                f"{step.id}: parameter {name} expected {expected}, "
-                f"got {type(value).__name__}"
+                f"{step.id}: parameter {name} expected {expected}, got {type(value).__name__}"
             )
-        if (
-            parameter_spec.choices is not None
-            and value not in parameter_spec.choices
-        ):
+        if parameter_spec.choices is not None and value not in parameter_spec.choices:
             raise WorkflowValidationError(
-                f"{step.id}: parameter {name} must be one of "
-                f"{parameter_spec.choices}"
+                f"{step.id}: parameter {name} must be one of {parameter_spec.choices}"
             )
         resolved[name] = value
 
@@ -84,6 +77,7 @@ def validate_workflow(
 ) -> ExecutionPlan:
     """graph構造、Step contract、type、parameterをvalidateする。"""
     nodes: dict[str, StepSpec] = {}
+    resolved_parameters: dict[str, dict[str, Any]] = {}
     declaration_index: dict[str, int] = {}
     for index, node in enumerate(workflow.nodes):
         if node.id in nodes:
@@ -94,7 +88,7 @@ def validate_workflow(
             registry.resolve(node.type, node.backend)
         except KeyError as exc:
             raise WorkflowValidationError(f"{node.id}: {exc.args[0]}") from exc
-        resolve_parameters(node, registry)
+        resolved_parameters[node.id] = resolve_parameters(node, registry)
 
     if not nodes:
         raise WorkflowValidationError("workflow has no Steps")
@@ -142,13 +136,10 @@ def validate_workflow(
 
         if len(sources) != len(schema.input_types):
             raise WorkflowValidationError(
-                f"{node_id}: expected {len(schema.input_types)} inputs, "
-                f"got {len(sources)}"
+                f"{node_id}: expected {len(schema.input_types)} inputs, got {len(sources)}"
             )
 
-        for position, (source_id, expected_type) in enumerate(
-            zip(sources, schema.input_types)
-        ):
+        for position, (source_id, expected_type) in enumerate(zip(sources, schema.input_types)):
             actual_type = output_types[source_id]
             if not _matches_type(actual_type, expected_type):
                 raise WorkflowValidationError(
@@ -156,23 +147,17 @@ def validate_workflow(
                     f"got {actual_type} from {source_id}"
                 )
 
-        output_types[node_id] = schema.output_type
+        output_types[node_id] = schema.output_for(resolved_parameters[node_id])
 
     for input_id in workflow.inputs:
         if input_id not in nodes:
-            raise WorkflowValidationError(
-                f"workflow input references unknown Step: {input_id}"
-            )
+            raise WorkflowValidationError(f"workflow input references unknown Step: {input_id}")
         if nodes[input_id].type != "INPUT":
-            raise WorkflowValidationError(
-                f"workflow input {input_id} must reference an INPUT Step"
-            )
+            raise WorkflowValidationError(f"workflow input {input_id} must reference an INPUT Step")
 
     for output_id in workflow.outputs:
         if output_id not in nodes:
-            raise WorkflowValidationError(
-                f"workflow output references unknown Step: {output_id}"
-            )
+            raise WorkflowValidationError(f"workflow output references unknown Step: {output_id}")
         if nodes[output_id].type != "OUTPUT":
             raise WorkflowValidationError(
                 f"workflow output {output_id} must reference an OUTPUT Step"
@@ -180,8 +165,5 @@ def validate_workflow(
 
     return ExecutionPlan(
         order=tuple(order),
-        incoming={
-            node_id: tuple(sources)
-            for node_id, sources in incoming_lists.items()
-        },
+        incoming={node_id: tuple(sources) for node_id, sources in incoming_lists.items()},
     )

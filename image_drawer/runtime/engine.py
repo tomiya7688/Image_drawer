@@ -121,7 +121,7 @@ class WorkflowRuntime:
                     produced = [artifact]
                 if any(not isinstance(item, Artifact) for item in produced):
                     raise TypeError(f"{node_id}: Step must return Artifact records")
-                expected_output = implementation.schema.output_type
+                expected_output = implementation.schema.output_for(params)
                 if expected_output != "*" and artifact.artifact_type != expected_output:
                     raise TypeError(
                         f"{node_id}: Step returned {artifact.artifact_type}, "

@@ -27,7 +27,13 @@ assert restored.score_for("image-1").components["quality"] == 0.8
 
 Runtimeのモック`EVALUATE`は、`Image`または`ImageSet`を受け取り、候補ごとに得点を生成します。`ImageSet`の`metadata.candidates`には、`Image`型のArtifactを`to_dict()`で変換した非空の配列を指定してください。出力Artifactの`metadata.score_set`から`ScoreSet.from_dict()`で得点集合を復元できます。Trajectoryとの互換性のため、同じ得点をArtifactの`scores`にも保持します。評価器名は`mock`のみを受け付け、それ以外はエラーになります。
 
-`SELECT`は総合得点が最も高い画像を選び、同点は候補IDの昇順で決めます。得点集合の由来と候補IDが入力画像と一致しない場合、Artifactの`scores`と`metadata.score_set`が一致しない場合、総合得点が欠ける場合は失敗します。選択した候補IDと得点IDはTrajectoryに記録されます。現在は`top=1`のみ対応し、top-kと重み付き選択は未対応です。モック得点は画像品質を測定するものではありません。
+`SELECT`は総合得点が最も高い画像を選び、同点は候補IDの昇順で決めます。得点集合の由来と候補IDが入力画像と一致しない場合、Artifactの`scores`と`metadata.score_set`が一致しない場合、総合得点が欠ける場合は失敗します。選択した候補IDと得点IDはTrajectoryに記録されます。`top`で選ぶ件数を指定すると、`top=1`はImage、`top`が2以上のときはImageSetを返します。順位づけの基準は次のいずれかです。
+
+- 既定: 評価器が定義する総合得点（`overall`）。
+- `component="quality"`: 指定した評価軸の値。
+- `weights={"quality": 1, "sharpness": 3}`: 評価軸ごとの重み付き平均。重みは有限の非負数で、合計が正である必要があります。
+
+`weights`と`component`は同時に指定できません。重みまたは評価軸を指定した場合、総合得点は不要です。指定した評価軸が候補に無い場合、`top`が候補数を超える場合も失敗します。選択結果の`metadata.selection`には、基準、重み、選ばれた候補IDと得点ID、全候補の順位、集約値、生の成分を保存し、同じ内容をTrajectoryの`selections`にも記録します。評価で記録した生得点は変更しません。モック得点は画像品質を測定するものではありません。
 
 ## OpenCLIPによる相対評価
 
