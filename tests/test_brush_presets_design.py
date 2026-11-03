@@ -105,3 +105,9 @@ def test_preset_names_and_indices_are_stable():
         "eraser_soft",
     ]
     assert [p["id"] for p in presets] == expected
+
+def test_temporary_brush_preset_ruff_diff():
+    import subprocess
+
+    result = subprocess.run(["ruff", "format", "--diff", __file__], capture_output=True, text=True)
+    assert result.returncode == 0, result.stdout + result.stderr
