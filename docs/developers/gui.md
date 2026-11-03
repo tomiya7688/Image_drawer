@@ -1,127 +1,74 @@
-> **対象読者:** 開発者  
-> **目的:** GUI workbenchの責務・初期機能・実装方針を共有する。
+> **対象読者:** GUIの実装者・デザインレビュー担当
+> **目的:** 学習は画像だけ、生成は文章だけ、制作工程は固定という製品画面の役割を定義する。
+> **状態:** 目標設計。現在のGUIで全機能が使えると主張しない。
 
-# GUI
+# GUI：学習画像を登録し、AIが描く過程を見る
 
-## 1. 目的
+## 1. 最初に必要な画面
 
-GUIは、描画Workflowを構築・実行・観察するための実験workbenchです。
+従来の「人間が筆で描いて実演を収集する画面」を**必須の入口にしない**。Image Drawerに必要なのは次の2つ。
 
-DSLはGUIの下にある実装・永続化層であり、ユーザーが必ず手書きする主interfaceではありません。
+| 画面 | 利用者が入力するもの | ソフトが行うこと |
+| --- | --- | --- |
+| **学習** | 画像ファイルだけ | 自動タグ/文章抽出、固定工程での試し描き、採点、Policyの更新・進捗表示 |
+| **生成（txt2img）** | 文章だけ | 白紙からラフ→下書き→本描き→基本色→陰影・仕上げ→修正・確認→完成、画像表示 |
 
-## 2. 初期layout
+設定から**TagExtractorとCaptionExtractorを別々に選択**できること。抽出器ID、model version、対象言語、出力のプレビュー、キャッシュの再計算、失敗の理由を表示する。タグや文章の手修正は任意だが、**必須にしない**。
 
-推奨layout:
+## 2. 学習画面
 
-    +----------------+---------------------------+
-    | Parameters     | Workflow                  |
-    |                |                           |
-    | run settings   | [SKETCH]                  |
-    | model settings |    |                      |
-    | train settings | [EVALUATE]                |
-    |                |    |                      |
-    |                | [SELECT]                  |
-    |                |    |                      |
-    |                | [COLOR]                   |
-    +----------------+---------------------------+
-    | Results / Intermediate artifacts           |
-    | candidate thumbnails / scores / history    |
-    +--------------------------------------------+
+```text
++----------------------+--------------------------+
+| 学習用画像を登録     |  タグ・文章の自動抽出    |
+| （画像だけでOK）     |  Tagger: [選択]          |
+|                      |  Captioner: [選択]       |
++----------------------+--------------------------+
+| データセットと権利   |  抽出された説明・タグ    |
+| 重複・分割・状況     |  バージョン・失敗理由    |
++----------------------+--------------------------+
+| 学習: 開始/停止      |  ラフ→下書き→本描き→…    |
+| Trialの評価・報酬    |  AIの試し描きと改善     |
++----------------------+--------------------------+
+```
 
-## 3. Workflow editor
+ユーザーは完成画像を登録するだけで、筆跡やレイヤー情報を求められない。**学習時だけ評価器が元画像を見て採点**し、描画Policyは文章と自分の状態しか受け取らない。
 
-version 1で必要な操作:
+抽出器切替、画像の正規化設定変更、学習実験の変更は**データセット/キャッシュのバージョン**と紐付ける。古い抽出結果を理由なく流用しない。性能が実測されていないモデルに「高精度」と表示しない。
 
-- Step追加
-- Step削除
-- Step並べ替え
-- outputからinputへの接続
-- parameter編集
-- Step有効/無効
-- 生成DSLの確認
-- Workflowのload/save
+## 3. 生成画面（txt2img）
 
-最初のMVPでは自由配置Node Editorは必須ではありません。
+```text
++----------------------+--------------------------+
+| 文章: [入力欄]       |  Canvas／完成画像        |
+| seed, サイズ（任意） |  現在の描画工程          |
++----------------------+--------------------------+
+| ラフ→下書き→本描き   |  Layers（重なり順）      |
+| →基本色→陰影→仕上げ  |  ブラシ・色・筆圧        |
++----------------------+--------------------------+
+| 生成/停止            |  Action履歴/Replay       |
++----------------------+--------------------------+
+```
 
-縦方向のStep list + 接続selectorの方が実装・debugしやすいため、最初はこちらを優先します。
+- 実際のActionを1件ずつ記録して描き、**途中のラフ・下書き・本描きの各状態**を見られる。
+- Stageの順序は[固定工程](fixed_drawing_workflow_v2.md)に従い、描画Policyが突然後の工程へ飛んだり、途中工程を消して完成扱いしたりしない。**レイヤーの上下は工程の時系列と異なる**：基本色・影は本描きより下、ハイライトと修正は上。ラフと下書きは後工程で非表示にするが、Replay用に履歴を維持する。
+- **本描きは黒い線画に限定しない**。厚塗り等の画風でも実際に描く工程。
+- **すべての工程を表示し、スキップを許さない。** 基本色・陰影・修正で描画不要の場合は**理由付きレビュー**を記録して通過したことを表示する。工程ごとに書込可能なレイヤーを表示し、不正な編集を選べないようにする。
+- 描画色は固定256色、12プリセット、サイズ19段階・不透明度11段階・筆圧11段階を表示する。**UI上の設定を変更してAIの行動を黙って差し替えない**。
+- 全ActionをReplayできない画像は、制作過程の生成に成功したと表示しない。
 
-## 4. Parameter editor
+## 4. 研究・検証用の手描き入力は任意
 
-parameter UIは各Stepのschemaから生成します。
+将来、利用者自身が筆で描いて遊ぶ、Rendererの線を試す、手描きActionを別資料として収集する機能は**任意の別画面**。本製品の学習用教師データではない。
 
-例:
+実装する場合は必ず`actor=human`を記録し、AIのAction（`actor=model`）と区別する。実測の筆圧・傾きがないなら`null`にし、勝手に測定値を作らない。人間の生データをソフトの学習必須条件に戻してはならない。
 
-    SKETCH
+## 5. 完了条件
 
-    model       [mock        v]
-    count       [8            ]
-    temperature [0.8          ]
-    seed        [random       ]
+1. 画像ファイルだけで学習データを登録し、Tagger/Captionerを切り替えられる。
+2. 登録画像から**自動で**タグ・文章が出る。失敗時は理由が分かり、手描き履歴を要求しない。
+3. 学習時、**AIが固定工程に沿って描いたTrialと報酬**を確認できる。
+4. 生成時、**文章だけ**から完成画像とReplay可能なAction履歴が得られる。
+5. Replay画面でラフ→下書き→本描きの画像・レイヤー・履歴を個別に見られる。
+6. 未実装機能は未実装と示し、既存Part Bank GUIが高精度txt2imgそのものと誤認されない。
 
-各Stepは最低限次のmetadataを公開します。
-
-    name
-    description
-    input schema
-    output schema
-    parameter schema
-    default values
-
-Stepごとに専用formを手書きせず、schema-driven GUIとします。
-
-## 5. Result inspector
-
-各runについて次を確認できるようにします。
-
-- 中間画像
-- candidate group
-- score
-- selected / rejected candidate
-- Step parameter
-- 実行履歴
-- final output
-
-どのcandidateがなぜ選ばれたかを視覚的に追跡できることを重視します。
-
-## 6. Evaluator view
-
-scoreは1個のscalarに限定しません。
-
-例:
-
-    overall        0.84
-    composition    0.91
-    line_quality   0.79
-    color          0.87
-    prompt_match   0.82
-
-GUIはaggregate scoreとcomponent scoreの両方を表示できるようにします。
-
-## 7. Training view
-
-初期training panelでは、選択中の学習・探索戦略に必要なparameterだけを表示します。
-
-例:
-
-- candidate count
-- top-k
-- epochs / iterations
-- learning rate
-- batch size
-- evaluator weights
-- checkpoint interval
-
-現在の戦略で使わないparameterを大量に表示しないことを原則とします。
-
-## 8. DSL editor / view
-
-GUIに生成DSLのtext viewを持たせます。
-
-version 1で必要な機能:
-
-- 表示・編集
-- parse
-- validation error表示
-- GUIへの反映
-
-canonical formattingにより、GUI生成WorkflowのGit diffを安定させます。
+画素・Actionは[DrawingEngine v1（旧互換）](drawing_process_v1.md)、v2の道具は[ブラシ仕様](brush_presets_v2.md)、学習と抽出器は[画像のみ学習](image_only_learning_v1.md)を参照する。

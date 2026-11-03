@@ -1,0 +1,87 @@
+{
+  "schema_version": "idraw-stage-reward/v2",
+  "reward_profile_id": "image-only-stage-reward-baseline-v2",
+  "status": "design-baseline-unvalidated",
+  "objective": "AI draws from text+its own canvas; target_image only in evaluator, never policy observation",
+  "stage_ids": [
+    "rough",
+    "sketch",
+    "final_drawing",
+    "base_color",
+    "shading",
+    "refine"
+  ],
+  "features": {
+    "edge_32": "coarse edge similarity from rendered composite and target",
+    "edge_64": "medium edge similarity from rendered composite and target",
+    "edge_128": "fine edge similarity from rendered composite and target",
+    "rgb_32": "low resolution sRGB similarity between rendered composite and target",
+    "rgb_128": "fine resolution sRGB similarity between rendered composite and target",
+    "luma_64": "luminance similarity between rendered composite and target",
+    "rgb_hist_16": "16 bins/channel color histogram similarity"
+  },
+  "feature_score_range": [
+    0,
+    1
+  ],
+  "feature_score_higher_is_better": true,
+  "stage_potential_weights": {
+    "rough": {
+      "edge_32": 1
+    },
+    "sketch": {
+      "edge_32": 0.3,
+      "edge_64": 0.7
+    },
+    "final_drawing": {
+      "edge_64": 0.4,
+      "edge_128": 0.6
+    },
+    "base_color": {
+      "rgb_32": 0.7,
+      "rgb_hist_16": 0.3
+    },
+    "shading": {
+      "luma_64": 0.65,
+      "rgb_32": 0.35
+    },
+    "refine": {
+      "rgb_128": 0.55,
+      "edge_128": 0.25,
+      "rgb_32": 0.2
+    }
+  },
+  "final_quality_weights": {
+    "rgb_128": 0.6,
+    "edge_128": 0.3,
+    "rgb_hist_16": 0.1
+  },
+  "step_reward_formula": "stage_potential_after - stage_potential_before - 0.05/max_actions",
+  "final_bonus_formula": "2.0*final_quality",
+  "invalid_action_penalty_formula": "-0.05/max_actions",
+  "episode_failure_penalty": -1,
+  "reward_update_timing": "after_rollout_only",
+  "prohibit_reward_as_policy_input_same_trial": true,
+  "target_image_access": [
+    "evaluator",
+    "trainer_reward_calculation"
+  ],
+  "policy_observation_excludes": [
+    "target_image",
+    "target_embedding",
+    "target_derived_feature",
+    "target_dependent_reward"
+  ],
+  "stage_metrics_are_proxies": true,
+  "feature_numeric_renderer": "pending-exact-v2-feature-normalization-and-goldens",
+  "evaluation_requires": [
+    "heldout_image_groups",
+    "heldout_prompts",
+    "multiple_seeds",
+    "blind_human_quality",
+    "prompt_attribute_and_count_checks",
+    "action_and_compute_cost"
+  ],
+  "license_note": "Use image datasets with appropriate rights; extractors must be selected/versioned",
+  "weights_are_initial_hypothesis_not_guarantee": true
+}

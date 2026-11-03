@@ -1,119 +1,38 @@
-> **対象読者:** 開発者  
-> **目的:** MVPで実装する範囲と受け入れ条件を共有する。
+> **対象読者:** 実装者、テスト担当、設計レビュアー
+> **目的:** 最小のImage Drawerが何を達成したら完成なのかを決める。
+> **状態:** 新しい画像のみ学習・固定制作工程に合わせたMVP設計。実装済みではない。
 
-# MVP範囲
+# MVP：画像だけから自分で描いて学ぶ
 
-## 1. 目標
+## 1. 最初に動かすもの
 
-最初のMVPでは、編集可能な手順型画像Workflowを実行し、中間状態まで観察できることを証明します。
+**学習の入力は画像だけ**。タグ・文章は利用者が選んだTagExtractor/CaptionExtractorが自動生成し、**人間の筆跡は要求しない**。
 
-高品質な画像生成は必須ではありません。
+AIは文章と白紙から**ラフ→下書き→本描き→基本色→陰影→仕上げ**の順に実際に描く。**この順序は固定**で、ラフ・下書き・本描きを飛ばせない。各工程でのブラシ・色・座標・筆圧・消去はAI自身が試行によって改善する。
 
-## 2. 必須component
+画像だけをレンダラの初期状態にコピーする方法や、元画像から架空の筆跡列を作る方法は不合格。
 
-### DSL parser
+## 2. MVPの5つの合格条件
 
-初期Workflow formatをparseします。
+1. **描ける**：固定256色・独自12ブラシのDrawingEngineで、レイヤー・筆跡・消去を記録して再生できる。旧v1のgoldenは互換性テストとして維持。
+2. **固定順序で描ける**：StageControllerでrough→sketch→final_drawingを実際に描いたうえで進み、着色/陰影は必要なときだけ明示skipできる。
+3. **画像だけで登録できる**：画像ファイル1枚から自動でタグ・プロンプトを抽出し、利用者が抽出器を切り替えられる。
+4. **描いた結果から学べる**：Policyが元画像を観測せず試し描きし、Evaluatorが元画像と比較して報酬を出し、Policyの重みを更新する。学習前後・未見画像で改善を検証。
+5. **文章だけで完成画像が出る**：学習後、promptだけで白紙から描き、画像とDrawingEpisodeを返す。全Actionから中間画像・最終画像が再生できる。
 
-### Runtime
+## 3. 最初の対象画像
 
-線形またはdependency-based Workflowを実行し、Artifactを追跡します。
+最初は**単純な線や図形・単色の物体の画像**で学習が成立することを確認する。そこから複数色・多レイヤー・キャラクター・背景へ広げ、最終的にイラスト全般を扱う。
 
-### Step registry
+**画像だけで学ぶこと自体は難しい**。固定工程やCIの成功だけで高画質の実証と呼ばず、Rewardの改善、未見画像での品質、学習時間・計算資源をそれぞれ記録する。
 
-operationを名前で登録し、schemaを公開します。
+## 4. 関連仕様
 
-### Mock drawing step
+- [画像だけで学ぶ](image_only_learning_v1.md)
+- [固定制作工程](fixed_drawing_workflow_v2.md)
+- [DrawingPolicyと評価](drawing_policy_accuracy_v1.md)
+- [画像データ登録・抽出器](drawing_data_quality_v1.md)
+- [実装順](../kadoka/implementation_plan.md)
+- [受け入れ試験（旧v1互換と新v2学習）](drawing_process_acceptance.md)
 
-決定的または単純な実装を用意します。
-
-- SKETCH
-- COLOR
-
-最初はplaceholder画像生成や単純なtest image変換でも構いません。
-
-### Mock evaluator
-
-Selection logicをtestできるよう、再現可能なscoreを返します。
-
-### SELECT
-
-top-k selectionをsupportします。
-
-### GUI
-
-最低限次をsupportします。
-
-- Workflow Step編集
-- parameter編集
-- run
-- intermediate Artifact表示
-- score表示
-- DSL表示・編集
-- validation error表示
-
-## 3. Repository構成案
-
-    Image_drawer/
-    ├─ README.md
-    ├─ docs/
-    ├─ pyproject.toml
-    ├─ image_drawer/
-    │  ├─ dsl/
-    │  │  ├─ parser.py
-    │  │  ├─ runtime.py
-    │  │  └─ types.py
-    │  ├─ steps/
-    │  │  ├─ base.py
-    │  │  ├─ registry.py
-    │  │  ├─ sketch.py
-    │  │  ├─ color.py
-    │  │  ├─ evaluate.py
-    │  │  └─ select.py
-    │  ├─ training/
-    │  │  ├─ runner.py
-    │  │  └─ config.py
-    │  └─ gui/
-    │     └─ app.py
-    ├─ workflows/
-    │  └─ basic.idraw
-    └─ tests/
-
-実装が進んだ場合は実際の構成を優先し、この図は概念上の目安として扱います。
-
-## 4. 最初のEnd-to-End Workflow
-
-    INPUT prompt: Text
-
-    sketches = SKETCH(prompt, count=4)
-    scores = EVALUATE(sketches, evaluator="mock")
-    best = SELECT(sketches, scores=scores, top=1)
-    colored = COLOR(best, prompt=prompt)
-
-    OUTPUT colored
-
-成功条件:
-
-1. GUIがWorkflowをloadできる。
-2. GUIからcountを変更できる。
-3. DSLへ変更が反映される。
-4. Runtimeが各Stepを実行する。
-5. 中間candidateを表示できる。
-6. Evaluator scoreを表示できる。
-7. SELECTが採用candidateを示す。
-8. final outputを確認できる。
-9. run historyをlocalへ保存する。
-
-## 5. MVP非目標
-
-初期段階では必須ではありません。
-
-- 高品質なimage foundation model
-- distributed training
-- reinforcement learning
-- automatic workflow discovery
-- arbitrary DSL programming
-- multi-user / server architecture
-- production deployment
-
-MVPの主目的はアーキテクチャと実験loopの検証です。
+Part BankやWorkflow Searchは補助機能として残せるが、MVPの主経路へ置き換えない。

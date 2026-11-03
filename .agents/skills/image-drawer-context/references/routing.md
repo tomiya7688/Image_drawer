@@ -4,6 +4,7 @@
 
 | 作業 | 実装・代表的な確認先 | 詳細が必要な場合 |
 | --- | --- | --- |
+| **描画・レイヤー・256色・Action学習（最優先）** | [制作過程v1の正本](../../../../docs/developers/drawing_process_v1.md) → [画素・学習の受け入れ試験](../../../../docs/developers/drawing_process_acceptance.md)。現状のPart合成を筆跡学習とみなさない | [コンセプト](../../../../docs/kadoka/concept.md)・[実装計画](../../../../docs/kadoka/implementation_plan.md)。実装はこれから追加する |
 | 共通レコード、JSON、由来情報 | [core/models.py](../../../../image_drawer/core/models.py)、[serialization.py](../../../../image_drawer/core/serialization.py) → [test_core_models.py](../../../../tests/test_core_models.py) | [アーキテクチャ](../../../../docs/developers/architecture.md) |
 | 実行順、Step間の型、途中失敗 | [runtime/engine.py](../../../../image_drawer/runtime/engine.py)のWorkflowRuntime、[validation.py](../../../../image_drawer/runtime/validation.py) → [test_runtime.py](../../../../tests/test_runtime.py) | [アーキテクチャ](../../../../docs/developers/architecture.md) |
 | DSL解析・書き戻し | [dsl/parser.py](../../../../image_drawer/dsl/parser.py)のparse_workflow、[serializer.py](../../../../image_drawer/dsl/serializer.py) → [test_dsl.py](../../../../tests/test_dsl.py) | [DSL仕様](../../../../docs/developers/workflow_dsl.md) |

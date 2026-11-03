@@ -1,12 +1,16 @@
 > **対象読者:** 開発者  
 > **目的:** Part Bankのdata model・storage・retrieval interfaceを実装するための正本とする。
 
-# Part Bank仕様
+# Part Bank仕様（補助的な素材機能）
 
-状態: 採用済み設計
+**注意：この文書はPart Bankモジュールの仕様であり、Image Drawerの制作工程／学習仕様ではない。** 人間の絵師の筆による行動とその学習の正本は [制作過程 v1](drawing_process_v1.md)。`RETRIEVE_PARTS`や`COMPOSE`だけで描画MVPを達成したとみなしてはならない。
+
+状態: 採用済み設計（Part Bankモジュールに限定）
 日付: 2026-09-20
 
 ## 1. 目的
+
+**モジュールの責務**：人間の描画行動とは別に、参照用の画像素材を保存・検索する。Partの合成を筆跡・レイヤー操作と呼んではいけない。
 
 Part Bankは、Image Drawerで再利用可能な視覚assetを管理する層です。
 
@@ -242,7 +246,9 @@ queryには将来次を含められます。
 
 version 1ではtext + category filteringのみで構いません。
 
-## 7. Workflow operation
+## 7. Workflow operation（素材参照の補助Step）
+
+この節の操作は、[制作過程 v1](drawing_process_v1.md)の`DrawingAction`と異なる。`SELECT_PARTS`は色選択を意味せず、`COMPOSE`は筆で描くことを意味しない。`COLOR`や`SKETCH`を画像素材配置に置換してはならない。
 
 ### RETRIEVE_PARTS
 
@@ -463,7 +469,9 @@ Workflow RuntimeをFAISS等の具体vector databaseへ直接coupleしません�
         compose.py
         refine.py
 
-## 16. MVP受け入れ条件
+## 16. Part Bankモジュールの受け入れ条件
+
+この節でいう完了は **Part Bankモジュールのみ**の完了を意味する。Image Drawerの描画行動・収集・学習のMVP判定は [MVP範囲](mvp.md)に従う。
 
 Part Bank v0は次を満たせば完了とします。
 

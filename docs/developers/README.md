@@ -3,11 +3,40 @@
 **対象読者:** Image Drawerを実装・拡張・レビューする開発者  
 **目的:** 内部設計、実装contract、コードの読み方を共有する。
 
+## 初めて設計を読む場合
+
+**まずは [Image Drawer 設計ガイド](start_here.md)**。txt2imgの仕組み、何が決まっているか、ブラシ・筆圧の例、何が未実装かを説明します。
+
+**固定制作工程を実装する場合**：[7工程の説明](fixed_drawing_workflow_v2.md) → [StageControllerの詳細契約](stage_controller_contract_v2.md) → [各工程の画像評価](stage_reward_v2.md) の順に読みます。
+
+**特にブラシを実装する場合**：[サイズ・不透明度・筆圧の段階表とパターン](brush_control_levels_v2.md) → [12種のブラシと高精度操作](brush_presets_v2.md) の順に読みます。
+
+## 描画実装前の必読（この順）
+
+1. [最上位コンセプト](../kadoka/concept.md)
+2. **[画像だけで描いて学ぶ方式](image_only_learning_v1.md)**
+3. **[固定制作工程：ラフ→下書き→本描き](fixed_drawing_workflow_v2.md)**
+4. [制作過程の状態・行動・再生仕様 v1（旧画素再生）](drawing_process_v1.md)
+5. [描画行動 v1 受け入れ試験とv2学習条件](drawing_process_acceptance.md)（[JSON Schema](schemas/drawing_episode_v1.schema.json)・[再生fixture](../../tests/fixtures/drawing_process_v1/golden_episode.json)・[境界画素fixture](../../tests/fixtures/drawing_process_v1/golden_geometry.json)）
+6. [画像の登録とTag/Caption抽出の品質仕様](drawing_data_quality_v1.md)
+7. [自己描画Policyの学習と精度評価](drawing_policy_accuracy_v1.md)
+8. [アーキテクチャ](architecture.md)
+9. [実装計画](../kadoka/implementation_plan.md)
+
+**画像パーツの検索・合成は補助機能。画像だけを教材にAI自身が試し描きして学ぶことと取り違えないこと。**
+
 ## コードレビューから入る
 
 - [ソースコードガイド](source_code_guide.md)
 
 ## 設計
+
+- [固定制作工程（ラフ→下書き→本描き）の仕様](fixed_drawing_workflow_v2.md)
+- [画像だけで描いて学ぶ仕様](image_only_learning_v1.md)
+- [定番ブラシ12種の独自プリセット・高精度ペンサンプル仕様（v2）](brush_presets_v2.md)
+- [ブラシ設定の機械可読な正本](brush_presets_v2.json)
+- [固定段階表・筆圧パターンの機械可読な正本](brush_control_levels_v2.json)
+
 
 - [アーキテクチャ](architecture.md)
 - [Workflow DSL](workflow_dsl.md)
@@ -18,7 +47,7 @@
 
 ## AI / 探索
 
-- [先行研究と技術方針](prior_art_and_research.md)
+- [先行研究（2026-09時点の参考資料・非正本）](prior_art_and_research.md)
 - [Workflow Search仕様](workflow_search.md)
 
 ## Part Bank
@@ -34,7 +63,7 @@
 
 ## 開発開始
 
-最初に [ソースコードガイド](source_code_guide.md) を読み、対象Issueに対応する仕様文書とtestを確認してください。
+描画・学習に関わる実装では、最初に**画像-only学習・固定制作工程と受け入れ条件**を読んでください。その後 [ソースコードガイド](source_code_guide.md) と対象Issueに対応するtestを確認してください。
 
 基本的なlocal確認:
 

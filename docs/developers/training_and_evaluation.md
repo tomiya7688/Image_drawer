@@ -1,131 +1,76 @@
-> **対象読者:** 開発者  
-> **目的:** 学習・評価・選択の責務と初期アルゴリズム方針を実装・検証する。
+> **対象読者:** 学習・評価・データ登録の実装者
+> **目的:** 画像だけで「実際に描いて上達」する学習の最短手順と、成功/失敗の測定方法を共有する。
 
-# 学習と評価
+# 学習と評価：画像を見本に、AI自身が描いて上達する
 
-## 1. 初期学習戦略
+## 1. 入力は画像だけ
 
-最初から完全なEnd-to-End differentiable構成を要求しません。
+利用者が学習素材として用意するのは**画像ファイルだけ**。人間の筆跡、タグ、prompt、筆圧履歴は**必須ではない**。
 
-実用的な初期loop:
+画像からタグと自然言語のpromptを抽出する処理はソフト内で行う。**利用者がTagExtractorとCaptionExtractorをそれぞれ切り替えられる**ことを必須とする。詳細は[画像だけで学ぶ仕様](image_only_learning_v1.md)と[データ登録・抽出器の品質仕様](drawing_data_quality_v1.md)。
 
-    1. N個のcandidateを生成
-    2. candidateを評価
-    3. 上位K個を保持
-    4. 良かった制作手順・履歴を保存
-    5. 保存例からtrain / fine-tune
-    6. 再度生成
+## 2. 決められた工程に沿って実際に描く
 
-これは rejection sampling + imitation / fine-tuning に近く、最初からreinforcement learningを導入するよりdebugしやすい方式です。
+[固定制作工程](fixed_drawing_workflow_v2.md)に沿って**ラフ→下書き→本描き→基本色→陰影・仕上げ→修正・確認→完成**の順で全工程を通過する。工程間の順序は固定するが、ブラシ・色・座標・筆圧・修正はモデルが自分で選ぶ。
 
-## 2. 評価段階
+```text
+登録画像
+  ├─ TagExtractorがタグを自動生成
+  └─ CaptionExtractorが文章を自動生成
+             ↓
+Policyへ渡すのは「文章＋白紙＋自分の途中状態」
+             ↓
+ラフ → 下書き → 本描き → 基本色 → 陰影・仕上げ → 修正・確認 → 完成
+             ↓
+生成画像（＋自分で実際に実行したAction履歴）
+             ↓
+Evaluatorだけが登録画像と比較
+             ↓
+Rewardを使ってPolicyの学習パラメータを更新
+```
 
-評価はWorkflowの複数段階で行えます。
+「目標画像をPolicyへ渡さずにどう学ぶのか？」：目標画像は**Evaluator/Trainerが学習損失を計算するときだけ**参照する。Policyは自分の失敗・成功を報酬として受けて、次の試行の行動確率を更新する。元の画像から人間の過去の筆跡を推定するわけではない。
 
-### Sketch評価
+## 3. 学習のBaseline
 
-候補component:
+最初は小さなキャンバス・単純な形で、更新可能なPolicyが**少数の候補Actionを生成→実行→報酬を測定→最適化**するところまでを確認する。
 
-- composition
-- silhouette / readability
-- anatomy / structure
-- prompt alignment
-- line economy
+- **Policy**：Action type・ブラシ12クラス・固定256色・サイズ19・不透明度11・各点の筆圧11・筆圧パターン5、レイヤーと軌跡を予測。
+- **Controller**：全7工程の入場・退出を固定し、`skip_stage`を拒否。ラフ/下書き/本描きは各専用レイヤーで描く。後半の色・陰影・修正を描く必要がなければ**対応工程で理由付きレビュー**を記録。
+- **Renderer**：全Actionを適用し、各段階の画像とレイヤーを保持。
+- **Evaluator**：訓練用の目標画像と生成画像の差を、形・輪郭・色・知覚距離・行動効率等で計算。
+- **Optimizer**：Actionに対する報酬でPolicyを更新。REINFORCE＋Baseline等を最初の比較対象とする。差分可能Rendererは将来の比較方式。
 
-### Color評価
+報酬の計算だけ、あるいは最もよい画像を後から選ぶだけでは「学習した」ことにならない。**学習前後のcheckpointが違い、次の試行の行動選択が改善すること**を検証する。
 
-候補component:
+詳細な損失・必要なログ・限界は[DrawingPolicyの精度仕様](drawing_policy_accuracy_v1.md)。
 
-- color harmony
-- foreground/background separation
-- lighting consistency
-- material consistency
-- prompt alignment
+## 4. 学習の成果をどう評価するか
 
-### Final評価
+工程別の画像比較指標と一筆ごとの報酬の初期設計は[工程別Reward](stage_reward_v2.md)が正本。**対象画像・その特徴・対象依存スコアは、同一試行中のPolicy観測へ入力禁止**。学習試行が終わってからTrainerが更新し、次の試行で改善したかを測る。報酬に合わせてPolicy重みが変わっただけで高品質とはしない。
 
-候補component:
+| 評価対象 | 合格の考え方 |
+| --- | --- |
+| 画像を登録できるか | 画像だけで登録し、タグ・promptが自動生成される |
+| 抽出器を切り替えられるか | モデル・設定・キャッシュ・Dataset versionが正しく切り替わる |
+| 目標画像を隠しているか | Policyは文章と自分の描画状態しか見ない |
+| 固定工程を守るか | ラフ→下書き→本描き→…→仕上げをスキップ/逆順にしない |
+| 筆を実際に動かしたか | 本物のActionがあり、全工程をReplayできる |
+| 学習したか | Policyのパラメータ更新と未見画像での改善が確認できる |
+| 品質がよいか | 画像距離、文章一致、独立の人間評価を別々に保存 |
 
-- overall preference
-- prompt alignment
-- composition
-- anatomy / structure
-- line quality
-- color quality
-- detail / coherence
+固定工程を守っただけで高精度ではない。画像だけを一括変換して出力しても、実際のActionがないため不合格。
 
-## 3. Score表現
+## 5. 画像データの分割と再現性
 
-scoreはstructured dataとして保持します。
+元画像の内容ハッシュ・近重複グループを使い、train/validation/testを**抽出器の調整より先に固定**する。Tag/Caption抽出器・PromptBuilder・画像の正規化・palette/brush/段階表/StageWorkflow/Renderer/Reward/Policyのバージョンとseedを保存する。
 
-    Score {
-      overall: 0.84
-      components: {
-        composition: 0.91
-        line_quality: 0.79
-        color_quality: 0.87
-      }
-    }
+Policyは**目標画像を観測しない**。train/validation/testの間で作品や派生画像を共有しない。同一promptの似た作品も意識して分割する。
 
-aggregate scoreは設定可能なweightから計算できますが、元componentは失わないようにします。
+各試行について生成Action・途中画像・報酬と更新前後checkpointを保存し、失敗例を消さない。完成画像の再生一致と「画質が良い」は別の条件。
 
-## 4. Human evaluation
+## 6. 出来ていることと未実装
 
-人間の選好もEvaluatorの1つとして扱います。
+現状は**設計の段階**。TagExtractor/CaptionExtractor、画像だけのTrial Trainer、固定工程Controller、高精度12ブラシのRenderer、絵を描いて上達するPolicyが実装完了・高品質に収束したという意味ではない。
 
-GUI操作候補:
-
-- A/B選択
-- approve
-- reject
-- 簡易rating
-- 理由/category annotation
-
-人間の判断は自動Evaluatorのscoreと並べて保存します。
-
-## 5. Selection
-
-EvaluationとSelectionを分離します。
-
-例:
-
-- best score
-- top-k
-- 上位candidateからのweighted random
-- diversity-aware selection
-- 複数componentに対するPareto selection
-
-MVPではbest / top-kのみ必須とします。
-
-## 6. 保存対象
-
-将来の学習に利用するため、final imageだけでなく次を保存します。
-
-- prompt
-- parent artifact ids
-- workflow version
-- step sequence
-- step parameters
-- model/checkpoint ids
-- random seeds
-- intermediate artifacts
-- evaluator outputs
-- selection result
-- final acceptance / rejection
-
-これにより完成画像だけでなく制作手順レベルの学習・分析が可能になります。
-
-## 7. 将来戦略
-
-基盤完成後の候補:
-
-- reinforcement learning
-- evolutionary search
-- beam search
-- workflow-order search
-- learned evaluator
-- preference model
-- self-correction loop
-- adaptive branching / candidate count
-
-これらは最初のMVP必須要件ではありません。
+[受け入れ試験](drawing_process_acceptance.md)の将来のv2学習ゲートを満たすまで「画像だけから学習した」や「高精度なイラストが描ける」と報告しない。旧`drawing-episode/v1`のgoldenは引き続きReplay検査用に維持する。

@@ -26,15 +26,21 @@
 
 ## 3. 実装前に読む順番
 
-コード変更の場合:
+**人間が初見で分かる入口**：[設計ガイド](../developers/start_here.md)。実装者もまずここで目的と既実装・未実装の区別を確認する。ブラシ実装の場合は[固定段階表と筆圧変化](../developers/brush_control_levels_v2.md)および[12種ブラシ](../developers/brush_presets_v2.md)の正本を読む。
 
-1. 対象Issue
-2. [ソースコードガイド](../developers/source_code_guide.md)
-3. 対象componentのdeveloper文書
-4. 関連test
-5. 実装本体
+**描画・Workflow・評価・学習に関する変更の場合は、Issueを読む前に目的を必ず確認する。**
 
-大きな方針判断が含まれる場合は [コンセプト](../kadoka/concept.md) と [実装計画](../kadoka/implementation_plan.md) も確認する。
+1. [コンセプト](../kadoka/concept.md)（最上位の目的）
+2. **[画像だけで描いて学ぶ正本](../developers/image_only_learning_v1.md)と[固定制作工程](../developers/fixed_drawing_workflow_v2.md)**（ラフ→下書き→本描きを飛ばせない）
+3. [制作過程v1](../developers/drawing_process_v1.md)（旧形式のAction画素Replay互換契約）
+4. [描画受け入れ試験](../developers/drawing_process_acceptance.md)（合否）
+5. [画像の登録・タグ/文章の自動抽出](../developers/drawing_data_quality_v1.md)・[DrawingPolicy自己試行学習](../developers/drawing_policy_accuracy_v1.md)
+6. [実装計画](../kadoka/implementation_plan.md)（優先順位）
+7. 対象Issueと依存Issue
+8. [ソースコードガイド](../developers/source_code_guide.md)、対象componentの開発者文書と関連test
+9. 実装本体
+
+**Part Bankだけの変更でも、それをプロジェクトの主目的と呼ばない。** 説明が古い文書と矛盾する場合は、推測実装せず設計Issueへ報告する。
 
 ## 4. 品質要件
 
@@ -63,6 +69,9 @@ entrypointやbuilt artifactへ影響する変更では、生成したwheelをfre
 - provenance、version、seedなど再現性情報を理由なく落とす。
 - test/buildが壊れた状態を完成として扱う。
 - dataset、model checkpoint、secretをrepositoryへcommitする。
+- 画像部品の配置や完成画像の一括変換を「AI自身が固定工程で描いて学習した」と偽って実装完了にする。
+- `COLOR` を意味確認なしにbucket fill・画像の塗りつぶしと同義にする。
+- 固定256色パレットの番号対応を独断で変える。
 
 ## 7. 完了報告
 

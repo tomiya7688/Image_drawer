@@ -5,6 +5,8 @@
 
 この文書は「Image Drawerのコードを読みたいが、どこから入ればよいか」を解決するための案内です。
 
+**必読**：[最上位コンセプト](../kadoka/concept.md)、[制作過程v1](drawing_process_v1.md)、[受け入れ試験](drawing_process_acceptance.md)。以下は**現在実装済みの基盤**の入口であり、制作行動の学習がもう実装されたという意味ではありません。
+
 ## 1. 最短の入口
 
 最初に読むfile:
@@ -214,7 +216,11 @@ RETRIEVE_PARTS Step
 WorkflowRuntime
 ```
 
-## 6. 設計文書との対応
+## 6. 制作工程の学習で追加が必要な領域
+
+現状の`Part`/`Composition`は筆跡履歴ではありません。新たに実装する対象は`DrawingState`、`DrawingAction`、`DrawingEpisode`、`DrawingEngine`、`Recorder/Replay`、`DrawingPolicy`です。参照する正本は[制作過程v1](drawing_process_v1.md)。既存の`Artifact/Trajectory`へEpisode URIを接続する際も、各strokeをStepExecutionだけに格納しないでください。
+
+## 7. 設計文書との対応
 
 コードだけでなく設計意図も確認したい場合:
 
