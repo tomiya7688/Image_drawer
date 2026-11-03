@@ -33,12 +33,12 @@
 1. [コンセプト](../kadoka/concept.md)（最上位の目的）
 2. **[画像だけで描いて学ぶ正本](../developers/image_only_learning_v1.md)と[固定制作工程](../developers/fixed_drawing_workflow_v2.md)**（ラフ→下書き→本描きを飛ばせない）
 3. [制作過程v1](../developers/drawing_process_v1.md)（旧形式のAction画素Replay互換契約）
-3. [描画受け入れ試験](../developers/drawing_process_acceptance.md)（合否）
+4. [描画受け入れ試験](../developers/drawing_process_acceptance.md)（合否）
 5. [画像の登録・タグ/文章の自動抽出](../developers/drawing_data_quality_v1.md)・[DrawingPolicy自己試行学習](../developers/drawing_policy_accuracy_v1.md)
-5. [実装計画](../kadoka/implementation_plan.md)（優先順位）
-6. 対象Issueと依存Issue
-7. [ソースコードガイド](../developers/source_code_guide.md)、対象componentの開発者文書と関連test
-8. 実装本体
+6. [実装計画](../kadoka/implementation_plan.md)（優先順位）
+7. 対象Issueと依存Issue
+8. [ソースコードガイド](../developers/source_code_guide.md)、対象componentの開発者文書と関連test
+9. 実装本体
 
 **Part Bankだけの変更でも、それをプロジェクトの主目的と呼ばない。** 説明が古い文書と矛盾する場合は、推測実装せず設計Issueへ報告する。
 
