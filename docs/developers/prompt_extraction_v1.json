@@ -1,0 +1,128 @@
+{
+  "schema_version": "idraw-prompt-extraction/v1",
+  "profile_id": "human-prompt-aligned-v1",
+  "status": "architecture-and-router-implemented; model-weights-not-included",
+  "external_training_input": [
+    "image"
+  ],
+  "model_routing": {
+    "priority": [
+      "quality_primary",
+      "qwen_local_fallback"
+    ],
+    "quality_primary": {
+      "role": "best_available_benchmarked_vision_language_model",
+      "provider_id": "user_selected_accuracy_first_vlm",
+      "model_id": "configured_in_application_settings",
+      "endpoint": "configured_https_openai_compatible_chat_completions",
+      "json_mode": "provider_dependent"
+    },
+    "qwen_local_fallback": {
+      "role": "fallback_when_primary_refuses_or_fails",
+      "provider_id": "qwen_local",
+      "model_example": "Qwen/Qwen3-VL-8B-Instruct",
+      "ollama_model_example": "qwen3-vl:8b",
+      "endpoint_example": "http://127.0.0.1:11434/v1/chat/completions",
+      "local_model_required": true,
+      "cannot_guarantee_all_content_is_supported": true
+    },
+    "primary_failure_triggers": [
+      "refused",
+      "empty",
+      "invalid_format",
+      "unverified_facts",
+      "verifier_refused",
+      "unavailable"
+    ],
+    "both_failed": "skip_current_image_with_reason;never_write_generic_caption;never_request_manual_text",
+    "unexpected_invalid_input": "stop_and_report_configuration_error",
+    "provider_refusal_sources": [
+      "structured_message.refusal",
+      "finish_reason.content_filter",
+      "http_safety_error_code",
+      "plain_refusal_text"
+    ],
+    "retries_for_network_errors": "configurable;default_fallback"
+  },
+  "generation": {
+    "structured_facts": [
+      "summary",
+      "subjects",
+      "count",
+      "attributes",
+      "relations",
+      "composition",
+      "background",
+      "style",
+      "tags"
+    ],
+    "quality_rules": [
+      "no_unobserved_details",
+      "no_generic_quality_tokens",
+      "no_hallucinated_negative_prompt",
+      "preserve_count_color_spatial_relation",
+      "keep_nsfw_descriptions_factual_when_model_supports_them",
+      "avoid_promises_about_unrestricted_models"
+    ],
+    "optional_independent_verifier": true,
+    "hallucination_rejection": "if verifier unsupported claims: retry with fallback",
+    "prompt_variants": [
+      "short",
+      "standard",
+      "detailed"
+    ],
+    "sampling_weights": [
+      40,
+      40,
+      20
+    ],
+    "human_prompt_alignment": {
+      "normalizer": "normalize_prompt",
+      "inference_uses_same_text_encoder": true,
+      "avoid_overfitting_to_long_captions": true,
+      "never_replace_user_negation": true,
+      "evaluations": [
+        "subject",
+        "count",
+        "color",
+        "left_right",
+        "style",
+        "short_prompt_following",
+        "natural_language_vs_tag_style",
+        "diversity"
+      ],
+      "multilingual_evaluation": [
+        "ja",
+        "en"
+      ],
+      "comparison_baselines": [
+        "plain_caption",
+        "structured_recaption",
+        "structured_recaption_with_fallback"
+      ]
+    }
+  },
+  "cache": {
+    "must_include": [
+      "image_sha256",
+      "primary_id_and_model",
+      "fallback_id_and_model",
+      "verifier_id_and_model",
+      "profile_version",
+      "extraction_instruction_hash"
+    ],
+    "do_not_include": [
+      "api_key",
+      "user_supplied_text_file"
+    ],
+    "persist_success_only": true,
+    "record_attempts_and_fallback_reason": true
+  },
+  "research": [
+    "https://cdn.openai.com/papers/dall-e-3.pdf",
+    "https://arxiv.org/abs/2310.16656",
+    "https://ml-research.github.io/human-centered-genai/projects/t2i-synthetic-captions/index.html",
+    "https://openaccess.thecvf.com/content/CVPR2026/html/Tang_CCCaption_Dual-Reward_Reinforcement_Learning_for_Complete_and_Correct_Image_Captioning_CVPR_2026_paper.html"
+  ],
+  "related_repository": "https://github.com/tomiya7688/comfyUI_support_tools"
+}
