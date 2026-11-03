@@ -7,6 +7,7 @@ import json
 from pathlib import Path
 
 CATALOG = Path(__file__).resolve().parents[1] / "docs" / "developers" / "brush_presets_v2.json"
+LEVELS = Path(__file__).resolve().parents[1] / "docs" / "developers" / "brush_control_levels_v2.json"
 
 FIELDS = {
     "id",
@@ -14,8 +15,8 @@ FIELDS = {
     "mode",
     "tip",
     "family",
-    "default_size_q8",
-    "default_opacity_u16",
+    "default_size_level_id",
+    "default_opacity_level_id",
     "spacing_q16",
     "hardness_u16",
     "flow_u16",
@@ -48,15 +49,18 @@ def test_preset_catalog_is_fixed_and_independent_from_color():
     assert sum(p["mode"] == "erase" for p in presets) == 2
     assert {"round", "flat", "soft_round", "grain_round"} == {p["tip"] for p in presets}
     assert ids[-2:] == ["eraser_hard", "eraser_soft"]
-    assert raw["adjustable_fields"] == ["size_q8", "opacity_u16"]
+    assert raw["adjustable_fields"] == ["size_level_id", "opacity_level_id"]
+    assert raw["control_set_id"] == json.loads(LEVELS.read_text(encoding="utf-8"))["control_set_id"]
     assert all(set(p.keys()) == FIELDS for p in presets)
 
     for p in presets:
         assert p["mode"] in {"stroke", "erase"}
         assert p["id"].replace("_", "").isalnum()
         assert p["id"].startswith(tuple("abcdefghijklmnopqrstuvwxyz"))
-        assert 64 <= p["default_size_q8"] <= 65536
-        assert 1 <= p["default_opacity_u16"] <= 65535
+        assert type(p["default_size_level_id"]) is int
+        assert type(p["default_opacity_level_id"]) is int
+        assert 0 <= p["default_size_level_id"] < 19
+        assert 0 <= p["default_opacity_level_id"] < 11
         assert 0 <= p["angle_cdeg"] < 36000
         for key in Q16_FIELDS:
             assert type(p[key]) is int
