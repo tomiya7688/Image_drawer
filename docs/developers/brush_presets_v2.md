@@ -4,6 +4,8 @@
 
 # 標準ブラシプリセット：brush-v2-core12
 
+**最初に読む：** [ブラシのサイズ・不透明度・筆圧をどう扱うか](brush_control_levels_v2.md)。ここではプリセットの固定特性とRendererへの接続だけを定義する。
+
 ## 1. なぜプリセットを使うか
 
 Image Drawer は **txt2img**。モデルは文章だけから白紙上に一筆ずつ描き、その過程を学習する。鉛筆・ペン・塗り筆・水彩風・エアブラシなど、ペイントソフト間で共通する**用途の分類**を Image Drawer 自身のブラシIDへ集約する。
@@ -36,7 +38,7 @@ Image Drawer は **txt2img**。モデルは文章だけから白紙上に一筆�
 
 ## 3. ブラシセットの識別子・データ構造
 
-- `brush_set_id = "brush-v2-core12"`。`schema_version = "idraw-brush-presets/2"`。
+- `brush_set_id = "brush-v2-core12"`。`schema_version = "idraw-brush-presets/2"`。サイズ・不透明度・筆圧・傾きの段階表は独立した `control_set_id = "brush-controls-v2-levels-20261103"`（[段階表JSON](brush_control_levels_v2.json)）。
 - `brush_id` はmanifest内で一意のASCII `[a-z][a-z0-9_]*`で、削除/別の形に再利用禁止。GUI表示名とは独立。
 - `mode` は `stroke` または `erase`。`family` はGUI用の分類（`sketch,ink,color,paint,shade,texture,erase`）。
 - `tip` は `round / flat / soft_round / grain_round`。道具の見た目のラベルではなく、rendererが実装する幾何カーネルを特定する。
@@ -48,8 +50,8 @@ Image Drawer は **txt2img**。モデルは文章だけから白紙上に一筆�
 
 | フィールド | 型／意味 |
 | --- | --- |
-| `default_size_q8` | 筆先径の初期値（px×256）、範囲64〜65536（0.25〜256px） |
-| `default_opacity_u16` | 基本の初期不透明度、1〜65535 |
+| `default_size_level_id` | サイズの初期レベルID、0〜18（[19段階](brush_control_levels_v2.md)のindex） |
+| `default_opacity_level_id` | 不透明度の初期レベルID、0〜10（[11段階](brush_control_levels_v2.md)のindex） |
 | `spacing_q16` | 筆先径に対する連続スタンプ間隔の割合、1〜65535 |
 | `hardness_u16` | 筆先半径に対して不透明度が落ち始める比率、0〜65535 |
 | `flow_u16` | 1回のスタンプの描画量、1〜65535 |
@@ -63,15 +65,15 @@ Image Drawer は **txt2img**。モデルは文章だけから白紙上に一筆�
 
 ## 4. AIと人間が変更してよいもの
 
-v2の最初の正式な調整可能項目は **`size_q8` と `opacity_u16` の2つだけ**。硬さ・grain・tip・spacingなどはブラシプリセットを選び直すことで切り替える。初期から全パラメータを自由予測させて学習空間を不必要に拡げない。
+v2の最初の正式な調整可能項目は **`size_level_id` と `opacity_level_id` の2つだけ**。AIが実際に選べる値は段階表のIDに限る。GUIも同じ段階表で表示する。硬さ・grain・tip・spacingなどはブラシプリセットを選び直すことで切り替える。初期から全パラメータを自由予測させて学習空間を不必要に拡げない。
 
-1. `select_brush({"brush_id":"ink_gpen"})`：選択ブラシを切り替え、`size_q8`・`opacity_u16`は**そのプリセットのdefaultへリセット**する。変更前の他のブラシの調整値は引き継がない。
-2. `set_brush_params({"size_q8":1280,"opacity_u16":60000})`：選択済みブラシに対して両方を**同時に更新**。片方だけ変更するUIも、現在値を含む完全なpayloadを記録する。ブラシ未選択時は拒否。
+1. `select_brush({"brush_id":"ink_gpen"})`：選択ブラシを切り替え、`size_level_id`・`opacity_level_id`は**そのプリセットのdefaultへリセット**する。変更前の他のブラシの調整値は引き継がない。
+2. `set_brush_params({"size_level_id":7,"opacity_level_id":8})`：10px・80%に変更する例。選択済みブラシに対して両方のIDを**同時に更新**。片方だけ変更するUIも、現在値を含む完全なpayloadを記録する。ブラシ未選択時は拒否。
 3. `select_color({"color_id":180})`：固定256色から色を選び、筆先と設定は変更しない。選択色は消しゴムの動作に使わない。
 4. `stroke_v2`／`erase_v2`：下記の高精細サンプル列で筆を動かす。`mode=erase`のブラシは`stroke_v2`に使えない。`mode=stroke`のブラシは`erase_v2`に使えない。GUIやモデルが必要なブラシへ`select_brush`を発行する。
 5. 切り替え・設定・消去は**それぞれ独立したAction**で記録し、modelの予測対象にする。推論時にrendererが勝手に近いプリセットへ置き換えたり、設定変更を黙って挿入したりしない。
 
-学習器は **`p(action_type)`、`p(brush_id | select_brush)`、`p(size, opacity | set_brush_params)`、`p(color_id | select_color)`、`p(stroke/erase samples)`** に分ける。色とbrushの組み合わせで一つのクラスを作らない。erase用／描画用の合法候補をマスクする。単なるプリセットの頻出一致だけで制作能力を評価しない。
+学習器は **`p(action_type)`、`p(brush_id | select_brush)`、`p(size_level_id, opacity_level_id | set_brush_params)`、`p(color_id | select_color)`、`p(stroke/erase samples)`** に分ける。サイズ19クラス・不透明度11クラス・筆圧11クラスと筆圧パターン5クラスの意味は[段階表](brush_control_levels_v2.md)が正本。色とbrushの組み合わせで一つのクラスを作らない。erase用／描画用の合法候補をマスクする。単なるプリセットの頻出一致だけで制作能力を評価しない。
 
 ## 5. 高精度のペンサンプル形式（v2・共通）
 
@@ -83,9 +85,9 @@ v2の最初の正式な調整可能項目は **`size_q8` と `opacity_u16` の2�
   "payload": {
     "samples": [
       {"x_q8": 2560, "y_q8": 5120, "time_us": 0,
-       "pressure_u16": 32000, "tilt_x_cdeg": null, "tilt_y_cdeg": null},
+       "pressure_level_id": 5, "tilt_x_level_id": null, "tilt_y_level_id": null},
       {"x_q8": 2816, "y_q8": 5376, "time_us": 16000,
-       "pressure_u16": 45000, "tilt_x_cdeg": null, "tilt_y_cdeg": null}
+       "pressure_level_id": 7, "tilt_x_level_id": null, "tilt_y_level_id": null}
     ]
   }
 }
@@ -93,10 +95,10 @@ v2の最初の正式な調整可能項目は **`size_q8` と `opacity_u16` の2�
 
 - `x_q8 / y_q8`：画素中心の1/256単位の非負整数。各 `0..(width-1)*256` ／ `0..(height-1)*256`。2Dのサブピクセル精度を保持する。
 - `time_us`：一本のストローク開始からの相対microsecond、先頭0、非減少、`0..60,000,000`。
-- `pressure_u16`：`null`または整数0〜65535。`null`はデバイスから観測できなかったことを意味し、0や最大値を「実測値」と偽装しない。
-- `tilt_x_cdeg, tilt_y_cdeg`：両方`null`または両方整数`-9000..9000`。傾きはキャンバス座標軸を基準にし、+xは右、+yは下への傾き。原デバイスのセンサー座標をキャンバスに変換するNormalizerを必ずversion付きで保存。欠損はそのまま保存し、勝手に「水平」と断定しない。
+- `pressure_level_id`：0〜10または`null`（未取得）。[筆圧11段階](brush_control_levels_v2.md)のindex。**実測センサーの元の細かい値はraw sidecarに保存する**。levelに丸めた値を元の実測値として扱わない。
+- `tilt_x_level_id, tilt_y_level_id`：両方`null`または両方0〜12。傾きは[15°刻みの13段階](brush_control_levels_v2.md)へ正規化。+xは右、+yは下。原センサーの傾きはraw sidecarに残し、normalizerのversionを保存する。
 - `samples`：1〜4096個。連続サンプル間の時間、筆圧・傾きの変動を**生の実演に由来する時系列**として保持。座標の間引きや平滑化をした場合は`normalizer_version`・元のraw data参照を残す。
-- renderer内の有効筆圧は`pressure_u16=null`なら65535（サイズ等の計算上は最大）とするが、**保存サンプルのnullは変更しない**。有効tiltは未観測時0とする。時間は現行基準Rendererでは筆跡の密度を変更しない観測・学習情報とする。
+- Renderer内部では`pressure_level_id=null`の場合だけ計算上の100%を使用するが、**保存したnullは保持する**。`tilt_x_level_id/tilt_y_level_id=null`は計算上の0°として扱う。時間は現在のRendererではスタンプ密度の制御に使わない。筆圧パターンは学習用の補助予測であり、Rendererは**各サンプルのpressure_level_id**を参照する。
 - 実行中のtool選択とサイズ/透明度は**strokeの開始時点で固定**。ストローク中に別の選択が入ったらGUIは順序キューで後続に回し、既存strokeの意味を変えない。
 - `stroke_v2`は`DrawingEpisode/v2`の行動であり、旧`drawing-episode/v1`スキーマに勝手に追加しない。Episode v2のJSON Schema・Action validation・Replayテストは**対応Renderer実装Issueの必須成果物**とする。
 
@@ -106,7 +108,7 @@ v2の最初の正式な調整可能項目は **`size_q8` と `opacity_u16` の2�
 
 最初の`brush-raster-v2` rendererが保証すべき意味：
 
-1. `stroke_v2`は同一の選択色を使い、サンプル順にブラシのスタンプを置く。筆圧に応じた**径・不透明度**は `effective_fraction = min_fraction + (65535-min_fraction)*pressure/65535`（各最小値はプリセットから取得）。径とalphaは選択size/opacityにこの係数を掛ける。
+1. `stroke_v2`は同一の選択色を使い、サンプル順にブラシのスタンプを置く。まず`size_level_id → size_px`、`opacity_level_id → percent`、各点の`pressure_level_id → percent`を[固定段階表](brush_control_levels_v2.json)から解決する。筆圧に応じた**径・不透明度**は `effective_fraction = min_fraction + (65535-min_fraction)*pressure_u16/65535`（各最小値はプリセットから取得）。径とalphaは解決したsize/opacityにこの係数を掛ける。整数丸めの詳細はB1のRenderer契約で定義する。
 2. 丸・平・soft・grainの4つのtipが、それぞれ別の**形状・エッジ・粒子欠落**を作る。`hardness`はエッジの強さ、`aspect`と`angle`は平筆の輪郭を決める。`grain`は外部画像でなく、seed付きの**独自決定的なprocedural noise**のみで実現する。
 3. `spacing`は筆先径に対する連続スタンプ配置間隔、`flow`は各スタンプのインク量を制御する。1ストローク内で複数スタンプが重なる場合、**v1の「1ストロークの合成は1画素1回」ではなく、v2ではスタンプ順のsource-over**で濃くなる。この差は`renderer_profile`で区別する。
 4. `erase_v2`は選択レイヤーのalphaを減らす`destination-out`。RGBを固定256色から選ばず、下のレイヤーを直接変更しない。前景のレイヤーが透明になれば下描きが見える。
@@ -118,10 +120,10 @@ v2の最初の正式な調整可能項目は **`size_q8` と `opacity_u16` の2�
 
 | Stage | 成果物 | 合格条件 |
 | --- | --- | --- |
-| B0：一覧 | [JSON manifest](brush_presets_v2.json)・ID・初期値・選択/調整意味論 | 12種類・ID重複なし・色と独立・値域テスト成功 |
+| B0：一覧 | [12種のJSON manifest](brush_presets_v2.json)＋[サイズ/不透明度/筆圧の固定段階表](brush_control_levels_v2.json)・選択/調整意味論 | 12種・19/11/11段階・5パターン、ID重複なし、色と独立、値域テスト成功 |
 | B1：描画器 | 4 tip・サイズ/opacity/圧力効果・筆先配置・alpha・grainとeraseの決定的数値仕様 | **全12種×複数筆圧×透明度×反復筆跡**のRGBA goldens。異実装で一致 |
 | B2：収集GUI | プリセット・サイズ・不透明度を編集し、人間の筆跡・筆圧・時刻を記録 | 保存→Replayで同じレイヤーRGBA、欠損センサー値を保持 |
-| B3：学習 | human履歴から道具選択・調整・点列を逐次予測 | 12種を別の選択headで評価、brush/categoryの偏りとclosed-loop品質を報告 |
+| B3：学習 | human履歴から道具選択・調整・点列を逐次予測 | 12種・サイズ19・不透明度11・筆圧11と**筆圧パターン5種の補助head**を個別評価し、closed-loop品質を報告 |
 
 B0ができただけでB1～B3が完成したことにはならない。水彩物理やクリスタ独自ブラシ資産の互換性を主張しない。
 
