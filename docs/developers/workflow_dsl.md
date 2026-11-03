@@ -15,7 +15,7 @@
 
 ## 2. 現在の実装済みDSLと将来の目標を区別
 
-**基幹のWorkflowはtxt2img専用の入力契約を持つ**。推論時の唯一の必須外部入力は`INPUT prompt: Text`であり、`Image`・`LineArt`・`DrawingEpisode`等の外部入力は必須ではない。`DRAW_EPISODE`は外部画像を読まず、白紙から生成を開始する。`REPLAY_EPISODE`はモデル自身が直前に生成したEpisodeを画像にする。主たるワークフロー出力は`Image`。Episodeはその親Artifactとして保存される。
+**基幹のWorkflowはtxt2img専用の入力契約を持つ**。学習時は[画像のみ自己描画学習](image_only_learning_v1.md)に従い、生成時は[固定制作工程](fixed_drawing_workflow_v2.md)の**ラフ→下書き→本描き→基本色→陰影→仕上げ**を順に実行する。推論時の唯一の必須外部入力は`INPUT prompt: Text`であり、`Image`・`LineArt`・`DrawingEpisode`等の外部入力は必須ではない。`DRAW_EPISODE`は外部画像を読まず、白紙から生成を開始する。`REPLAY_EPISODE`はモデル自身が直前に生成したEpisodeを画像にする。主たるワークフロー出力は`Image`。Episodeはその親Artifactとして保存される。
 
 この入力契約を持たないimg2img／既存画面の編集／人間の実演Replayは**別モード**。モデル自身のActionによる生成なしでPart合成や固定Scriptを実行し、`OUTPUT image`を返すだけではtxt2imgの合格にならない。
 
@@ -31,9 +31,9 @@ image = REPLAY_EPISODE(episode)
 OUTPUT image
 ```
 
-- `DRAW_EPISODE`（**新設予定**）：PromptとPolicyを使って1行動ずつ`DrawingEngine`へ適用し、`finish`までの`DrawingEpisode`を返す。単一画像の一括生成は不可。
+- `DRAW_EPISODE`（**新設予定**）：PromptとPolicyを使い、固定StageControllerの**ラフ→下書き→本描き→基本色→陰影→仕上げ**に沿って1行動ずつ`DrawingEngine`へ適用し、`finish`までの`DrawingEpisode`を返す。Stageを飛ばす・逆行する単一画像生成は不可。
 - `REPLAY_EPISODE`（**新設予定**）：保存済み`DrawingEpisode`を厳密に再生して最終`Image`を返す。関連するEpisode URIとIDをArtifact系譜へ残す。
-- `SKETCH`／`LINE`／`COLOR`／`CORRECT`（**将来のWorkflow区間・互換名候補**）：それぞれ描く目的や操作期間を示す。特定フェーズを一度で変換する演算を意味しない。**v1では単独の画像変換Operatorとして実装しない**。工程の変化は`DrawingAction.set_phase`として記録する。
+- **v2固定工程**：`rough/sketch/final_drawing/base_color/shading/refine`の順序は[工程v2](fixed_drawing_workflow_v2.md)で固定する。`SKETCH`／`LINE`／`COLOR`／`CORRECT`は旧互換名または各工程内部の説明に過ぎず、**任意の順序をAIに選ばせない**。工程移行は新v2の`advance_stage`で記録する。旧v1の`set_phase`は画素Replay互換だけに残す。
 - `EVALUATE`／`SELECT`（一部既存）：上位Artifactの比較に使う。描画時の次アクション推論を代替しない。
 
 Stepの**契約案**（実装IssueでStepSchemaに反映するまで未実装）：
