@@ -43,7 +43,8 @@
 | --- | --- | --- |
 | `ImageDataset` | 画像だけの登録、正規化、重複・split・version管理。内部ID/ハッシュは自動生成 | 画像以外のファイルや権利情報を利用者に要求する |
 | `TagExtractor/CaptionExtractor` | 選択されたモデルで画像からタグと文章を抽出 | 利用者にprompt/タグを書かせることを必須にする |
-| `PromptBuilder` | 抽出したタグ/説明文から**非空の学習用プロンプト**を生成する | 利用者に別途テキストを書かせる |
+| `PromptExtractionPipeline` | 高精度VLM優先、refusal・形式・画像照合の失敗時Qwen等へ自動切替。短文/標準文/詳細文を生成 | 失敗を隠してダミーpromptを学習する |
+| `PromptBuilder` | 画像からの事実を人間の自然な短文・標準文・詳細文へ整形し、学習分布を制御する | 利用者に別途テキストを書かせる |
 | `TextEncoder` | プロンプトを描画Policyが使う**意味特徴**へ変換。学習/生成で同じ条件形式を使用 | 学習時だけ正解画像の特徴を紛れ込ませる |
 | `DrawingPolicy` | prompt＋自分のstateから次の合法Actionを予測 | 元画像やその特徴を観測する |
 | `FixedStageController` | 全7工程の必須順序、工程別の書込可能レイヤー、レビュー理由、レイヤー表示/上下、終了/予算管理 | 筆跡や位置を固定Scriptで決める／Stageをskippingする |
@@ -60,6 +61,8 @@
 - **DrawingState**：自分が今まで描いたキャンバス、透明レイヤー、工具状態、現在のStage。
 - **DrawingEpisode**：空白から完成までの**実際のActionの列**。推論・学習のtrialで同じ形式。
 - **WorkflowSpec**：学習・生成・評価の上位処理とデータの受け渡し。Action一件ごとの代わりではない。
+
+**画像から文章を抽出し拒否時に切り替える構成**：[高精度プロンプト抽出](prompt_extraction_v1.md)。実装基盤は`image_drawer/prompting/`、実VLM設定と学習GUIへの接続は未完成。
 
 **新しい固定工程Controllerの動作**：[工程移行・レイヤー・atomic記録](stage_controller_contract_v2.md)。**画像による工程別採点**：[Stage Reward](stage_reward_v2.md)。Controllerは対象画像を観測せず、Trainerは試行後の報酬からPolicyを更新する。
 
