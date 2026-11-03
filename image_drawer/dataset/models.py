@@ -8,7 +8,6 @@ from typing import Any
 from image_drawer.core import SerializableModel
 
 SPLITS = ("train", "validation", "test")
-RIGHTS_STATUSES = ("unconfirmed", "confirmed")
 
 
 # {
@@ -72,7 +71,6 @@ class QualityIssue(SerializableModel):
 #     prompt_builder_version: PromptBuilderのversion
 #     cache_key: 画像と抽出器の組み合わせから決まる再利用の鍵
 #     quality_issues: 品質警告
-#     rights_status: unconfirmed または confirmed
 #   ]
 # }
 @dataclass(slots=True)
@@ -93,7 +91,6 @@ class TrainingImage(SerializableModel):
     prompt_builder_version: str
     cache_key: str
     quality_issues: list[QualityIssue] = field(default_factory=list)
-    rights_status: str = "unconfirmed"
 
 
 # {

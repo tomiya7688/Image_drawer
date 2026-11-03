@@ -52,13 +52,8 @@ splitは`SHA256(seed:group_id)`から決定的に割り当て、train 8割・val
 
 - `PolicyInput`は`image_id`と`prompt`だけを持ちます。画像のパス、ハッシュ、画素を持ちません。
 - `RewardTarget`は目標画像のパスとハッシュを持ち、**Trainerの評価器だけ**が読みます。
-- 権利が未確認の画像があるsplitは、既定で`ValueError`にします（`require_rights_confirmed=False`で外せます）。
 
 型が分かれていることは、Policyが目標画像を見ないことの**必要条件**であって、十分条件ではありません。Policy側のコードが`RewardTarget`を受け取らないことは、S3のTrainerのテストで確認します。
-
-## 権利の状態
-
-`--confirm-rights`（`rights_status="confirmed"`）は、**その登録で走査した画像にだけ**適用します。以前の登録分の状態は変わりません。確認済みの状態を、再登録で未確認へ戻すことはありません。
 
 ## 制限
 

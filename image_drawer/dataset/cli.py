@@ -31,11 +31,6 @@ def main(argv: Sequence[str] | None = None) -> int:
     register.add_argument("--tagger", default="color-layout-tags")
     register.add_argument("--captioner", default="color-layout-caption")
     register.add_argument("--seed", type=int, default=0)
-    register.add_argument(
-        "--confirm-rights",
-        action="store_true",
-        help="登録する画像の利用権利を確認済みとして記録する",
-    )
     commands.add_parser("extractors", help="登録済みの抽出器を一覧する")
     show = commands.add_parser("show", help="Datasetの概要を表示する")
     show.add_argument("--dataset", required=True)
@@ -76,7 +71,6 @@ def main(argv: Sequence[str] | None = None) -> int:
             tagger_id=args.tagger,
             captioner_id=args.captioner,
             seed=args.seed,
-            rights_status="confirmed" if args.confirm_rights else "unconfirmed",
         )
     except (OSError, ValueError, KeyError) as exc:
         print(

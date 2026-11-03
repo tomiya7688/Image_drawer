@@ -12,7 +12,6 @@ from typing import Iterator
 
 from image_drawer.core import SerializableModel
 from image_drawer.dataset.models import (
-    RIGHTS_STATUSES,
     SPLITS,
     ExtractorInfo,
     PolicyInput,
@@ -82,8 +81,6 @@ class DatasetManifest(SerializableModel):
         for image in self.images:
             if image.split not in SPLITS:
                 raise ValueError(f"invalid split: {image.split}")
-            if image.rights_status not in RIGHTS_STATUSES:
-                raise ValueError(f"invalid rights_status: {image.rights_status}")
 
     # {
     #   責務: [
@@ -137,35 +134,24 @@ class DatasetManifest(SerializableModel):
 #     iter_samples: 指定したsplitの画像を、Policyへ渡す入力と、評価器だけが読む目標に分けて返す
 #   ]
 #   処理: [
-#     1: 権利が未確認の画像があれば、既定では学習に使わせず拒否する
-#     2: 画像1件ごとに PolicyInput(prompt) と RewardTarget(画像パス)を別の型で返す
+#     1: 画像1件ごとに PolicyInput(prompt) と RewardTarget(画像パス)を別の型で返す
 #   ]
 #   引数: [
 #     dataset_dir: Datasetのディレクトリ
 #     split: train、validation、test のいずれか
-#     require_rights_confirmed: Trueなら権利が確認済みの画像だけを許す
 #   ]
 #   戻り値: [
 #     samples: (PolicyInput, RewardTarget)の組を、image_id順に返すイテレーター
 #   ]
 #   エラー: [
-#     ValueError: splitが不正、または権利が未確認
+#     ValueError: splitが不正
 #   ]
 # }
-def iter_samples(
-    dataset_dir: Path, split: str, *, require_rights_confirmed: bool = True
-) -> Iterator[tuple[PolicyInput, RewardTarget]]:
+def iter_samples(dataset_dir: Path, split: str) -> Iterator[tuple[PolicyInput, RewardTarget]]:
     if split not in SPLITS:
         raise ValueError(f"split must be one of {SPLITS}")
     manifest = DatasetManifest.load(dataset_dir)
     selected = [image for image in manifest.images if image.split == split]
-    # 使い始める前に全件の権利を確認し、学習の途中で例外にならないようにする。
-    if require_rights_confirmed:
-        unconfirmed = [i.image_id for i in selected if i.rights_status != "confirmed"]
-        if unconfirmed:
-            raise ValueError(
-                f"rights not confirmed for {len(unconfirmed)} image(s): {unconfirmed[:3]}"
-            )
     return (
         (
             PolicyInput(image_id=image.image_id, prompt=image.training_prompt),

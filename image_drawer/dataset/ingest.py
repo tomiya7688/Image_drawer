@@ -13,7 +13,6 @@ from typing import Any, Iterator
 from image_drawer.core import SerializableModel
 from image_drawer.dataset.manifest import DatasetManifest
 from image_drawer.dataset.models import (
-    RIGHTS_STATUSES,
     ExtractorInfo,
     QualityIssue,
     TrainingImage,
@@ -338,9 +337,8 @@ def _scan_sources(
 #     sha256: 画像のSHA-256
 #     group_id: 近重複のグループ
 #     previous: 既存のmanifestの同じ画像。無ければNone
-#     context: 登録全体の設定(registry、抽出器、seed、権利状態)
+#     context: 登録全体の設定(registry、抽出器、seed)
 #     report: 結果を書き込む報告
-#     scanned_now: 今回の走査で読んだ画像ならTrue。権利状態の新しい指定はこの画像にだけ適用する
 #   ]
 #   戻り値: [
 #     entry: TrainingImage
@@ -352,7 +350,6 @@ def _build_entry(
     previous: TrainingImage | None,
     context: "_Context",
     report: IngestReport,
-    scanned_now: bool,
 ) -> TrainingImage:
     key = compute_cache_key(sha256, context.tagger.info, context.captioner.info)
     relative = f"images/{sha256[:2]}/{sha256}.png"
@@ -377,10 +374,6 @@ def _build_entry(
     elif previous.cache_key != key:
         report.reextracted += 1
     report.quality_warnings += bool(issues)
-    # 権利の確認は利用者の明示だけで上がる。再登録で確認済みの状態を未確認へ戻さない。
-    confirmed = (scanned_now and context.rights_status == "confirmed") or (
-        previous is not None and previous.rights_status == "confirmed"
-    )
     return TrainingImage(
         image_id=f"img_{sha256[:16]}",
         image_sha256=sha256,
@@ -398,7 +391,6 @@ def _build_entry(
         prompt_builder_version=PROMPT_BUILDER_VERSION,
         cache_key=key,
         quality_issues=issues,
-        rights_status="confirmed" if confirmed else "unconfirmed",
     )
 
 
@@ -409,7 +401,6 @@ class _Context:
     tagger: Any
     captioner: Any
     seed: int
-    rights_status: str
 
 
 # {
@@ -428,13 +419,11 @@ class _Context:
 #     registry: 抽出器のregistry
 #     tagger_id, captioner_id: 利用者が選んだ抽出器
 #     seed: 分割の再現用の値
-#     rights_status: この登録で画像に付ける権利状態。confirmedは利用者の確認を意味する
 #   ]
 #   戻り値: [
 #     report: 追加・重複・再抽出・警告・失敗の件数と理由
 #   ]
 #   エラー: [
-#     ValueError: rights_statusが不正
 #     KeyError: 未登録の抽出器
 #   ]
 # }
@@ -446,17 +435,13 @@ def register_images(
     tagger_id: str,
     captioner_id: str,
     seed: int = 0,
-    rights_status: str = "unconfirmed",
 ) -> IngestReport:
-    if rights_status not in RIGHTS_STATUSES:
-        raise ValueError(f"rights_status must be one of {RIGHTS_STATUSES}")
     context = _Context(
         dataset_dir,
         registry,
         registry.tagger(tagger_id),
         registry.captioner(captioner_id),
         seed,
-        rights_status,
     )
     report = IngestReport()
     previous: dict[str, TrainingImage] = {}
@@ -464,7 +449,6 @@ def register_images(
         previous = {i.image_sha256: i for i in DatasetManifest.load(dataset_dir).images}
 
     hashes = _scan_sources(source_dir, dataset_dir, report)
-    scanned = set(hashes)
     for sha256 in previous.keys() - hashes.keys():
         image = _load_stored(dataset_dir / previous[sha256].image_path)
         try:
@@ -473,9 +457,7 @@ def register_images(
             image.close()
     groups = group_near_duplicates(hashes)
     images = [
-        _build_entry(
-            sha256, groups[sha256], previous.get(sha256), context, report, sha256 in scanned
-        )
+        _build_entry(sha256, groups[sha256], previous.get(sha256), context, report)
         for sha256 in sorted(hashes)
     ]
     DatasetManifest(

@@ -17,11 +17,10 @@ python -m pip install -e ".[dataset]"
 ## 登録する
 
 ```bash
-image-drawer-dataset register <画像のディレクトリ> --dataset <Datasetの保存先> --confirm-rights
+image-drawer-dataset register <画像のディレクトリ> --dataset <Datasetの保存先>
 ```
 
 - 対象は `.png`、`.jpg`、`.jpeg`、`.webp`、`.bmp`、`.tif`、`.tiff` です。元の画像は変更しません。
-- `--confirm-rights` は、登録する画像の利用権利を確認済みとして記録するオプションです。付けない場合は未確認として登録され、学習への利用は拒否されます。
 - 完全に同じ画像は1件だけ登録されます。わずかな明るさの変更や再保存など、同じ作品の派生とみなせる画像は同じグループにまとめられ、train・validation・testへの分割はグループ単位で決まります。
 - アニメーション、壊れたファイル、サイズ上限を超えるファイルは登録されず、結果の `errors` に理由が出ます。終了コードは1です。
 - 画像は、向きと色空間をそろえたRGBのPNGとして保存されます。透明な部分は白背景に合成されます。解像度は変わりません。
@@ -46,4 +45,3 @@ image-drawer-dataset show --dataset <保存先>
 ## 制限
 
 - 高性能なタグ付けモデルは組み込まれていません。必要な場合は、同じ抽出器の契約でPythonから登録してください([開発者向け文書](../developers/image_dataset.md))。
-- 画像の権利の確認は、利用者の申告を記録するだけです。ソフトウェアが権利を判定するわけではありません。

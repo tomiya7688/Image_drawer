@@ -203,7 +203,7 @@ def test_split_assignment_is_deterministic_and_seed_dependent():
 
 
 def test_policy_input_cannot_carry_the_target_image(source_dir, tmp_path):
-    register(source_dir, tmp_path, rights_status="confirmed")
+    register(source_dir, tmp_path)
     samples = (
         list(iter_samples(tmp_path / "dataset", "train"))
         + list(iter_samples(tmp_path / "dataset", "validation"))
@@ -215,26 +215,6 @@ def test_policy_input_cannot_carry_the_target_image(source_dir, tmp_path):
         assert {f.name for f in dataclasses.fields(PolicyInput)} == {"image_id", "prompt"}
         assert target.image_path not in json.dumps(dataclasses.asdict(policy_input))
         assert Path(target.image_path).is_file()
-
-
-def test_unconfirmed_rights_are_rejected_for_training_use(source_dir, tmp_path):
-    register(source_dir, tmp_path)
-    for split in ("train", "validation", "test"):
-        manifest = DatasetManifest.load(tmp_path / "dataset")
-        if any(i.split == split for i in manifest.images):
-            with pytest.raises(ValueError, match="rights not confirmed"):
-                iter_samples(tmp_path / "dataset", split)
-            assert list(iter_samples(tmp_path / "dataset", split, require_rights_confirmed=False))
-            return
-    raise AssertionError("no split populated")
-
-
-def test_rights_confirmation_survives_reregistration(source_dir, tmp_path):
-    register(source_dir, tmp_path, rights_status="confirmed")
-    register(source_dir, tmp_path)
-    assert {i.rights_status for i in DatasetManifest.load(tmp_path / "dataset").images} == {
-        "confirmed"
-    }
 
 
 def test_manifest_tampering_is_detected(source_dir, tmp_path):
@@ -249,15 +229,6 @@ def test_manifest_tampering_is_detected(source_dir, tmp_path):
 
 def test_invalid_options_are_rejected(source_dir, tmp_path):
     registry = create_default_registry()
-    with pytest.raises(ValueError, match="rights_status"):
-        register_images(
-            source_dir,
-            tmp_path / "d",
-            registry,
-            tagger_id="color-layout-tags",
-            captioner_id="color-layout-caption",
-            rights_status="maybe",
-        )
     with pytest.raises(KeyError, match="registered"):
         register_images(
             source_dir,
@@ -274,30 +245,23 @@ def test_invalid_options_are_rejected(source_dir, tmp_path):
 
 def test_cli_registers_lists_and_shows(source_dir, tmp_path, capsys):
     dataset = str(tmp_path / "dataset")
-    assert cli_main(["register", str(source_dir), "--dataset", dataset, "--confirm-rights"]) == 0
+    assert (
+        cli_main(
+            [
+                "register",
+                str(source_dir),
+                "--dataset",
+                dataset,
+            ]
+        )
+        == 0
+    )
     assert json.loads(capsys.readouterr().out)["added"] == 3
     assert cli_main(["extractors"]) == 0
     assert "color-layout-tags" in capsys.readouterr().out
     assert cli_main(["show", "--dataset", dataset]) == 0
     assert json.loads(capsys.readouterr().out)["images"] == 3
     assert cli_main(["register", str(source_dir), "--dataset", dataset, "--tagger", "nope"]) == 2
-
-
-def test_rights_confirmation_applies_only_to_the_newly_scanned_images(tmp_path):
-    first = tmp_path / "first"
-    second = tmp_path / "second"
-    first.mkdir()
-    second.mkdir()
-    solid(first / "red.png", (220, 40, 40))
-    solid(second / "blue.png", (50, 80, 220))
-    registry = create_default_registry()
-    options = {"tagger_id": "color-layout-tags", "captioner_id": "color-layout-caption"}
-    register_images(first, tmp_path / "dataset", registry, **options)
-    register_images(second, tmp_path / "dataset", registry, rights_status="confirmed", **options)
-    states = {
-        i.caption[:1]: i.rights_status for i in DatasetManifest.load(tmp_path / "dataset").images
-    }
-    assert states == {"赤": "unconfirmed", "青": "confirmed"}
 
 
 @pytest.mark.parametrize(
