@@ -7,7 +7,9 @@ import json
 from pathlib import Path
 
 CATALOG = Path(__file__).resolve().parents[1] / "docs" / "developers" / "brush_presets_v2.json"
-LEVELS = Path(__file__).resolve().parents[1] / "docs" / "developers" / "brush_control_levels_v2.json"
+LEVELS = (
+    Path(__file__).resolve().parents[1] / "docs" / "developers" / "brush_control_levels_v2.json"
+)
 
 FIELDS = {
     "id",
@@ -105,9 +107,3 @@ def test_preset_names_and_indices_are_stable():
         "eraser_soft",
     ]
     assert [p["id"] for p in presets] == expected
-
-def test_temporary_brush_preset_ruff_diff():
-    import subprocess
-
-    result = subprocess.run(["ruff", "format", "--diff", __file__], capture_output=True, text=True)
-    assert result.returncode == 0, result.stdout + result.stderr
