@@ -239,9 +239,18 @@ def verify_scene(
     reply = verifier.describe(image, mime_type, VERIFY_INSTRUCTION + proposal)
     if reply.refusal or reply.finish_reason == "content_filter":
         raise PromptExtractionError("verifier_refused", "検証モデルが拒否した")
-    result = _json(reply.content)
-    if result.get("supported") is not True or result.get("unsupported_claims"):
-        raise PromptExtractionError("unverified_facts", "画像と候補の内容が一致しない")
+    try:
+        result = _json(reply.content)
+    except PromptExtractionError as exc:
+        if exc.kind == "refused":
+            raise PromptExtractionError("verifier_refused", "検証モデルが拒否した") from exc
+        raise
+    if (
+        result.get("supported") is not True
+        or result.get("unsupported_claims")
+        or result.get("missing_facts")
+    ):
+        raise PromptExtractionError("unverified_facts", "画像との不一致または重要情報の欠落")
 
 
 class ImagePromptPipeline:
@@ -312,8 +321,16 @@ class ImagePromptPipeline:
                 scene = parse_scene(model.describe(image, mime_type, CAPTION_INSTRUCTION))
                 verification = "not_run"
                 if self.verifier:
-                    verify_scene(self.verifier, image, mime_type, scene)
-                    verification = "verified_by_model"
+                    try:
+                        verify_scene(self.verifier, image, mime_type, scene)
+                    except PromptExtractionError as exc:
+                        if index == 1 and exc.kind == "verifier_refused":
+                            # 画像を説明できたQwenを、同じ厳しい検証器の拒否だけで捨てない。
+                            verification = "verifier_refused_unverified"
+                        else:
+                            raise
+                    else:
+                        verification = "verified_by_model"
                 attempts.append(ExtractionAttempt(model.provider_id, model.model_id, "ok"))
                 return ExtractionResult(
                     scene=scene,
