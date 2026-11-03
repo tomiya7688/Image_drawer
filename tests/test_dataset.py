@@ -317,3 +317,36 @@ def test_invalid_extractor_output_becomes_a_warning_without_dropping_the_image(
         for image in manifest.images
     )
     assert all(image.tags == [] and image.training_prompt for image in manifest.images)
+
+
+def test_tag_extractor_can_be_disabled_and_the_prompt_comes_from_the_caption(source_dir, tmp_path):
+    register(source_dir, tmp_path, tagger_id="none")
+    manifest = DatasetManifest.load(tmp_path / "dataset")
+    assert all(image.tags == [] for image in manifest.images)
+    assert all(image.training_prompt == image.caption for image in manifest.images)
+    assert all(
+        "empty_tags" not in {q.code for q in image.quality_issues} for image in manifest.images
+    )
+
+
+def test_examples_without_a_text_condition_are_skipped_not_requested(source_dir, tmp_path):
+    class Silent:
+        info = ExtractorInfo(id="silent", version="v1", capabilities=["caption"])
+
+        def extract(self, image):
+            return ""
+
+    registry = create_default_registry()
+    registry.register_captioner(Silent())
+    register(source_dir, tmp_path, registry=registry, tagger_id="none", captioner_id="silent")
+    manifest = DatasetManifest.load(tmp_path / "dataset")
+    assert len(manifest.images) == 3
+    assert all(
+        "empty_prompt" in {q.code for q in image.quality_issues} for image in manifest.images
+    )
+    samples = [
+        s
+        for split in ("train", "validation", "test")
+        for s in iter_samples(tmp_path / "dataset", split)
+    ]
+    assert samples == []

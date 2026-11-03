@@ -8,7 +8,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from image_drawer.dataset.models import ExtractorInfo
+from image_drawer.dataset.models import DISABLED_TAGGER_ID, ExtractorInfo
 
 # 色名と代表RGB。距離が最小の名前を、その画素の色名とする。
 _COLOR_NAMES = {
@@ -165,3 +165,26 @@ class ColorLayoutCaptionExtractor:
         width, height = image.size
         orientation = "横長" if width > height else "縦長" if height > width else "正方形"
         return f"{'と'.join(top)}が中心の{orientation}の画像"
+
+
+# {
+#   責務: [
+#     NoTagExtractor: タグ抽出を無効にするための抽出器。何も出力せず、品質警告も出さない
+#   ]
+#   フィールド: [
+#     info: id "none"。TagExtractorは利用者が無効にできる(説明文だけで学習用promptを作る)
+#   ]
+# }
+class NoTagExtractor:
+    info = ExtractorInfo(id=DISABLED_TAGGER_ID, version="v1", capabilities=["tag"])
+
+    # {
+    #   責務: [
+    #     extract: 常に空のタグを返す
+    #   ]
+    #   戻り値: [
+    #     tags: 空の一覧
+    #   ]
+    # }
+    def extract(self, image: Any) -> list[dict[str, Any]]:
+        return []

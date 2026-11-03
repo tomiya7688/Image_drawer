@@ -134,7 +134,8 @@ class DatasetManifest(SerializableModel):
 #     iter_samples: 指定したsplitの画像を、Policyへ渡す入力と、評価器だけが読む目標に分けて返す
 #   ]
 #   処理: [
-#     1: 画像1件ごとに PolicyInput(prompt) と RewardTarget(画像パス)を別の型で返す
+#     1: 学習用promptが空の画像は、品質警告に記録したまま対象から外す
+#     2: 画像1件ごとに PolicyInput(prompt) と RewardTarget(画像パス)を別の型で返す
 #   ]
 #   引数: [
 #     dataset_dir: Datasetのディレクトリ
@@ -151,7 +152,8 @@ def iter_samples(dataset_dir: Path, split: str) -> Iterator[tuple[PolicyInput, R
     if split not in SPLITS:
         raise ValueError(f"split must be one of {SPLITS}")
     manifest = DatasetManifest.load(dataset_dir)
-    selected = [image for image in manifest.images if image.split == split]
+    # 学習用promptが空の例は、失敗として記録した上で学習の対象から外す。外部テキストは要求しない。
+    selected = [i for i in manifest.images if i.split == split and i.training_prompt.strip()]
     return (
         (
             PolicyInput(image_id=image.image_id, prompt=image.training_prompt),

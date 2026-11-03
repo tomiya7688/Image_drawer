@@ -8,6 +8,7 @@ from typing import Any
 from image_drawer.core import SerializableModel
 
 SPLITS = ("train", "validation", "test")
+DISABLED_TAGGER_ID = "none"
 
 
 # {

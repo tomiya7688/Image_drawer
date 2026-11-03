@@ -13,6 +13,7 @@ from typing import Any, Iterator
 from image_drawer.core import SerializableModel
 from image_drawer.dataset.manifest import DatasetManifest
 from image_drawer.dataset.models import (
+    DISABLED_TAGGER_ID,
     ExtractorInfo,
     QualityIssue,
     TrainingImage,
@@ -264,9 +265,9 @@ def extract_with_cache(
         issues.append(QualityIssue("extractor_failed", f"captioner {captioner_id}: {exc}"))
     if not caption.strip():
         issues.append(QualityIssue("empty_caption", "caption is empty"))
-    if not tags:
+    if not tags and tagger_id != DISABLED_TAGGER_ID:
         issues.append(QualityIssue("empty_tags", "no tags were extracted"))
-    elif max(tag["confidence"] for tag in tags) < LOW_CONFIDENCE:
+    elif tags and max(tag["confidence"] for tag in tags) < LOW_CONFIDENCE:
         issues.append(QualityIssue("low_confidence", "all tags are below the confidence floor"))
     _write_cache(cache_path, tags, caption, issues)
     return tags, caption, issues

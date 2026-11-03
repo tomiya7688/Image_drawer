@@ -3,6 +3,7 @@
 from image_drawer.dataset.baseline_extractors import (
     ColorLayoutCaptionExtractor,
     ColorLayoutTagExtractor,
+    NoTagExtractor,
 )
 from image_drawer.dataset.ingest import IngestReport, build_prompt, register_images
 from image_drawer.dataset.manifest import DatasetManifest, iter_samples
@@ -27,6 +28,7 @@ from image_drawer.dataset.registry import ExtractorRegistry
 def create_default_registry() -> ExtractorRegistry:
     registry = ExtractorRegistry()
     registry.register_tagger(ColorLayoutTagExtractor())
+    registry.register_tagger(NoTagExtractor())
     registry.register_captioner(ColorLayoutCaptionExtractor())
     return registry
 
@@ -38,6 +40,7 @@ __all__ = [
     "ExtractorInfo",
     "ExtractorRegistry",
     "IngestReport",
+    "NoTagExtractor",
     "PolicyInput",
     "QualityIssue",
     "RewardTarget",

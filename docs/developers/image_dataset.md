@@ -59,6 +59,8 @@ splitは`SHA256(seed:group_id)`から決定的に割り当て、train 8割・val
 
 - `dataset_hash`と`manifest.json`の検証は、誤編集や破損を検出する**完全性の検査**です。悪意のある改ざんの検出には、署名や外部に保管した期待値が必要です。
 - 抽出器の実装を更新したのに`version`・`model_hash`・`config_hash`を変えないと、古いキャッシュが使われます。実装を変えたら識別子も更新してください。
+- `TagExtractor`は無効にできます（id `none`、何も出力せず警告も出しません）。`CaptionExtractor`は無効にできません。
+- 学習用promptが空の画像は、`quality_issues`に`empty_prompt`を記録し、`iter_samples`の対象から外します（[入力契約](training_input_v1.json)の`missing_condition`）。外部テキストの入力は要求しません。
 - キャッシュが壊れている、または形式が正しくない場合は、使わずに再抽出します。抽出器が不正な形式を返した場合は、`extractor_invalid_output`の品質警告にします。
 - 近重複の判定は、わずかな明るさの変更や再保存を想定したものです。大きなクロップや回転は検出しません。
 - 新しい画像を追加すると、近重複のグループが統合され、既存画像の`group_id`と`split`が変わることがあります。固定のtestを何度も学習調整に使わないため、追加後は`show`でsplitの件数を確認してください。
