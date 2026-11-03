@@ -60,9 +60,7 @@ def test_levels_are_stable_and_ordered():
     c = load_levels()
     assert c["schema_version"] == "idraw-brush-control-levels/2"
     assert c["control_set_id"] == "brush-controls-v2-levels-20261103"
-    assert c["size_px"] == [
-        1, 2, 3, 4, 5, 6, 8, 10, 12, 16, 20, 24, 32, 50, 64, 100, 128, 200, 256
-    ]
+    assert c["size_px"] == [1, 2, 3, 4, 5, 6, 8, 10, 12, 16, 20, 24, 32, 50, 64, 100, 128, 200, 256]
     assert c["opacity_percent"] == [5, 10, 20, 30, 40, 50, 60, 70, 80, 90, 100]
     assert c["pressure_percent"] == list(range(0, 101, 10))
     assert c["tilt_cdeg"] == list(range(-9000, 9001, 1500))
@@ -104,7 +102,11 @@ def test_presets_reference_valid_level_ids():
 def test_pressure_profile_labels_are_deterministic():
     c = load_levels()
     assert [p["id"] for p in c["pressure_patterns"]] == [
-        "constant", "increase", "decrease", "taper_both", "other"
+        "constant",
+        "increase",
+        "decrease",
+        "taper_both",
+        "other",
     ]
     assert pressure_pattern([8, 8, 8, 8, 8], c) == "constant"
     assert pressure_pattern([2, 4, 7, 9, 10], c) == "increase"
@@ -114,14 +116,3 @@ def test_pressure_profile_labels_are_deterministic():
     assert pressure_pattern([2, None, 8, 10], c) is None
     assert pressure_pattern([2, 8], c) is None
     assert pressure_pattern([0, 0, 0], c) == "constant"
-
-def test_temporary_ruff_format_diffs():
-    import subprocess
-
-    target_a = Path(__file__).resolve()
-    target_b = target_a.parent / "test_brush_presets_design.py"
-    for target in (target_a, target_b):
-        result = subprocess.run(
-            ["ruff", "format", "--diff", str(target)], capture_output=True, text=True
-        )
-        assert result.returncode == 0, str(target) + "\n" + result.stdout + result.stderr
