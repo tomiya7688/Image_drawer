@@ -161,6 +161,67 @@ def _save_png(image: Any, path: Path) -> None:
 
 # {
 #   責務: [
+#     _valid_tags: タグの一覧が label(文字列)と confidence(数値)を持つ辞書の一覧か確認する
+#   ]
+#   戻り値: [
+#     result: 正しければTrue
+#   ]
+# }
+def _valid_tags(tags: Any) -> bool:
+    return isinstance(tags, list) and all(
+        isinstance(tag, dict)
+        and isinstance(tag.get("label"), str)
+        and type(tag.get("confidence")) in (int, float)
+        for tag in tags
+    )
+
+
+# {
+#   責務: [
+#     _read_cache: キャッシュを読み、形式を検証する。壊れていれば使わない
+#   ]
+#   処理: [
+#     JSONの構造・型を確認し、1つでも不正なら None を返して呼び出し側が再抽出する
+#   ]
+#   戻り値: [
+#     result: (tags, caption, issues)。無い・壊れている場合は None
+#   ]
+# }
+def _read_cache(path: Path) -> tuple[list[dict[str, Any]], str, list[QualityIssue]] | None:
+    if not path.is_file():
+        return None
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+        tags, caption, raw_issues = data["tags"], data["caption"], data["issues"]
+        if not (_valid_tags(tags) and isinstance(caption, str) and isinstance(raw_issues, list)):
+            return None
+        return tags, caption, [QualityIssue.from_dict(item) for item in raw_issues]
+    except (OSError, ValueError, KeyError, TypeError):
+        return None
+
+
+# {
+#   責務: [
+#     _write_cache: 抽出結果を一時ファイルに書いてから置き換え、途中で壊れたキャッシュを残さない
+#   ]
+#   引数: [
+#     path: キャッシュのパス, tags, caption, issues: 保存する抽出結果
+#   ]
+# }
+def _write_cache(path: Path, tags: list, caption: str, issues: list[QualityIssue]) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    descriptor, name = tempfile.mkstemp(dir=path.parent, suffix=".tmp")
+    try:
+        with os.fdopen(descriptor, "w", encoding="utf-8") as stream:
+            payload = {"tags": tags, "caption": caption, "issues": [i.to_dict() for i in issues]}
+            json.dump(payload, stream, ensure_ascii=False)
+        os.replace(name, path)
+    finally:
+        Path(name).unlink(missing_ok=True)
+
+
+# {
+#   責務: [
 #     extract_with_cache: 抽出結果をキャッシュから再利用し、無ければ抽出して保存する
 #   ]
 #   処理: [
@@ -180,22 +241,26 @@ def extract_with_cache(
     captioner_id: str,
 ) -> tuple[list[dict[str, Any]], str, list[QualityIssue]]:
     cache_path = cache_dir / f"{key}.json"
-    if cache_path.is_file():
-        cached = json.loads(cache_path.read_text(encoding="utf-8"))
-        return (
-            cached["tags"],
-            cached["caption"],
-            [QualityIssue.from_dict(i) for i in cached["issues"]],
-        )
+    cached = _read_cache(cache_path)
+    if cached is not None:
+        return cached
     issues: list[QualityIssue] = []
     tags: list[dict[str, Any]] = []
     caption = ""
     try:
         tags = registry.tagger(tagger_id).extract(image)
+        if not _valid_tags(tags):
+            tags = []
+            issues.append(QualityIssue("extractor_invalid_output", f"tagger {tagger_id}: bad tags"))
     except Exception as exc:  # 抽出器は外部モデルを含みうるため、種類を問わず警告にする
         issues.append(QualityIssue("extractor_failed", f"tagger {tagger_id}: {exc}"))
     try:
         caption = registry.captioner(captioner_id).extract(image)
+        if not isinstance(caption, str):
+            caption = ""
+            issues.append(
+                QualityIssue("extractor_invalid_output", f"captioner {captioner_id}: not text")
+            )
     except Exception as exc:
         issues.append(QualityIssue("extractor_failed", f"captioner {captioner_id}: {exc}"))
     if not caption.strip():
@@ -204,14 +269,7 @@ def extract_with_cache(
         issues.append(QualityIssue("empty_tags", "no tags were extracted"))
     elif max(tag["confidence"] for tag in tags) < LOW_CONFIDENCE:
         issues.append(QualityIssue("low_confidence", "all tags are below the confidence floor"))
-    cache_dir.mkdir(parents=True, exist_ok=True)
-    cache_path.write_text(
-        json.dumps(
-            {"tags": tags, "caption": caption, "issues": [i.to_dict() for i in issues]},
-            ensure_ascii=False,
-        ),
-        encoding="utf-8",
-    )
+    _write_cache(cache_path, tags, caption, issues)
     return tags, caption, issues
 
 
@@ -282,6 +340,7 @@ def _scan_sources(
 #     previous: 既存のmanifestの同じ画像。無ければNone
 #     context: 登録全体の設定(registry、抽出器、seed、権利状態)
 #     report: 結果を書き込む報告
+#     scanned_now: 今回の走査で読んだ画像ならTrue。権利状態の新しい指定はこの画像にだけ適用する
 #   ]
 #   戻り値: [
 #     entry: TrainingImage
@@ -293,6 +352,7 @@ def _build_entry(
     previous: TrainingImage | None,
     context: "_Context",
     report: IngestReport,
+    scanned_now: bool,
 ) -> TrainingImage:
     key = compute_cache_key(sha256, context.tagger.info, context.captioner.info)
     relative = f"images/{sha256[:2]}/{sha256}.png"
@@ -318,7 +378,7 @@ def _build_entry(
         report.reextracted += 1
     report.quality_warnings += bool(issues)
     # 権利の確認は利用者の明示だけで上がる。再登録で確認済みの状態を未確認へ戻さない。
-    confirmed = context.rights_status == "confirmed" or (
+    confirmed = (scanned_now and context.rights_status == "confirmed") or (
         previous is not None and previous.rights_status == "confirmed"
     )
     return TrainingImage(
@@ -404,6 +464,7 @@ def register_images(
         previous = {i.image_sha256: i for i in DatasetManifest.load(dataset_dir).images}
 
     hashes = _scan_sources(source_dir, dataset_dir, report)
+    scanned = set(hashes)
     for sha256 in previous.keys() - hashes.keys():
         image = _load_stored(dataset_dir / previous[sha256].image_path)
         try:
@@ -412,7 +473,9 @@ def register_images(
             image.close()
     groups = group_near_duplicates(hashes)
     images = [
-        _build_entry(sha256, groups[sha256], previous.get(sha256), context, report)
+        _build_entry(
+            sha256, groups[sha256], previous.get(sha256), context, report, sha256 in scanned
+        )
         for sha256 in sorted(hashes)
     ]
     DatasetManifest(

@@ -281,3 +281,75 @@ def test_cli_registers_lists_and_shows(source_dir, tmp_path, capsys):
     assert cli_main(["show", "--dataset", dataset]) == 0
     assert json.loads(capsys.readouterr().out)["images"] == 3
     assert cli_main(["register", str(source_dir), "--dataset", dataset, "--tagger", "nope"]) == 2
+
+
+def test_rights_confirmation_applies_only_to_the_newly_scanned_images(tmp_path):
+    first = tmp_path / "first"
+    second = tmp_path / "second"
+    first.mkdir()
+    second.mkdir()
+    solid(first / "red.png", (220, 40, 40))
+    solid(second / "blue.png", (50, 80, 220))
+    registry = create_default_registry()
+    options = {"tagger_id": "color-layout-tags", "captioner_id": "color-layout-caption"}
+    register_images(first, tmp_path / "dataset", registry, **options)
+    register_images(second, tmp_path / "dataset", registry, rights_status="confirmed", **options)
+    states = {
+        i.caption[:1]: i.rights_status for i in DatasetManifest.load(tmp_path / "dataset").images
+    }
+    assert states == {"赤": "unconfirmed", "青": "confirmed"}
+
+
+@pytest.mark.parametrize(
+    "content",
+    [
+        "{broken",
+        "[]",
+        '{"tags": "x", "caption": 1, "issues": []}',
+        '{"tags": [{"label": 1}], "caption": "", "issues": []}',
+    ],
+)
+def test_corrupted_cache_is_ignored_and_reextracted(source_dir, tmp_path, content):
+    register(source_dir, tmp_path)
+    for cache in (tmp_path / "dataset" / "cache").glob("*.json"):
+        cache.write_text(content, encoding="utf-8")
+    registry = create_default_registry()
+    _, report = register(source_dir, tmp_path, registry=registry)
+    manifest = DatasetManifest.load(tmp_path / "dataset")
+    assert report.errors == [] and all(i.caption for i in manifest.images)
+    assert all(
+        json.loads(c.read_text(encoding="utf-8"))["caption"]
+        for c in (tmp_path / "dataset" / "cache").glob("*.json")
+    )
+
+
+def test_near_duplicate_grouping_is_transitive():
+    from image_drawer.dataset.normalize import ImageSignature, group_near_duplicates
+
+    # A-BとB-Cは近く、A-Cは離れている。連結は推移的なので3件とも同じグループになる。
+    a = ImageSignature(0, (0,) * 48)
+    b = ImageSignature(0b1111, (10,) * 48)
+    c = ImageSignature(0b11111111, (20,) * 48)
+    groups = group_near_duplicates({"a": a, "b": b, "c": c})
+    assert len(set(groups.values())) == 1
+
+
+def test_invalid_extractor_output_becomes_a_warning_without_dropping_the_image(
+    source_dir, tmp_path
+):
+    class BadTags:
+        info = ExtractorInfo(id="bad-tags", version="v1", capabilities=["tag"])
+
+        def extract(self, image):
+            return [{"label": 1}]
+
+    registry = create_default_registry()
+    registry.register_tagger(BadTags())
+    _, report = register(source_dir, tmp_path, registry=registry, tagger_id="bad-tags")
+    manifest = DatasetManifest.load(tmp_path / "dataset")
+    assert report.added == 3 and len(manifest.images) == 3
+    assert all(
+        "extractor_invalid_output" in {q.code for q in image.quality_issues}
+        for image in manifest.images
+    )
+    assert all(image.tags == [] and image.training_prompt for image in manifest.images)
