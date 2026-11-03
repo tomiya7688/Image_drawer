@@ -93,13 +93,14 @@ def handle_stroke_v1(state: DrawingState, payload: Any, is_erase: bool) -> None:
         raster_v1.rect_area(raster_v1.segment_rect(a, b, width_px, state.width, state.height))
         for a, b in segments
     )
+    # 色の解決も含め、失敗し得る処理を全て予算の課金より前に済ませる(失敗時に状態を変えない)。
+    rgb = None if is_erase else palette_rgb(state.selected_color_id)
     charge_budget(state, len(points), area)
     pixels = raster_v1.covered_pixels(points, width_px, state.width, state.height)
     if is_erase:
         for x, y in pixels:
             layer.pixels.clear_pixel(x, y)
         return
-    rgb = palette_rgb(state.selected_color_id)
     for x, y in pixels:
         layer.pixels.paint_over(x, y, rgb, opacity)
 
@@ -159,11 +160,12 @@ def handle_stroke_v2(
         state.width, state.height,
     )  # fmt: skip
     area = sum(raster_v1.rect_area(stamp.rect) for stamp in stamps)
+    # 色の解決も含め、失敗し得る処理を全て予算の課金より前に済ませる(失敗時に状態を変えない)。
+    rgb = None if is_erase else palette_rgb(state.selected_color_id)
     charge_budget(state, len(samples), area)
     if is_erase:
         raster_v2.paint_stamps(stamps, preset, state.seed, layer.pixels.erase_alpha)
         return
-    rgb = palette_rgb(state.selected_color_id)
     raster_v2.paint_stamps(
         stamps, preset, state.seed, lambda x, y, alpha: layer.pixels.paint_over(x, y, rgb, alpha)
     )

@@ -349,3 +349,16 @@ if __name__ == "__main__" and "--regenerate" in sys.argv:
         json.dumps(build_fixture(), ensure_ascii=False, indent=1) + "\n", encoding="utf-8"
     )
     print(f"wrote {FIXTURE}")
+
+
+def test_invalid_selected_color_fails_before_the_budget_is_charged():
+    """選択色が不正な状態でも、予算を消費せずに失敗する(検証を課金より前に行う)。"""
+    engine = run_actions(brush_actions("ink_gpen")[:-1])  # 最後のstroke_v2を除く
+    engine.state.selected_color_id = 9999  # 通常のActionでは到達しない不正な状態
+    before = (engine.state.points_used, engine.state.area_used)
+    pixels = engine.render().rgba
+    action = DrawingAction("stroke_v2", {"samples": samples()}, actor="synthetic")
+    with pytest.raises(DrawingError):
+        engine.apply(action)
+    assert (engine.state.points_used, engine.state.area_used) == before
+    assert engine.render().rgba == pixels
