@@ -120,7 +120,7 @@ def aggregate_score(score: Score, weights: dict[str, float], component: str) -> 
 #   ]
 #   エラー: [
 #     TypeError: 得点集合の型が違う
-#     ValueError: 由来・候補ID・得点の不一致、topの範囲外、重みと評価軸の同時指定
+#     ValueError: 由来・候補ID・得点の不一致、topの範囲外、重みと評価軸の同時指定、集約値が有限でない
 #   ]
 # }
 def select_images(
@@ -159,6 +159,9 @@ def select_images(
         candidate_id: aggregate_score(score, normalized, component)
         for candidate_id, score in scores_by_id.items()
     }
+    # 集約の途中でオーバーフローしたNaN・無限大は順位を不定にするため拒否する。
+    if not all(math.isfinite(value) for value in aggregates.values()):
+        raise ValueError("aggregate score must be finite")
     order = sorted(aggregates, key=lambda candidate_id: (-aggregates[candidate_id], candidate_id))
     return ImageSelection(
         candidates=[candidates_by_id[candidate_id] for candidate_id in order[:top]],

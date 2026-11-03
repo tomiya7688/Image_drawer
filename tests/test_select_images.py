@@ -124,6 +124,30 @@ def test_invalid_selection_options_are_rejected(options, message):
         select_images(*make_inputs(), **options)
 
 
+def test_non_finite_scores_and_overflowing_aggregates_are_rejected():
+    with pytest.raises(ValueError, match="finite"):
+        Score(
+            id="s", evaluator="mock", evaluator_version="v1", components={"quality": float("nan")}
+        )
+        ScoreSet(
+            id="x",
+            evaluator="mock",
+            evaluator_version="v1",
+            candidate_artifact_ids=["a"],
+            scores=[
+                Score(
+                    id="s",
+                    evaluator="mock",
+                    evaluator_version="v1",
+                    components={"quality": float("nan")},
+                )
+            ],
+        )
+    huge = {"a": (0.5, 1e308, 1e308), "b": (0.4, 1e308, 1e308)}
+    with pytest.raises(ValueError, match="aggregate score must be finite"):
+        select_images(*make_inputs(huge), weights={"quality": 1e308, "sharpness": 1e308})
+
+
 # {
 #   責務: [
 #     MakeSetStep: テスト用にImageSetを生成するStep。ImageSetを返すStepが他にないため用意する
