@@ -100,7 +100,10 @@
         "structured_recaption",
         "structured_recaption_with_fallback"
       ]
-    }
+    },
+    "verifier_can_fail_closed": false,
+    "verifier_refusal_on_fallback": "accept_as_verifier_refused_unverified_not_as_verified",
+    "completeness_check": "reject_if_missing_facts_nonempty"
   },
   "cache": {
     "must_include": [
