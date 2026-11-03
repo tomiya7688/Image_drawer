@@ -277,3 +277,20 @@ def test_vision_provider_connection_settings_change_cache_fingerprint():
     )
     assert a.config_fingerprint != b.config_fingerprint
     assert "api_key" not in a.config_fingerprint
+
+def test_temporary_ruff_diff_report():
+    import subprocess
+    from pathlib import Path
+
+    root = Path(__file__).resolve().parents[1]
+    for item in (
+        "image_drawer/prompting/openai_compatible.py",
+        "tests/test_prompt_extraction_contract.py",
+        "tests/test_prompting_pipeline.py",
+    ):
+        result = subprocess.run(
+            ["ruff", "format", "--diff", str(root / item)],
+            capture_output=True,
+            text=True,
+        )
+        assert result.returncode == 0, f"{item}\n{result.stdout}\n{result.stderr}"
