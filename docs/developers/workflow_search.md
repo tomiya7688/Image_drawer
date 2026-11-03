@@ -6,7 +6,7 @@
 
 ## 1. 優先順位
 
-Image Drawerが学習する最小行動は、色・ブラシ・レイヤーの選択、筆跡、消去、工程変更などの`DrawingAction`。[制作過程 v1](drawing_process_v1.md) の状態・行動・再生が成立し、実演データを用いた`DrawingPolicy`の学習・逐次実行ができてから、**どの上位制作工程を呼ぶか**を探索する。
+Image Drawerが学習する最小行動は、色・ブラシ・レイヤーの選択、筆跡、消去などの`DrawingAction`。**制作工程の順序は[固定制作工程v2](fixed_drawing_workflow_v2.md)でラフ→下書き→本描き→基本色→陰影→仕上げに固定**する。画像だけを教材とする[自己描画学習](image_only_learning_v1.md)が動いた後、各工程内の候補Actionや計算予算等を探索する。
 
 - **DrawingPolicy**：キャンバスと履歴を見て次の具体的な行動を選ぶ。
 - **WorkflowSearch**：どの区間を実行・評価・分岐・再試行するかを探索する。
@@ -20,7 +20,7 @@ Part Bank中心の`RETRIEVE -> SELECT -> COMPOSE`は、**素材配置の比較�
 
 1. `DrawingEpisode`の行動時系列と、各時点の`DrawingState`を再生できる。
 2. モデルが`DrawingAction`を逐次予測して`DrawingEngine`へ適用できる。
-3. 少なくとも教師行動予測とモデルclosed-loop描画を測定できる。
+3. **画像のみの試行学習**で、Evaluatorの報酬→Policy更新→未見画像のclosed-loop描画改善を測定できる。人間の教師Actionは不要。
 4. 出所・dataset split、`palette_id`、`brush_set_id`、`renderer_version`、モデルcheckpoint、seed、Workflow versionを追跡できる。
 
 未達ならそれを未実装・未評価と記す。Partの選択精度や画像評価の改善を代用品にしない。
@@ -34,9 +34,9 @@ Workflowは`WorkflowSpec`のnodes/edges/inputs/outputsで表す。探索候補�
 - 行動Policyを実行する`DRAW_EPISODE`／`REPLAY_EPISODE`の組み合わせ。
 - `EVALUATE`の位置、候補`SELECT`、`REFINE`／修正セッションの起動。
 - 評価のための複数候補生成と分岐・合流。
-- 工程の変更や終了を**ActionとしてPolicyに選ばせる**か、上位Workflowの意思決定にするかの比較。
+- **固定工程の順序は探索しない**。Policyが次の工程へ進むべきかの提案と、工程内の筆跡・道具・時間予算の改善を比較する。
 
-工程をWorkflowに固定してしまい、筆跡の各選択が学習不能になる構成は許さない。
+**工程順序だけは固定**し、各段階の筆跡・道具・色・修正はPolicyが学習する。固定の筆跡Scriptを押し付けて学習不能にする構成は許さない。
 
 ### 3.2 Parameter／backend
 
@@ -71,7 +71,7 @@ Experiment
        time_and_compute_cost
 ```
 
-**行動予測精度・閉ループ制作の再現性・画像品質を別指標に保つ。** ある画像が高評価だからといって「人間の制作工程を学習した」と結論しない。aggregate weightを使う場合は個々のcomponentとweightを保存する。
+**画像だけからのReward改善・固定制作工程の遵守・閉ループ制作の再現性・画像品質を別指標に保つ。** ある画像が高評価だからといって「人間の制作工程を学習した」と結論しない。aggregate weightを使う場合は個々のcomponentとweightを保存する。
 
 ## 5. 実装順（描画学習の後）
 
