@@ -90,6 +90,7 @@ def test_categorized_tagger_separates_rating_character_copyright_style():
             "character": {"named_character": 0.91, "false_character": 0.4},
             "copyright": {"some_series": 0.99},
             "style": {"watercolor": 0.88},
+            "meta": {"absurdres": 0.93},
         },
         "rating": {"general": 0.7, "explicit": 0.3},
         "caption": "元サービスが付けた文章（Captionerの代わりには使わない）",
@@ -98,15 +99,18 @@ def test_categorized_tagger_separates_rating_character_copyright_style():
     assert normalized.caption.startswith("元サービス")
     assert normalized.rating == "general"
     grouped = normalized.grouped()
-    assert set(grouped) == {"clothes", "expression", "pose", "character", "copyright", "style"}
+    assert set(grouped) == {"clothes", "expression", "pose", "character", "copyright", "style", "meta"}
     assert [t.label for t in grouped["character"]] == ["named_character"]
     formatted = TagFormatter().format(normalized)
     assert "some series" not in formatted.positive_tags
     assert "general" not in formatted.positive_tags
     assert "watercolor" not in formatted.positive_tags
+    assert "absurdres" not in formatted.positive_tags
+    assert formatted.category_tags["meta"] == ("absurdres",)
     assert "blue dress" in formatted.positive_tags
     assert "some series" in formatted.category_tags["copyright"]
-    assert TagFormatter(include_style=True).format(normalized).positive_tags[-1] == "watercolor"
+    assert "watercolor" in TagFormatter(include_style=True).format(normalized).positive_tags
+    assert TagFormatter(include_meta=True).format(normalized).positive_tags[-1] == "absurdres"
 
 
 def test_category_override_supports_user_defined_names():
@@ -248,6 +252,7 @@ def test_json_user_settings_allow_three_caption_models_two_taggers_and_verifier(
         "caption_chain": ["caption0", "caption1", "caption2"],
         "tag_chain": ["tagger0", "tagger1"],
         "verifier_id": "checker",
+        "tag_formatter": {"include_meta": True},
         "tag_normalizer": {
             "category_overrides": {"red_hair": "appearance"},
             "extra_categories": ["appearance"],
@@ -261,6 +266,7 @@ def test_json_user_settings_allow_three_caption_models_two_taggers_and_verifier(
     assert len(pipeline.tag_pipeline.providers) == 2
     assert pipeline.caption_pipeline.verifier.model_id == "checker-model"
     assert registry.normalizers["user"].classify("red_hair", "general") == "appearance"
+    assert registry.formatters["user"].include_meta is True
 
 
 def test_plain_json_config_cannot_import_arbitrary_code_or_contain_api_key():
