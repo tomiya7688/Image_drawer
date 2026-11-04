@@ -148,8 +148,10 @@ def test_json_scene_still_validates(monkeypatch):
     ("joycaption_reply", "status"),
     [
         (VisionResponse(refusal=True), "refused"),
+        (VisionResponse("I cannot describe this image."), "refused"),
         (VisionResponse(""), "empty"),
         (VisionResponse("{not-json}"), "invalid_format"),
+        (VisionResponse("This video depicts a red apple spinning."), "unverified_facts"),
     ],
 )
 def test_third_model_handles_earlier_refusals_without_skipping_tagger(
@@ -184,7 +186,11 @@ def test_third_model_handles_earlier_refusals_without_skipping_tagger(
     assert tagger_calls == ["REPLACE_WITH_TAGGER_MODEL"]
 
 
-def test_all_three_fail_without_fake_training_label_and_tagger_still_runs(monkeypatch):
+@pytest.mark.parametrize(
+    "last_response",
+    [VisionResponse(""), VisionResponse("The video shows a red apple moving.")],
+)
+def test_all_three_fail_without_training_label(monkeypatch, last_response):
     tagger_calls: list[str] = []
 
     def fake_describe(self, image, mime_type, instruction):
@@ -192,7 +198,7 @@ def test_all_three_fail_without_fake_training_label_and_tagger_still_runs(monkey
             return VisionResponse(refusal=True)
         if self.model_id == JOYCAPTION_ID:
             return VisionResponse("I cannot assist with this request.")
-        return VisionResponse("")
+        return last_response
 
     def fake_tag(self, image, mime_type):
         tagger_calls.append(self.model_id)
