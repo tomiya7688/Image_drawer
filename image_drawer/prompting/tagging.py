@@ -66,7 +66,7 @@ class TagProvider(Protocol):
 def _label(value: object) -> str:
     if not isinstance(value, str):
         raise PromptExtractionError("invalid_format", "タグは文字列")
-    text = re.sub(r"\s+", " ", value.replace("_", " ")).strip()
+    text = re.sub(r"\s+", " ", value).strip()
     if not text or len(text) > 256 or any(ord(c) < 32 for c in text):
         raise PromptExtractionError("invalid_format", "タグが空または長すぎる")
     return text
@@ -169,13 +169,21 @@ class TagNormalizer:
         min_confidence: float = 0.35,
         character_confidence: float = 0.85,
         category_overrides: Mapping[str, str] | None = None,
+        extra_categories: tuple[str, ...] = (),
     ) -> None:
         self.min_confidence = _score(min_confidence)
         self.character_confidence = _score(character_confidence)
+        self.extra_categories = frozenset(_custom_category(name) for name in extra_categories)
         self.overrides = {
-            _label(key).casefold(): _category(value)
+            _label(key).casefold(): self._validate_category(value)
             for key, value in (category_overrides or {}).items()
         }
+
+    def _validate_category(self, value: str) -> str:
+        result = _category(value, strict=False)
+        if result not in _SUPPORTED and result not in self.extra_categories:
+            raise ValueError("タグ分類が未登録です: " + str(value))
+        return result
 
     @property
     def config_fingerprint(self) -> str:
@@ -184,6 +192,7 @@ class TagNormalizer:
                 "min": self.min_confidence,
                 "character": self.character_confidence,
                 "overrides": self.overrides,
+                "extra_categories": sorted(self.extra_categories),
             },
             sort_keys=True,
             ensure_ascii=False,
@@ -191,7 +200,7 @@ class TagNormalizer:
         return hashlib.sha256(data).hexdigest()
 
     def classify(self, label: str, origin: str) -> str:
-        name = label.casefold()
+        name = label.replace("_", " ").casefold()
         if name in self.overrides:
             return self.overrides[name]
         if origin != "general":
@@ -227,8 +236,14 @@ class TagNormalizer:
             for field in ("tags", "tag"):
                 if field in payload and isinstance(payload[field], dict):
                     nested = payload[field]
-                    if any(_category(k, strict=False) in _SUPPORTED for k in nested):
-                        raw = nested
+                    if any(
+                        _category(k, strict=False) in _SUPPORTED | self.extra_categories
+                        for k in nested
+                    ):
+                        raw = dict(nested)
+                        for extra in ("rating", "copyright", "style"):
+                            if extra in payload and extra not in raw:
+                                raw[extra] = payload[extra]
                         break
         else:
             raw = payload
@@ -238,7 +253,7 @@ class TagNormalizer:
             has_explicit = False
             for name, value in raw.items():
                 category = _category(name, strict=False)
-                if category in _SUPPORTED:
+                if category in _SUPPORTED | self.extra_categories:
                     if category in nodes:
                         raise PromptExtractionError("invalid_format", "カテゴリが重複")
                     nodes[category] = value
@@ -276,6 +291,14 @@ class TagNormalizer:
         return TagSet(tuple(tags), caption=caption, rating=rating)
 
 
+def _custom_category(value: str) -> str:
+    if not isinstance(value, str) or not re.fullmatch(r"[a-z][a-z0-9_]{0,63}", value):
+        raise ValueError("カスタム分類名は小文字英数字とアンダースコアで指定")
+    if value in {"rating", "copyright"}:
+        raise ValueError("rating/copyrightは既存カテゴリを使ってください")
+    return value
+
+
 def _category(value: object, *, strict: bool = True) -> str:
     if not isinstance(value, str):
         if strict:
@@ -286,6 +309,13 @@ def _category(value: object, *, strict: bool = True) -> str:
     if strict and category not in _SUPPORTED:
         raise ValueError("未対応のタグカテゴリ: " + value)
     return category
+
+
+def _display_label(label: str) -> str:
+    """booru等の語区切りは空白化するが、^_^やo_oなどの顔文字は保持。"""
+    if re.fullmatch(r"[A-Za-z]_[A-Za-z]", label) or not any(c.isalnum() for c in label):
+        return label
+    return label.replace("_", " ")
 
 
 class TagFormatter:
@@ -313,16 +343,17 @@ class TagFormatter:
         positive: list[str] = []
         seen: set[str] = set()
         for tag in tags.tags:
-            if self.exclude_quality_fillers and tag.label.casefold() in _QUALITY_FILLERS:
+            display = _display_label(tag.label)
+            if self.exclude_quality_fillers and display.casefold() in _QUALITY_FILLERS:
                 continue
-            grouped.setdefault(tag.category, []).append(tag.label)
+            grouped.setdefault(tag.category, []).append(display)
             if tag.category == "copyright" and not self.include_copyright:
                 continue
             if tag.category == "style" and not self.include_style:
                 continue
-            if tag.label.casefold() not in seen:
-                seen.add(tag.label.casefold())
-                positive.append(tag.label)
+            if display.casefold() not in seen:
+                seen.add(display.casefold())
+                positive.append(display)
         if self.include_rating and tags.rating:
             grouped["rating"] = [tags.rating]
             positive.append(tags.rating)
