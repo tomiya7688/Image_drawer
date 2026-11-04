@@ -18,13 +18,13 @@
 - \`tag_normalizer\`：信頼度閾値・タグ分類・ユーザー定義カテゴリ
 - \`tag_formatter\`：タグの重複除去・カテゴリ別整形・画風/作品名/rating/metaの扱い
 
-文章側はOpenAI互換Vision APIとJoyCaption専用Adapter、タグ側はTagger Service HTTP/PixAI系HTTPの接続方式を提供します。外部モデルの導入と起動はユーザーの環境に応じて行います。
+文章側はOpenAI互換Vision APIと自然文Caption用Adapter（`joycaption`/`prose_caption`）、タグ側はTagger Service HTTP/PixAI系HTTPの接続方式を提供します。外部モデルの導入と起動はユーザーの環境に応じて行います。
 
 ### 標準img2txtフォールバックの決定（2026-11-05）
 
-**JoyCaption Beta One**（`fancyfeast/llama-joycaption-beta-one-hf-llava`）を標準フォールバックに採用しました。開発元がSFW/NSFW、写真・イラスト・アニメを画像説明の対象に明示し、Diffusion学習用キャプションへ特化しているためです。設定例の順序は`Qwen/Qwen3-VL-8B-Instruct`（構造化Captionの初段）→`JoyCaption Beta One`（低制限の代替）です。**この二つ以外にも登録・追加・並べ替えが可能**で、Qwenの利用も必須ではありません。
+**JoyCaption Beta One**（`fancyfeast/llama-joycaption-beta-one-hf-llava`）を標準フォールバックに採用しました。開発元がSFW/NSFW、写真・イラスト・アニメを画像説明の対象に明示し、Diffusion学習用キャプションへ特化しているためです。標準設定例の順序は**`Qwen/Qwen3-VL-8B-Instruct`（構造化Caption）→`JoyCaption Beta One`（低制限）→`Felldude/Qwen3-VL-8B-Instruct-Uncensored-V2`（JoyCaptionが拒否したときの第3段）**です。第3段もNSFWを含む幅広い画像の説明向けに作者が調整したモデルです。**3段階固定ではなくユーザーが自由に追加・削除・並べ替えられます。**
 
-JoyCaptionは一般的なJSON指示への追従が安定しないため、`adapter: "joycaption"`がモデルに自然文を要求し、学習用の短文・標準文・詳細文へ変換します。元の文章にない対象や個数・位置関係を推測で補完しません。Taggerは引き続き独立実行します。
+JoyCaptionには`adapter: "joycaption"`、Felldude V2には`adapter: "prose_caption"`を使います。両者は自然文を要求し、学習用の短文・標準文・詳細文へ変換します。元の文章にない対象や個数・位置関係を推測で補完しません。Taggerは引き続き独立実行します。
 
 JoyCaptionのモデルサービスを起動する例（GPU・vLLMの準備が必要）：
 
@@ -32,12 +32,21 @@ JoyCaptionのモデルサービスを起動する例（GPU・vLLMの準備が必
 vllm serve fancyfeast/llama-joycaption-beta-one-hf-llava --host 127.0.0.1 --port 8001 --max-model-len 4096
 ```
 
-モデル作者の案内では、bf16モデル本体はVRAM約17GB、24GB以上のGPUが目安です。量子化で削減できますが、提供するAPIの互換性を別途確認してください。初段のQwenとTaggerも**それぞれ別に起動**する必要があります。モデルを自動ダウンロード・同梱する仕組みは未実装です。
+第3段Felldude V2を起動する例（別端末・別サービス。実機での起動成功は未確認）：
+
+```bash
+vllm serve Felldude/Qwen3-VL-8B-Instruct-Uncensored-V2 --host 127.0.0.1 --port 8002 --max-model-len 4096
+```
+
+Felldude V2のモデルカードでは**24GB以上のVRAM**が必要とされ、Apache 2.0と表示されています。**静止画を動画として誤記する場合がある**との作者の報告があるため、実画像で品質確認してください。重みはアプリへ同梱せず、3モデルを同時にメモリへ載せられない環境では実行サービスの切替等を別途構成する必要があります。
+
+モデル作者の案内ではJoyCaptionのbf16モデル本体はVRAM約17GB、24GB以上のGPUが目安です。量子化で削減できますが、提供するAPIの互換性を別途確認してください。初段のQwenとTaggerも**それぞれ別に起動**する必要があります。モデルを自動ダウンロード・同梱する仕組みは未実装です。
 
 **注意点：** 作者はJoyCaptionが複数対象・左右・OCRを取り違えることや、NSFWの一部で拒否する場合があることを明記しています。独立した比較ベンチマークは未実施で、拒否率や正確性の実測値を保証しません。配布コードのApache 2.0とモデルの基盤であるLlama 3.1の重みの利用条件は別途確認し、外部重みをImage_drawerへ同梱しません。
 
 - [JoyCaption公式リポジトリ](https://github.com/fpgaminer/joycaption)
 - [公式モデル配布](https://huggingface.co/fancyfeast/llama-joycaption-beta-one-hf-llava)
+- [第3段Felldude V2モデルカード](https://huggingface.co/Felldude/Qwen3-VL-8B-Instruct-Uncensored-V2)
 
 ## 画像を処理する
 
