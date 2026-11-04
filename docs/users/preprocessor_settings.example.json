@@ -1,29 +1,22 @@
 {
   "schema_version": "idraw-preprocessor-registry/v1",
-  "description_ja": "モデル・分類・整形器のユーザー設定例。モデル名と接続先は導入環境に合わせて変更。学習素材は画像のみ。",
+  "description_ja": "標準構成: Qwen3-VL-8Bで構造化Caption抽出、拒否時は低制限のJoyCaption Beta Oneへ切替。Taggerは別に実行。推論サービスは各自起動してください。",
   "providers": [
     {
       "id": "accurate-vlm",
       "kind": "caption",
       "adapter": "openai_compatible",
-      "model_id": "REPLACE_WITH_HIGH_ACCURACY_VLM",
+      "model_id": "Qwen/Qwen3-VL-8B-Instruct",
       "endpoint": "http://127.0.0.1:8000/v1/chat/completions",
       "json_mode": true
     },
     {
-      "id": "low-refusal-vlm",
+      "id": "joycaption-fallback",
       "kind": "caption",
-      "adapter": "openai_compatible",
-      "model_id": "REPLACE_WITH_HIGH_COVERAGE_VLM",
+      "adapter": "joycaption",
+      "model_id": "fancyfeast/llama-joycaption-beta-one-hf-llava",
       "endpoint": "http://127.0.0.1:8001/v1/chat/completions",
-      "json_mode": true
-    },
-    {
-      "id": "last-resort-vlm",
-      "kind": "caption",
-      "adapter": "openai_compatible",
-      "model_id": "REPLACE_WITH_ANOTHER_IMAGE_VLM",
-      "endpoint": "http://127.0.0.1:8002/v1/chat/completions"
+      "json_mode": false
     },
     {
       "id": "content-tagger",
@@ -47,8 +40,7 @@
   ],
   "caption_chain": [
     "accurate-vlm",
-    "low-refusal-vlm",
-    "last-resort-vlm"
+    "joycaption-fallback"
   ],
   "tag_chain": [
     "content-tagger",

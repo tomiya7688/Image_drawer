@@ -26,6 +26,11 @@ def test_priority_fallback_and_failure_are_declared():
     assert routing["caption_chain"]["requires_exactly_two"] is False
     assert routing["tag_chain"]["requires_caption_model_for_tags"] is False
     assert routing["qwen_is_optional_example"] is True
+    assert routing["default_img2txt_fallback"]["model_id"] == (
+        "fancyfeast/llama-joycaption-beta-one-hf-llava"
+    )
+    assert routing["default_img2txt_fallback"]["adapter"] == "joycaption"
+    assert "joycaption" in c["user_registration"]["adapters"]
     for kind in ("refused", "empty", "invalid_format", "unverified_facts"):
         assert kind in routing["primary_failure_triggers"]
     assert (

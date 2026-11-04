@@ -10,6 +10,7 @@ from .core import (
     normalize_prompt,
     parse_scene,
 )
+from .joycaption import JoyCaptionVisionProvider
 from .openai_compatible import OpenAICompatibleVisionProvider
 from .registry import (
     ImageTrainingPreprocessor,
@@ -33,6 +34,7 @@ __all__ = [
     "HTTPTagProvider",
     "ImagePromptPipeline",
     "ImageTrainingPreprocessor",
+    "JoyCaptionVisionProvider",
     "OpenAICompatibleVisionProvider",
     "PreparedTags",
     "PreprocessorRegistry",

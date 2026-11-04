@@ -17,6 +17,7 @@ from .core import (
     VisionProvider,
     _detect_mime,
 )
+from .joycaption import JoyCaptionVisionProvider
 from .openai_compatible import OpenAICompatibleVisionProvider
 from .tagger_http import HTTPTagProvider
 from .tagging import (
@@ -129,6 +130,7 @@ class PreprocessorRegistry:
         self.prompt_formatter_id: str | None = None
         self.adapters: dict[str, tuple[str, ModelFactory]] = {}
         self.register_adapter("openai_compatible", "caption", self._vision_adapter)
+        self.register_adapter("joycaption", "caption", self._joycaption_adapter)
         self.register_adapter("tagger_http", "tagger", self._tagger_adapter)
 
     @staticmethod
@@ -183,6 +185,13 @@ class PreprocessorRegistry:
             timeout_seconds=entry.get("timeout_seconds", 120),
             json_mode=entry.get("json_mode", False),
         )
+
+    @staticmethod
+    def _joycaption_adapter(entry: dict) -> JoyCaptionVisionProvider:
+        """JoyCaptionは自然文のみを生成するため、JSON強制は使わない。"""
+        if entry.get("json_mode", False) is not False:
+            raise ValueError("JoyCaptionはjson_mode=falseで登録してください")
+        return JoyCaptionVisionProvider(PreprocessorRegistry._vision_adapter(entry))
 
     @staticmethod
     def _tagger_adapter(entry: dict) -> HTTPTagProvider:
