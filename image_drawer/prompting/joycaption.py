@@ -21,7 +21,24 @@ JOYCAPTION_INSTRUCTION = (
     "and spatial relationships. Do not infer unobservable details or identities. "
     "Avoid generic quality phrases and introductions such as 'This image shows'."
 )
-_ADAPTER_VERSION = "joycaption-prose-v1"
+_ADAPTER_VERSION = "joycaption-prose-v2"
+# 自然文での拒否が学習用の正解Captionとして採用されないようにする。
+_PROSE_REFUSAL_PREFIXES = (
+    "i cannot describe",
+    "i can't describe",
+    "i am unable to describe",
+    "i'm unable to describe",
+    "i cannot provide a description",
+    "i can't provide a description",
+    "i'm unable to comply",
+    "as an ai language model",
+    "この画像の内容は説明できません",
+)
+# 静止画像に存在しない動画の時間変化を捏造した場合は品質失敗として扱う。
+_VIDEO_CLAIM_PREFIX = re.compile(
+    r"^(?:(?:a|the|this) (?:video|clip)\b|in (?:the|this) (?:video|clip)\b)",
+    re.IGNORECASE,
+)
 
 
 # {
@@ -73,8 +90,14 @@ class JoyCaptionVisionProvider:
         caption = re.sub(r"\s+", " ", response.content).strip()
         if not caption or any(caption.casefold().startswith(s) for s in _REFUSALS):
             return response
-        if caption.casefold().startswith(("sorry, i cannot", "sorry, i can't")):
+        if caption.casefold().startswith(
+            (*_PROSE_REFUSAL_PREFIXES, "sorry, i cannot", "sorry, i can't")
+        ):
             return VisionResponse(refusal=True, finish_reason=response.finish_reason)
+        if _VIDEO_CLAIM_PREFIX.match(caption):
+            raise PromptExtractionError(
+                "unverified_facts", "静止画像を動画として説明した可能性がある"
+            )
         # JSONらしい応答は既存の厳密なparse_sceneに検証させる。
         if caption.startswith(("{", "[", "`")):
             return response
