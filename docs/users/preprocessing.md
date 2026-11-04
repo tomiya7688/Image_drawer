@@ -16,7 +16,7 @@
 - \`caption_chain\`：精度が高いモデルから、拒否が少なく一定の画像説明品質があるモデルへ、**任意の段数で**並べる。Qwenである必要はない
 - \`tag_chain\`：Taggerの試行順。タグ側も複数モデルへフォールバックできる
 - \`tag_normalizer\`：信頼度閾値・タグ分類・ユーザー定義カテゴリ
-- \`tag_formatter\`：タグの重複除去・カテゴリ別整形・画風/作品名/ratingの扱い
+- \`tag_formatter\`：タグの重複除去・カテゴリ別整形・画風/作品名/rating/metaの扱い
 
 文章側はOpenAI互換Vision API、タグ側はTagger Service HTTP/PixAI系HTTPの接続方式を提供します。外部モデルの導入と起動はユーザーの環境に応じて行います。どのモデルが高精度で拒否が少ないかは実測で選びます。
 
@@ -40,9 +40,10 @@ character: example_character(0.92)
 copyright: example_series(0.91)
 rating: general(0.80)
 style: watercolor(0.93)
+meta: absurdres(0.93)
 \`\`\`
 
-システムは服・ポーズ・表情・キャラクター・作品名・rating・画風を分類します。信頼度と元の表記は残し、学習用に使うタグ列だけを整形します。**既定ではrating・作品名・画風を肯定タグ列へ勝手に混ぜません。**
+システムは服・ポーズ・表情・キャラクター・作品名・rating・画風・meta（画像解像度などの付帯情報）を分類します。信頼度と元の表記は残し、学習用に使うタグ列だけを整形します。**既定ではrating・作品名・画風・metaを肯定タグ列へ勝手に混ぜません。** `tag_formatter.include_meta`を`true`にした場合だけmetaを肯定タグ列へ含めます。
 
 \`tag_normalizer.category_overrides\`で分類を上書きでき、\`extra_categories\`で独自カテゴリを作れます。Captionerが作る自然文とは別の結果として管理します。
 
