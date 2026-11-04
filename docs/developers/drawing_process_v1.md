@@ -150,13 +150,13 @@ v1のパレット識別子は `idraw-palette-256-v1`。外部ライセンスに�
     {"seq": 12, "time_ms": 12, "actor": "synthetic", "type": "erase", "payload": {"points": [[1, 0]], "width_px": 1}},
     {"seq": 13, "time_ms": 13, "actor": "synthetic", "type": "finish", "payload": {}}
   ],
-  "metadata": {"dataset_id": "example", "rights": "demo-only"}
+  "metadata": {"dataset_id": "example", "source": "synthetic-fixture"}
 }
 ```
 
 - `origin`は単一主体の`human`／`model`／`synthetic`／`derived`と、複数主体の`mixed`の5種類。各イベントには必須の`actor`を持たせ、`human`（人間の実入力）、`model`（モデルの予測）、`system`（アプリによる自動操作）、`synthetic`（テスト）、`derived`（推定）のいずれかとする。全イベントactorが同じ`human`／`model`／`synthetic`／`derived`ならそれを`origin`に使い、その他は`mixed`。systemのみの完成episodeは拒否。モデルを人間が修正したときは`actor=human`で区別し、mixed全体を人間実演として学習させない。上記例は`synthetic`。
 - `seq`は0から始まる欠番なし整数（`0..19999`）。`time_ms`は開始からの非負整数（`0..604800000`＝7日）で**非減少**。実行順は必ず`seq`で決める。時刻は描画結果に影響しない。syntheticでは連番を使用してよい。
-- `episode_id`は空でない識別子。`prompt`は文字列。`metadata`はオブジェクトであり、権利・収集元・許諾の記録を保持する。`origin=human`だけでは学習許諾を示さない。
+- `episode_id`は空でない識別子。`prompt`は文字列。`metadata`はソフトがバージョンやReplayなどの内部情報を記録するオブジェクト。**利用者が学習用に別途用意するデータではない**。現在の学習素材は画像のみで、旧v1はReplay互換性を確認するための契約。
 - `palette_id`、`brush_set_id`、`renderer_version`は上記v1の識別子以外を拒否。将来の形式は新しいschema/versionを使う。
 - 行動イベントのトップレベルキーは`seq,time_ms,actor,type,payload`の**5キーのみ**。エピソードの必須トップレベルキーはサンプルに列挙した10キー（`metadata`含む）。未知キーは拒否。**完成Episodeだけが**終端`finish`を必須とする。録画中断の部分履歴は`6.2のDraftとして別管理する。
 - JSON numberを符号付き32bitへ自動丸めしない。全数値は**JSON字句として小数点も指数表記もない10進整数表記**のみ。`5.0`、`5e0`、`true`、NaN/Infinity、同名JSONキー、非UTF-8を拒否。JSON Schemaだけでこの字句制約を検査できないため、**厳密なJSON読取層**が必須。`events`は`1..20000`件。

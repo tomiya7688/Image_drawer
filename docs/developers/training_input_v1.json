@@ -1,0 +1,101 @@
+{
+  "schema_version": "idraw-training-input/v1",
+  "status": "design-only-not-yet-implemented",
+  "description": "学習に必要な外部入力は画像のみ。内部では自動抽出した文章を用いるtxt2img学習。",
+  "external_required_inputs": [
+    "image"
+  ],
+  "external_optional_inputs": [],
+  "external_auxiliary_files_required": false,
+  "mandatory_manual_fields": [],
+  "never_request_user_files": [
+    "txt",
+    "tags",
+    "captions",
+    "prompts",
+    "rights_info",
+    "action_traces",
+    "extra_metadata"
+  ],
+  "internally_generated": [
+    "image_id",
+    "image_hash",
+    "image_split",
+    "tags_if_needed",
+    "caption_if_needed",
+    "training_prompt",
+    "text_condition",
+    "extractor_versions",
+    "trial_history"
+  ],
+  "text_condition": {
+    "required_during_txt2img_training": true,
+    "source": "image-derived-only",
+    "required_nonempty_training_prompt": true,
+    "language_model_conditioning": "TextEncoder.encode(training_prompt)",
+    "missing_condition": "record_failure_and_skip_current_text_conditioned_example_without_requesting_external_text"
+  },
+  "selectors": {
+    "TagExtractor": {
+      "user_switchable": true,
+      "may_be_disabled": true,
+      "output": "tags"
+    },
+    "CaptionExtractor": {
+      "user_switchable": true,
+      "may_be_disabled": false,
+      "output": "caption"
+    },
+    "PromptBuilder": {
+      "internal": true,
+      "output": "training_prompt"
+    },
+    "TextEncoder": {
+      "internal": true,
+      "output": "text_condition"
+    }
+  },
+  "extraction_order": [
+    "image_validation",
+    "tag_or_caption_extraction",
+    "prompt_building",
+    "text_encoding",
+    "drawing_policy_rollout",
+    "target_image_evaluation",
+    "policy_update"
+  ],
+  "interfaces": {
+    "learning_input": "image",
+    "drawing_policy_condition": "text_condition_from_training_prompt",
+    "drawing_policy_observation": [
+      "text_condition",
+      "own_canvas",
+      "own_layers",
+      "current_stage",
+      "own_action_history"
+    ],
+    "evaluator_target": "image",
+    "inference_input": "user_prompt"
+  },
+  "leakage_prevention": {
+    "target_image_visible_to_policy": false,
+    "target_image_features_visible_to_policy": false,
+    "target_image_visible_to_evaluator": true,
+    "training_prompt_generated_without_manual_text": true
+  },
+  "reproducibility": [
+    "image_hash",
+    "selector_ids_and_versions",
+    "prompt_builder_version",
+    "text_encoder_version",
+    "internal_generated_prompt",
+    "dataset_split",
+    "seed"
+  ],
+  "compatibility": [
+    "fixed_7_stage_workflow",
+    "fixed_256_color_palette",
+    "brush_12_presets",
+    "brush_level_tables"
+  ]
+}

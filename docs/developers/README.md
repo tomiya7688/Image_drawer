@@ -5,7 +5,7 @@
 
 ## 初めて設計を読む場合
 
-**まずは [Image Drawer 設計ガイド](start_here.md)**。txt2imgの仕組み、何が決まっているか、ブラシ・筆圧の例、何が未実装かを説明します。
+**まずは [Image Drawer 設計ガイド](start_here.md)**。txt2imgの仕組み、何が決まっているか、ブラシ・筆圧の例、何が未実装かを説明します。 **学習素材は画像のみ**。内部テキストの処理は[学習入力契約](training_input_v1.json)を参照してください。
 
 **固定制作工程を実装する場合**：[7工程の説明](fixed_drawing_workflow_v2.md) → [StageControllerの詳細契約](stage_controller_contract_v2.md) → [各工程の画像評価](stage_reward_v2.md) の順に読みます。
 
