@@ -12,6 +12,7 @@ dependencies = []
 
 [project.optional-dependencies]
 part-bank = ["Pillow>=12.3.0,<13"]
+dataset = ["Pillow>=12.3.0,<13"]
 openclip = ["open-clip-torch>=3.3,<4", "safetensors>=0.4", "Pillow>=12.3.0,<13"]
 dev = [
   "ruff==0.15.22",
@@ -24,6 +25,7 @@ dev = [
 image-drawer = "image_drawer.cli:main"
 image-drawer-gui = "image_drawer.gui:main"
 image-drawer-part-bank = "image_drawer.part_bank.cli:main"
+image-drawer-dataset = "image_drawer.dataset.cli:main"
 
 [tool.setuptools.package-data]
 "image_drawer.drawing" = ["data/*.json"]
