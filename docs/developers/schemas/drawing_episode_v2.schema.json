@@ -1,0 +1,984 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/tomiya7688/Image_drawer/docs/developers/schemas/drawing_episode_v2.schema.json",
+  "title": "Image Drawer DrawingEpisode v2 (構造契約: 7工程Controller記録)",
+  "description": "設計案。JSON Schemaは構造・値域だけを検査する。厳密なJSON整数字句、同名キー、seq連続、group整合(連続・index・size・種別の文法)、stage_idの連鎖と工程順、レイヤー表の整合、画布内座標、資源予算、header hashの一致は strict loader / semantic validator が別途必須。v1(drawing-episode/v1)とは schema_version で識別し、v2 は stage_id と group を全eventに要求する。",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "episode_id",
+    "origin",
+    "prompt",
+    "canvas",
+    "palette_id",
+    "brush_set_id",
+    "renderer_version",
+    "seed",
+    "brush_manifest_sha256",
+    "control_set_id",
+    "control_sha256",
+    "workflow_id",
+    "workflow_sha256",
+    "style_intent",
+    "budget",
+    "status",
+    "termination_reason",
+    "events",
+    "metadata"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": "drawing-episode/v2"
+    },
+    "episode_id": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128
+    },
+    "origin": {
+      "const": "mixed",
+      "description": "model の提案と Controller(system) のイベントを含むため常に mixed。人間の履歴ではない。"
+    },
+    "prompt": {
+      "type": "string"
+    },
+    "canvas": {
+      "type": "object",
+      "properties": {
+        "width": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 1024
+        },
+        "height": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 1024
+        }
+      },
+      "required": [
+        "width",
+        "height"
+      ],
+      "additionalProperties": false
+    },
+    "palette_id": {
+      "const": "idraw-palette-256-v1"
+    },
+    "brush_set_id": {
+      "const": "brush-v2-core12"
+    },
+    "renderer_version": {
+      "const": "brush-raster-v2"
+    },
+    "seed": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 4294967295
+    },
+    "brush_manifest_sha256": {
+      "$ref": "#/$defs/sha256"
+    },
+    "control_set_id": {
+      "const": "brush-controls-v2-levels-20261103"
+    },
+    "control_sha256": {
+      "$ref": "#/$defs/sha256"
+    },
+    "workflow_id": {
+      "const": "illustration-standard-v2"
+    },
+    "workflow_sha256": {
+      "$ref": "#/$defs/sha256"
+    },
+    "style_intent": {
+      "type": "object",
+      "properties": {
+        "version": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 64
+        },
+        "monochrome_line_art_only": {
+          "type": "boolean"
+        },
+        "flat_style_no_shading": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "version",
+        "monochrome_line_art_only",
+        "flat_style_no_shading"
+      ],
+      "additionalProperties": false
+    },
+    "budget": {
+      "type": "object",
+      "properties": {
+        "max_actions": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 19900
+        },
+        "max_attempts": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 99500
+        }
+      },
+      "required": [
+        "max_actions",
+        "max_attempts"
+      ],
+      "additionalProperties": false
+    },
+    "status": {
+      "enum": [
+        "complete",
+        "draft"
+      ]
+    },
+    "termination_reason": {
+      "enum": [
+        "finished",
+        "action_budget_exhausted",
+        "attempt_budget_exhausted",
+        "in_progress",
+        "recovered_truncated",
+        "internal_error"
+      ]
+    },
+    "events": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 20000,
+      "items": {
+        "oneOf": [
+          {
+            "description": "model は現在の工程で許可された role に限って作成する。system は工程入場時の既定レイヤー(sys_ 接頭辞のID)を作成する。",
+            "type": "object",
+            "properties": {
+              "seq": {
+                "$ref": "#/$defs/seq"
+              },
+              "time_ms": {
+                "$ref": "#/$defs/time_ms"
+              },
+              "actor": {
+                "enum": [
+                  "model",
+                  "system"
+                ]
+              },
+              "type": {
+                "const": "create_layer"
+              },
+              "payload": {
+                "type": "object",
+                "properties": {
+                  "layer_id": {
+                    "$ref": "#/$defs/layer_id"
+                  },
+                  "name": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 128
+                  },
+                  "role": {
+                    "$ref": "#/$defs/layer_role"
+                  }
+                },
+                "required": [
+                  "layer_id",
+                  "name",
+                  "role"
+                ],
+                "additionalProperties": false
+              },
+              "stage_id": {
+                "$ref": "#/$defs/stage_id_after"
+              },
+              "group": {
+                "$ref": "#/$defs/group"
+              }
+            },
+            "required": [
+              "seq",
+              "time_ms",
+              "actor",
+              "type",
+              "payload",
+              "stage_id",
+              "group"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "description": "書込可能 role の可視レイヤーだけを選べる(Controllerが検査)。",
+            "type": "object",
+            "properties": {
+              "seq": {
+                "$ref": "#/$defs/seq"
+              },
+              "time_ms": {
+                "$ref": "#/$defs/time_ms"
+              },
+              "actor": {
+                "enum": [
+                  "model"
+                ]
+              },
+              "type": {
+                "const": "select_layer"
+              },
+              "payload": {
+                "type": "object",
+                "properties": {
+                  "layer_id": {
+                    "$ref": "#/$defs/layer_id"
+                  }
+                },
+                "required": [
+                  "layer_id"
+                ],
+                "additionalProperties": false
+              },
+              "stage_id": {
+                "$ref": "#/$defs/stage_id_after"
+              },
+              "group": {
+                "$ref": "#/$defs/group"
+              }
+            },
+            "required": [
+              "seq",
+              "time_ms",
+              "actor",
+              "type",
+              "payload",
+              "stage_id",
+              "group"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "description": "固定256色の番号。",
+            "type": "object",
+            "properties": {
+              "seq": {
+                "$ref": "#/$defs/seq"
+              },
+              "time_ms": {
+                "$ref": "#/$defs/time_ms"
+              },
+              "actor": {
+                "enum": [
+                  "model"
+                ]
+              },
+              "type": {
+                "const": "select_color"
+              },
+              "payload": {
+                "type": "object",
+                "properties": {
+                  "color_id": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 255
+                  }
+                },
+                "required": [
+                  "color_id"
+                ],
+                "additionalProperties": false
+              },
+              "stage_id": {
+                "$ref": "#/$defs/stage_id_after"
+              },
+              "group": {
+                "$ref": "#/$defs/group"
+              }
+            },
+            "required": [
+              "seq",
+              "time_ms",
+              "actor",
+              "type",
+              "payload",
+              "stage_id",
+              "group"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "description": "brush-v2-core12 のプリセットID。実在確認はloaderが行う。",
+            "type": "object",
+            "properties": {
+              "seq": {
+                "$ref": "#/$defs/seq"
+              },
+              "time_ms": {
+                "$ref": "#/$defs/time_ms"
+              },
+              "actor": {
+                "enum": [
+                  "model"
+                ]
+              },
+              "type": {
+                "const": "select_brush"
+              },
+              "payload": {
+                "type": "object",
+                "properties": {
+                  "brush_id": {
+                    "type": "string",
+                    "pattern": "^[a-z][a-z0-9_]{0,63}$"
+                  }
+                },
+                "required": [
+                  "brush_id"
+                ],
+                "additionalProperties": false
+              },
+              "stage_id": {
+                "$ref": "#/$defs/stage_id_after"
+              },
+              "group": {
+                "$ref": "#/$defs/group"
+              }
+            },
+            "required": [
+              "seq",
+              "time_ms",
+              "actor",
+              "type",
+              "payload",
+              "stage_id",
+              "group"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "description": "サイズ19段階・不透明度11段階。",
+            "type": "object",
+            "properties": {
+              "seq": {
+                "$ref": "#/$defs/seq"
+              },
+              "time_ms": {
+                "$ref": "#/$defs/time_ms"
+              },
+              "actor": {
+                "enum": [
+                  "model"
+                ]
+              },
+              "type": {
+                "const": "set_brush_params"
+              },
+              "payload": {
+                "type": "object",
+                "properties": {
+                  "size_level_id": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 18
+                  },
+                  "opacity_level_id": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 10
+                  }
+                },
+                "required": [
+                  "size_level_id",
+                  "opacity_level_id"
+                ],
+                "additionalProperties": false
+              },
+              "stage_id": {
+                "$ref": "#/$defs/stage_id_after"
+              },
+              "group": {
+                "$ref": "#/$defs/group"
+              }
+            },
+            "required": [
+              "seq",
+              "time_ms",
+              "actor",
+              "type",
+              "payload",
+              "stage_id",
+              "group"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "description": "サブピクセルの描画筆跡。",
+            "type": "object",
+            "properties": {
+              "seq": {
+                "$ref": "#/$defs/seq"
+              },
+              "time_ms": {
+                "$ref": "#/$defs/time_ms"
+              },
+              "actor": {
+                "enum": [
+                  "model"
+                ]
+              },
+              "type": {
+                "const": "stroke_v2"
+              },
+              "payload": {
+                "type": "object",
+                "properties": {
+                  "samples": {
+                    "$ref": "#/$defs/samples"
+                  }
+                },
+                "required": [
+                  "samples"
+                ],
+                "additionalProperties": false
+              },
+              "stage_id": {
+                "$ref": "#/$defs/stage_id_after"
+              },
+              "group": {
+                "$ref": "#/$defs/group"
+              }
+            },
+            "required": [
+              "seq",
+              "time_ms",
+              "actor",
+              "type",
+              "payload",
+              "stage_id",
+              "group"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "description": "サブピクセルの消去筆跡。",
+            "type": "object",
+            "properties": {
+              "seq": {
+                "$ref": "#/$defs/seq"
+              },
+              "time_ms": {
+                "$ref": "#/$defs/time_ms"
+              },
+              "actor": {
+                "enum": [
+                  "model"
+                ]
+              },
+              "type": {
+                "const": "erase_v2"
+              },
+              "payload": {
+                "type": "object",
+                "properties": {
+                  "samples": {
+                    "$ref": "#/$defs/samples"
+                  }
+                },
+                "required": [
+                  "samples"
+                ],
+                "additionalProperties": false
+              },
+              "stage_id": {
+                "$ref": "#/$defs/stage_id_after"
+              },
+              "group": {
+                "$ref": "#/$defs/group"
+              }
+            },
+            "required": [
+              "seq",
+              "time_ms",
+              "actor",
+              "type",
+              "payload",
+              "stage_id",
+              "group"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "description": "次の工程への移行提案。移行先は持たない。review_reason は筆跡なしで退出する場合だけ。",
+            "type": "object",
+            "properties": {
+              "seq": {
+                "$ref": "#/$defs/seq"
+              },
+              "time_ms": {
+                "$ref": "#/$defs/time_ms"
+              },
+              "actor": {
+                "enum": [
+                  "model"
+                ]
+              },
+              "type": {
+                "const": "advance_stage"
+              },
+              "payload": {
+                "type": "object",
+                "properties": {
+                  "review_reason": {
+                    "$ref": "#/$defs/review_reason"
+                  }
+                },
+                "required": [],
+                "additionalProperties": false
+              },
+              "stage_id": {
+                "$ref": "#/$defs/stage_id_after"
+              },
+              "group": {
+                "$ref": "#/$defs/group"
+              }
+            },
+            "required": [
+              "seq",
+              "time_ms",
+              "actor",
+              "type",
+              "payload",
+              "stage_id",
+              "group"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "description": "工程入場時の補助レイヤー非表示。transition グループ内だけ。",
+            "type": "object",
+            "properties": {
+              "seq": {
+                "$ref": "#/$defs/seq"
+              },
+              "time_ms": {
+                "$ref": "#/$defs/time_ms"
+              },
+              "actor": {
+                "enum": [
+                  "system"
+                ]
+              },
+              "type": {
+                "const": "set_layer_visibility"
+              },
+              "payload": {
+                "type": "object",
+                "properties": {
+                  "layer_id": {
+                    "$ref": "#/$defs/layer_id"
+                  },
+                  "visible": {
+                    "type": "boolean"
+                  }
+                },
+                "required": [
+                  "layer_id",
+                  "visible"
+                ],
+                "additionalProperties": false
+              },
+              "stage_id": {
+                "$ref": "#/$defs/stage_id_after"
+              },
+              "group": {
+                "$ref": "#/$defs/group"
+              }
+            },
+            "required": [
+              "seq",
+              "time_ms",
+              "actor",
+              "type",
+              "payload",
+              "stage_id",
+              "group"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "description": "工程入場。",
+            "type": "object",
+            "properties": {
+              "seq": {
+                "$ref": "#/$defs/seq"
+              },
+              "time_ms": {
+                "$ref": "#/$defs/time_ms"
+              },
+              "actor": {
+                "enum": [
+                  "system"
+                ]
+              },
+              "type": {
+                "const": "enter_stage"
+              },
+              "payload": {
+                "type": "object",
+                "properties": {
+                  "stage_id": {
+                    "$ref": "#/$defs/stage_id"
+                  }
+                },
+                "required": [
+                  "stage_id"
+                ],
+                "additionalProperties": false
+              },
+              "stage_id": {
+                "$ref": "#/$defs/stage_id_after"
+              },
+              "group": {
+                "$ref": "#/$defs/group"
+              }
+            },
+            "required": [
+              "seq",
+              "time_ms",
+              "actor",
+              "type",
+              "payload",
+              "stage_id",
+              "group"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "description": "工程退出。",
+            "type": "object",
+            "properties": {
+              "seq": {
+                "$ref": "#/$defs/seq"
+              },
+              "time_ms": {
+                "$ref": "#/$defs/time_ms"
+              },
+              "actor": {
+                "enum": [
+                  "system"
+                ]
+              },
+              "type": {
+                "const": "exit_stage"
+              },
+              "payload": {
+                "type": "object",
+                "properties": {
+                  "stage_id": {
+                    "$ref": "#/$defs/stage_id"
+                  }
+                },
+                "required": [
+                  "stage_id"
+                ],
+                "additionalProperties": false
+              },
+              "stage_id": {
+                "$ref": "#/$defs/stage_id_after"
+              },
+              "group": {
+                "$ref": "#/$defs/group"
+              }
+            },
+            "required": [
+              "seq",
+              "time_ms",
+              "actor",
+              "type",
+              "payload",
+              "stage_id",
+              "group"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "description": "作業レイヤーを未選択へ戻す。",
+            "type": "object",
+            "properties": {
+              "seq": {
+                "$ref": "#/$defs/seq"
+              },
+              "time_ms": {
+                "$ref": "#/$defs/time_ms"
+              },
+              "actor": {
+                "enum": [
+                  "system"
+                ]
+              },
+              "type": {
+                "const": "clear_active_layer"
+              },
+              "payload": {
+                "type": "object",
+                "properties": {},
+                "required": [],
+                "additionalProperties": false
+              },
+              "stage_id": {
+                "$ref": "#/$defs/stage_id_after"
+              },
+              "group": {
+                "$ref": "#/$defs/group"
+              }
+            },
+            "required": [
+              "seq",
+              "time_ms",
+              "actor",
+              "type",
+              "payload",
+              "stage_id",
+              "group"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "description": "完成の確定。finalize グループ内だけ。",
+            "type": "object",
+            "properties": {
+              "seq": {
+                "$ref": "#/$defs/seq"
+              },
+              "time_ms": {
+                "$ref": "#/$defs/time_ms"
+              },
+              "actor": {
+                "enum": [
+                  "system"
+                ]
+              },
+              "type": {
+                "const": "finish"
+              },
+              "payload": {
+                "type": "object",
+                "properties": {},
+                "required": [],
+                "additionalProperties": false
+              },
+              "stage_id": {
+                "$ref": "#/$defs/stage_id_after"
+              },
+              "group": {
+                "$ref": "#/$defs/group"
+              }
+            },
+            "required": [
+              "seq",
+              "time_ms",
+              "actor",
+              "type",
+              "payload",
+              "stage_id",
+              "group"
+            ],
+            "additionalProperties": false
+          }
+        ]
+      }
+    },
+    "metadata": {
+      "type": "object"
+    }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "status": {
+            "const": "complete"
+          }
+        },
+        "required": [
+          "status"
+        ]
+      },
+      "then": {
+        "properties": {
+          "termination_reason": {
+            "const": "finished"
+          }
+        }
+      },
+      "else": {
+        "properties": {
+          "termination_reason": {
+            "enum": [
+              "action_budget_exhausted",
+              "attempt_budget_exhausted",
+              "in_progress",
+              "recovered_truncated",
+              "internal_error"
+            ]
+          }
+        }
+      }
+    }
+  ],
+  "$defs": {
+    "seq": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 19999
+    },
+    "time_ms": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 604800000
+    },
+    "layer_id": {
+      "type": "string",
+      "pattern": "^[A-Za-z][A-Za-z0-9_-]{0,63}$"
+    },
+    "layer_role": {
+      "enum": [
+        "rough",
+        "sketch",
+        "base_color",
+        "shade",
+        "final_drawing",
+        "highlight",
+        "correction"
+      ]
+    },
+    "stage_id": {
+      "enum": [
+        "rough",
+        "sketch",
+        "final_drawing",
+        "base_color",
+        "shading",
+        "refine"
+      ]
+    },
+    "stage_id_after": {
+      "enum": [
+        "rough",
+        "sketch",
+        "final_drawing",
+        "base_color",
+        "shading",
+        "refine",
+        "finish"
+      ],
+      "description": "このeventを適用した直後の工程。enter_stage は入場先、finish は \"finish\"。"
+    },
+    "review_reason": {
+      "enum": [
+        "monochrome_line_art_only",
+        "flat_style_no_shading",
+        "no_correction_needed"
+      ]
+    },
+    "sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "group": {
+      "type": "object",
+      "description": "原子的な記録グループ。同じidのeventはseqが連続し、indexは0..size-1。sizeに満たないグループは未確定として読み込まない。",
+      "properties": {
+        "id": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 19999
+        },
+        "index": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 63
+        },
+        "size": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 64
+        }
+      },
+      "required": [
+        "id",
+        "index",
+        "size"
+      ],
+      "additionalProperties": false
+    },
+    "sample": {
+      "type": "object",
+      "properties": {
+        "x_q8": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 261888
+        },
+        "y_q8": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 261888
+        },
+        "time_us": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 60000000
+        },
+        "pressure_level_id": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 0,
+          "maximum": 10
+        },
+        "tilt_x_level_id": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 0,
+          "maximum": 12
+        },
+        "tilt_y_level_id": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 0,
+          "maximum": 12
+        }
+      },
+      "required": [
+        "x_q8",
+        "y_q8",
+        "time_us",
+        "pressure_level_id",
+        "tilt_x_level_id",
+        "tilt_y_level_id"
+      ],
+      "additionalProperties": false
+    },
+    "samples": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 4096,
+      "items": {
+        "$ref": "#/$defs/sample"
+      }
+    }
+  }
+}
