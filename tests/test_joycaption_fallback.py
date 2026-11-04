@@ -28,7 +28,8 @@ SETTINGS = (
 def test_standard_settings_select_real_joycaption_model():
     registry = PreprocessorRegistry.from_settings_file(SETTINGS)
     assert registry.caption_chain == ("accurate-vlm", "joycaption-fallback")
-    assert registry.caption_models["accurate-vlm"].model_id == "Qwen/Qwen3-VL-8B-Instruct"
+    primary = registry.caption_models["accurate-vlm"]
+    assert primary.model_id == "Qwen/Qwen3-VL-8B-Instruct"
     joycaption = registry.caption_models["joycaption-fallback"]
     assert isinstance(joycaption, JoyCaptionVisionProvider)
     assert joycaption.model_id == "fancyfeast/llama-joycaption-beta-one-hf-llava"
@@ -56,7 +57,8 @@ def test_joycaption_prose_fallback_and_tagger_run_independently(monkeypatch):
     result = PreprocessorRegistry.from_settings_file(SETTINGS).build().preprocess(
         b"image bytes", "image/png"
     )
-    assert result.caption.selected_model == "fancyfeast/llama-joycaption-beta-one-hf-llava"
+    chosen = result.caption.selected_model
+    assert chosen == "fancyfeast/llama-joycaption-beta-one-hf-llava"
     assert result.caption.fallback_used is True
     assert [attempt.status for attempt in result.caption.attempts] == ["refused", "ok"]
     assert result.caption.scene.short == "A red apple rests on a white table."
@@ -119,8 +121,10 @@ def test_joycaption_fingerprint_distinguishes_model_revision():
         "model_id": "fancyfeast/llama-joycaption-beta-one-hf-llava",
         "endpoint": "http://localhost:8001/v1/chat/completions",
     }
-    old = JoyCaptionVisionProvider(OpenAICompatibleVisionProvider(**base, model_revision="a"))
-    new = JoyCaptionVisionProvider(OpenAICompatibleVisionProvider(**base, model_revision="b"))
+    old_backend = OpenAICompatibleVisionProvider(**base, model_revision="a")
+    new_backend = OpenAICompatibleVisionProvider(**base, model_revision="b")
+    old = JoyCaptionVisionProvider(old_backend)
+    new = JoyCaptionVisionProvider(new_backend)
     assert old.config_fingerprint != new.config_fingerprint
 
 
