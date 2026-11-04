@@ -8,7 +8,9 @@ import json
 from dataclasses import dataclass
 from urllib.error import HTTPError, URLError
 from urllib.parse import urlsplit
-from urllib.request import Request, urlopen
+from urllib.request import Request
+
+from image_drawer.prompting._net import urlopen
 
 from .core import PromptExtractionError
 
@@ -83,7 +85,8 @@ class HTTPTagProvider:
             body = exc.read(4096)
             if code in {400, 403} and b"content_filter" in body:
                 raise PromptExtractionError("refused", "Taggerが説明を拒否") from exc
-            kind = "unavailable" if code in {408, 429, 500, 502, 503, 504} else "invalid_input"
+            # 画像そのものが不正な場合(400/413/415/422)だけ打ち切る。認証・URL・権限の不備は、後続のモデルを試す。
+            kind = "invalid_input" if code in {400, 413, 415, 422} else "unavailable"
             raise PromptExtractionError(kind, f"Tagger HTTP {code}") from exc
         except (URLError, TimeoutError, OSError) as exc:
             raise PromptExtractionError("unavailable", "Taggerが応答しない") from exc

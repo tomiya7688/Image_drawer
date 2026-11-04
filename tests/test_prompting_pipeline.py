@@ -322,3 +322,80 @@ def test_file_entry_does_not_require_mime_or_txt(tmp_path):
     router, _, _ = make_pipeline(VisionResponse(caption_json()))
     with pytest.raises(ValueError, match="PNG/JPEG/WebP"):
         router.extract_image_file(path)
+
+
+@pytest.mark.parametrize(
+    ("code", "expected"),
+    [
+        (401, "unavailable"),
+        (403, "unavailable"),
+        (404, "unavailable"),
+        (400, "invalid_input"),
+        (413, "invalid_input"),
+    ],
+)
+def test_http_status_decides_whether_the_next_model_is_tried(monkeypatch, code, expected):
+    """認証・URL・権限の不備は後続モデルを試し、画像そのものの不正だけが打ち切る。"""
+
+    def fake_open(request, timeout):
+        raise HTTPError(request.full_url, code, "error", {}, io.BytesIO(b"{}"))
+
+    monkeypatch.setattr(compat, "urlopen", fake_open)
+    backend = OpenAICompatibleVisionProvider("p", "m", "https://example.com/v1/chat/completions")
+    with pytest.raises(PromptExtractionError) as caught:
+        backend.describe(b"image bytes", "image/png", "describe")
+    assert caught.value.kind == expected
+
+
+def test_urlopen_does_not_follow_redirects():
+    """リダイレクトを追従せず、別ホストへ画像やAPIキーを再送しない。"""
+    import threading
+    from http.server import BaseHTTPRequestHandler, HTTPServer
+
+    from image_drawer.prompting._net import urlopen
+
+    hits = []
+
+    class Handler(BaseHTTPRequestHandler):
+        def do_GET(self):
+            hits.append(self.path)
+            if self.path == "/start":
+                self.send_response(302)
+                self.send_header("Location", "/target")
+                self.end_headers()
+            else:
+                self.send_response(200)
+                self.end_headers()
+
+        def log_message(self, *args):
+            pass
+
+    server = HTTPServer(("127.0.0.1", 0), Handler)
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    try:
+        from urllib.request import Request
+
+        with pytest.raises(HTTPError) as caught:
+            urlopen(Request(f"http://127.0.0.1:{server.server_port}/start"), timeout=5)
+        assert caught.value.code == 302
+        assert hits == ["/start"]
+    finally:
+        server.shutdown()
+        server.server_close()
+
+
+def test_missing_api_key_environment_variable_is_a_configuration_error(monkeypatch):
+    from image_drawer.prompting.registry import PreprocessorRegistry
+
+    monkeypatch.delenv("IDRAW_TEST_KEY", raising=False)
+    entry = {
+        "id": "p",
+        "model_id": "m",
+        "endpoint": "https://example.com/v1/chat/completions",
+        "api_key_env": "IDRAW_TEST_KEY",
+    }
+    with pytest.raises(ValueError, match="IDRAW_TEST_KEY"):
+        PreprocessorRegistry._vision_adapter(entry)
+    monkeypatch.setenv("IDRAW_TEST_KEY", "dummy-value")
+    assert PreprocessorRegistry._vision_adapter(entry).api_key == "dummy-value"

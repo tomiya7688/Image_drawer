@@ -8,7 +8,9 @@ import json
 from dataclasses import dataclass
 from urllib.error import HTTPError, URLError
 from urllib.parse import urlsplit
-from urllib.request import Request, urlopen
+from urllib.request import Request
+
+from image_drawer.prompting._net import urlopen
 
 from .core import PromptExtractionError, VisionResponse
 
@@ -109,7 +111,8 @@ class OpenAICompatibleVisionProvider:
                 and ("content policy" in message or "safety filter" in message)
             ):
                 return VisionResponse(refusal=True, finish_reason="content_filter")
-            kind = "unavailable" if exc.code in {408, 429, 500, 502, 503, 504} else "invalid_input"
+            # 画像そのものが不正な場合(400/413/415/422)だけ打ち切る。認証・URL・権限の不備は、後続のモデルを試す。
+            kind = "invalid_input" if exc.code in {400, 413, 415, 422} else "unavailable"
             raise PromptExtractionError(kind, f"VLM HTTP {exc.code}") from exc
         except (URLError, OSError, TimeoutError) as exc:
             raise PromptExtractionError("unavailable", "VLMの接続に失敗") from exc

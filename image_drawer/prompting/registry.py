@@ -171,6 +171,9 @@ class PreprocessorRegistry:
         env_name = entry.get("api_key_env", "")
         if not isinstance(env_name, str):
             raise ValueError("api_key_envは環境変数名を指定する")
+        # 環境変数名を指定したのに値が無い場合は、認証なしで送らずに設定の誤りとして止める。
+        if env_name and not os.environ.get(env_name):
+            raise ValueError(f"環境変数{env_name}が未設定または空です")
         return OpenAICompatibleVisionProvider(
             provider_id=entry["id"],
             model_id=entry["model_id"],
