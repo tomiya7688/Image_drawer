@@ -272,3 +272,26 @@ def test_plain_json_config_cannot_import_arbitrary_code_or_contain_api_key():
                 }],
             }
         )
+
+
+def test_temporary_ruff_differences():
+    import subprocess
+
+    root = Path(__file__).resolve().parents[1]
+    diffs = []
+    for relative in (
+        "image_drawer/prompting/core.py",
+        "image_drawer/prompting/tagger_http.py",
+        "image_drawer/prompting/tagging.py",
+        "image_drawer/prompting/registry.py",
+        "tests/test_prompt_extraction_contract.py",
+        "tests/test_tagging_preprocessing.py",
+    ):
+        result = subprocess.run(
+            ["ruff", "format", "--diff", str(root / relative)],
+            capture_output=True,
+            text=True,
+        )
+        if result.returncode != 0:
+            diffs.append(f"{relative}\n{result.stdout}\n{result.stderr}")
+    assert not diffs, "\n".join(diffs)
