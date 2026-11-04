@@ -116,16 +116,23 @@ class LocalCheck:
     #   ]
     #   引数: [
     #     label: 検査名, command: 実行argv, statuses: 終了値ごとの結果(0以外をWARN・SKIPにする場合)
+    #     timeout: 打ち切りまでの秒数。既定は120秒
     #   ]
     #   戻り値: [
     #     なし
     #   ]
     # }
-    def run(self, label: str, command: list[str], statuses: dict[int, str] | None = None) -> None:
+    def run(
+        self,
+        label: str,
+        command: list[str],
+        statuses: dict[int, str] | None = None,
+        timeout: float = 120,
+    ) -> None:
         print(f"\n--- {label} ---", flush=True)
         try:
             # 一つが失敗しても後続の検査を実行し、原因をまとめて表示する。
-            result = subprocess.run(command, cwd=self.root, timeout=120, check=False)
+            result = subprocess.run(command, cwd=self.root, timeout=timeout, check=False)
             default = "PASS" if result.returncode == 0 else "FAIL"
             status = (statuses or {}).get(result.returncode, default)
             detail = f"exit={result.returncode}"
@@ -225,6 +232,12 @@ def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--base", help="CIの比較元SHA。通常はorigin/mainとのmerge-base")
     parser.add_argument("--format", action="store_true", help="担当するPythonだけを明示整形する")
+    parser.add_argument(
+        "--test-timeout",
+        type=float,
+        default=float(os.environ.get("CHECK_LOCAL_TEST_TIMEOUT", "300")),
+        help="pytestの打ち切り秒数。環境変数CHECK_LOCAL_TEST_TIMEOUTでも指定できる(既定300)",
+    )
     parser.add_argument("files", nargs="*", help="--format時の担当ファイル（必須）")
     args = parser.parse_args(argv)
     checker, started = LocalCheck(ROOT), time.monotonic()
@@ -297,6 +310,7 @@ def main(argv: list[str] | None = None) -> int:
                     "--basetemp",
                     str(Path(directory) / "pytest"),
                 ],
+                timeout=args.test_timeout,
             )
     except OSError as exc:
         checker.results.append(("tests", "UNVERIFIED", str(exc)))

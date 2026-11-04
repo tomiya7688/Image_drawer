@@ -3,6 +3,10 @@
 **対象読者:** Image Drawerを使いたい人  
 **目的:** 内部実装を知らなくても、現在利用可能な機能を使えるようにする。
 
+## 画像から自動でタグ・プロンプトを生成する
+
+[前処理モデルを自由に登録する方法](preprocessing.md)／[設定例JSON](preprocessor_settings.example.json)。画像以外の学習素材は必要ありません。
+
 ## まず読む
 
 - [はじめに](getting_started.md)

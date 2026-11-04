@@ -29,3 +29,10 @@ body:
       description: 完了と判断できる条件を書いてください。
     validations:
       required: true
+  - type: textarea
+    id: design
+    attributes:
+      label: 設計書（リンクと節）
+      description: 実装Issueは、対応する設計書のリンクと節を書いてください。設計書が無い場合は「設計PRが先」と書き、設計のIssueとして起票してください。
+    validations:
+      required: true

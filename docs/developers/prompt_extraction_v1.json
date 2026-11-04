@@ -1,0 +1,238 @@
+{
+  "schema_version": "idraw-prompt-extraction/v1",
+  "profile_id": "human-prompt-aligned-v1",
+  "status": "independent_caption_tagger_pipeline_registry_cli_implemented;real_models_and_trainer_not_integrated",
+  "external_training_input": [
+    "image"
+  ],
+  "model_routing": {
+    "priority": "user_registered_ordered_chains",
+    "caption_chain": {
+      "minimum": 1,
+      "maximum": 256,
+      "strategy": "higher_caption_accuracy_first_then_high_visual_coverage_lower_refusal_rate",
+      "default_model_id": null,
+      "requires_qwen": false,
+      "requires_exactly_two": false
+    },
+    "tag_chain": {
+      "minimum": 1,
+      "maximum": 256,
+      "strategy": "independent_tags_with_taggers_in_user_priority_order",
+      "requires_caption_model_for_tags": false
+    },
+    "fallback_example_models": [
+      "fancyfeast/llama-joycaption-beta-one-hf-llava",
+      "Felldude/Qwen3-VL-8B-Instruct-Uncensored-V2",
+      "GitMylo/nsfwcaption-qwen3-vl-8b-v2-safetensors"
+    ],
+    "model_selection_metrics": [
+      "caption_accuracy",
+      "refusal_rate",
+      "content_coverage",
+      "latency",
+      "image_understanding_quality"
+    ],
+    "primary_failure_triggers": [
+      "refused",
+      "empty",
+      "invalid_format",
+      "unverified_facts",
+      "verifier_refused",
+      "unavailable"
+    ],
+    "all_failed": "record_failure_and_skip_current_image_without_creating_fabricated_caption_or_tags;never_require_manual_text",
+    "unexpected_invalid_input": "stop_and_report_configuration_error",
+    "provider_refusal_sources": [
+      "structured_message.refusal",
+      "finish_reason.content_filter",
+      "http_safety_error_code",
+      "plain_refusal_text"
+    ],
+    "verifier_last_model_refusal": "keep_as_verifier_refused_unverified",
+    "qwen_is_optional_example": true,
+    "unrestricted_guarantee": false,
+    "default_img2txt_fallback": {
+      "selected_at": "2026-11-05",
+      "model_id": "fancyfeast/llama-joycaption-beta-one-hf-llava",
+      "adapter": "joycaption",
+      "recommended_position": "after_high_accuracy_structured_captioner",
+      "selection_basis": [
+        "captioning_specialization",
+        "explicit_sfw_nsfw_coverage",
+        "coverage_of_anime_and_photographs",
+        "open_weights_and_local_vllm"
+      ],
+      "limitations": [
+        "not_unconditionally_refusal_free",
+        "multiple_subjects_spatial_relations_and_ocr_can_be_wrong",
+        "native_prose_not_json",
+        "glitches_in_author_reported_tests",
+        "license_of_base_llama_3_1_must_be_checked"
+      ],
+      "implementation": "natural_language_to_scene_without_inventing_structured_facts",
+      "accuracy_status": "producer_claims_confirmed;independent_image_benchmark_not_performed",
+      "model_source": "https://huggingface.co/fancyfeast/llama-joycaption-beta-one-hf-llava",
+      "developer_source": "https://github.com/fpgaminer/joycaption"
+    }
+  },
+  "generation": {
+    "structured_facts": [
+      "summary",
+      "subjects",
+      "count",
+      "attributes",
+      "relations",
+      "composition",
+      "background",
+      "style",
+      "tags"
+    ],
+    "quality_rules": [
+      "no_unobserved_details",
+      "no_generic_quality_tokens",
+      "no_hallucinated_negative_prompt",
+      "preserve_count_color_spatial_relation",
+      "keep_nsfw_descriptions_factual_when_model_supports_them",
+      "avoid_promises_about_unrestricted_models",
+      "tags_and_caption_generated_independently"
+    ],
+    "optional_independent_verifier": true,
+    "hallucination_rejection": "if verifier unsupported claims: retry with fallback",
+    "prompt_variants": [
+      "short",
+      "standard",
+      "detailed"
+    ],
+    "sampling_weights": [
+      40,
+      40,
+      20
+    ],
+    "human_prompt_alignment": {
+      "normalizer": "normalize_prompt",
+      "inference_uses_same_text_encoder": true,
+      "avoid_overfitting_to_long_captions": true,
+      "never_replace_user_negation": true,
+      "evaluations": [
+        "subject",
+        "count",
+        "color",
+        "left_right",
+        "style",
+        "short_prompt_following",
+        "natural_language_vs_tag_style",
+        "diversity"
+      ],
+      "multilingual_evaluation": [
+        "ja",
+        "en"
+      ],
+      "comparison_baselines": [
+        "caption_only",
+        "caption_plus_separate_tagger",
+        "caption_plus_tagger_normalization",
+        "unlimited_fallback_chain",
+        "single_caption_model"
+      ]
+    },
+    "verifier_can_fail_closed": false,
+    "verifier_refusal_on_fallback": "accept_as_verifier_refused_unverified_not_as_verified",
+    "completeness_check": "reject_if_missing_facts_nonempty"
+  },
+  "cache": {
+    "must_include": [
+      "image_sha256",
+      "ordered_caption_provider_ids_models_configs",
+      "ordered_tagger_provider_ids_models_configs",
+      "verifier_id_model_config",
+      "prompt_profile_and_instruction_hash",
+      "tag_normalizer_config_hash",
+      "tag_formatter_config_hash"
+    ],
+    "do_not_include": [
+      "api_key",
+      "user_supplied_text_file"
+    ],
+    "persist_success_only": true,
+    "record_attempts_and_fallback_reason": true
+  },
+  "research": [
+    "https://cdn.openai.com/papers/dall-e-3.pdf",
+    "https://arxiv.org/abs/2310.16656",
+    "https://ml-research.github.io/human-centered-genai/projects/t2i-synthetic-captions/index.html",
+    "https://openaccess.thecvf.com/content/CVPR2026/html/Tang_CCCaption_Dual-Reward_Reinforcement_Learning_for_Complete_and_Correct_Image_Captioning_CVPR_2026_paper.html"
+  ],
+  "related_repository": "https://github.com/tomiya7688/comfyUI_support_tools",
+  "tag_extraction": {
+    "independent_from_caption_generation": true,
+    "both_caption_and_tag_are_required": true,
+    "tagger_output_is_not_replaced_by_caption_json_tags": true,
+    "categories": [
+      "general",
+      "character",
+      "copyright",
+      "rating",
+      "style",
+      "meta",
+      "clothes",
+      "pose",
+      "expression",
+      "background",
+      "situation",
+      "user_defined"
+    ],
+    "reference": "https://github.com/tomiya7688/comfyUI_support_tools/blob/main/src/comfyui_support_tools/shared/tag_result_normalizer.py",
+    "accepted_outputs": [
+      "PixAI_tag_scores",
+      "category_tag_json",
+      "flat_tag_scores",
+      "scored_tag_list",
+      "comma_separated_tags"
+    ],
+    "classification": "explicit_categories_first_and_user_overrides_then_conservative_keyword_grouping",
+    "confidence": {
+      "general": 0.35,
+      "character": 0.85,
+      "user_configurable": true
+    },
+    "normalization": [
+      "preserve_original_labels_and_scores",
+      "dedupe_case_insensitive",
+      "format_underscores_as_spaces_but_preserve_emoticons",
+      "filter_low_confidence",
+      "exclude_generic_quality_words"
+    ],
+    "no_implicit_prompt_merge_categories": [
+      "rating",
+      "copyright",
+      "style",
+      "meta"
+    ],
+    "independent_tagger_fallback": true
+  },
+  "user_registration": {
+    "config_schema": "idraw-preprocessor-registry/v1",
+    "example": "docs/users/preprocessor_settings.example.json",
+    "registration": [
+      "caption",
+      "tagger",
+      "verifier",
+      "normalizer",
+      "tag_formatter",
+      "prompt_formatter",
+      "custom_adapter"
+    ],
+    "caption_chain_unbounded_fixed_tiers": true,
+    "tag_chain_unbounded_fixed_tiers": true,
+    "configuration_file_is_application_settings_not_training_input": true,
+    "no_arbitrary_code_import_from_json": true,
+    "adapters": [
+      "openai_compatible",
+      "joycaption",
+      "tagger_http",
+      "python_plugin_custom_adapter"
+    ],
+    "cli": "image-drawer-preprocess --settings SETTINGS.json --image IMAGE.png"
+  }
+}

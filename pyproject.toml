@@ -25,6 +25,7 @@ dev = [
 image-drawer = "image_drawer.cli:main"
 image-drawer-gui = "image_drawer.gui:main"
 image-drawer-part-bank = "image_drawer.part_bank.cli:main"
+image-drawer-preprocess = "image_drawer.prompting.cli:main"
 image-drawer-dataset = "image_drawer.dataset.cli:main"
 
 [tool.setuptools.package-data]
