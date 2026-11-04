@@ -122,7 +122,7 @@ Tags:    Tagger A → Tagger B → Tagger C → …
 | モデル | 調査した根拠・制限 | 判断 |
 | --- | --- | --- |
 | **JoyCaption Beta One** | 作者がSFW・NSFW双方と写真・アニメ等の幅広い画像への対応を明示。Diffusion学習用の文章生成に特化。自然文で応答し、複数対象・左右・OCRに既知の誤り、まれな拒否あり | **標準フォールバック** |
-| `Felldude/Qwen3-VL-8B-Instruct-Uncensored-V2` | Apache 2.0表記のNSFW向け調整モデル。作者は画像を動画として説明する不具合を報告 | ユーザー追加候補 |
+| `Felldude/Qwen3-VL-8B-Instruct-Uncensored-V2` | Apache 2.0表記のNSFW向け調整モデル。作者は画像を動画として説明する不具合を報告。VRAM24GB以上 | **JoyCaption拒否時の標準第3段** |
 | `GitMylo/nsfwcaption-qwen3-vl-8b-v2-safetensors` | 作者はキャプション用途の低拒否率を明記。ただし人物やキャラクター名を取り違える旨を報告 | ユーザー追加候補 |
 | `Qwen/Qwen3-VL-8B-Instruct` | 汎用画像理解とOpenAI互換推論サービスに対応。Apache 2.0のモデルカードあり | 構造化Caption初段の標準例 |
 
@@ -132,9 +132,13 @@ Tags:    Tagger A → Tagger B → Tagger C → …
 [GitMylo V2](https://huggingface.co/GitMylo/nsfwcaption-qwen3-vl-8b-v2-safetensors)・
 [Qwen3-VL](https://huggingface.co/Qwen/Qwen3-VL-8B-Instruct)。
 
+**標準チェーンは Qwen3-VL → JoyCaption Beta One → Felldude Uncensored V2。** 初段/2段が拒否・空・不正形式・一時障害になれば3段まで続け、3段も失敗したら画像をダミーCaptionで学習せず失敗を記録する。標準3段はユーザー定義のN段ルーティングに対する単なる推奨設定であり、モデル数は固定しない。
+
 **選定の意味**：モデル作者が明記した学習目的・対応範囲・既知の制約を根拠に、採用モデル名まで決めた。ただし画像を使った独立の精度比較や拒否率実測は行っていない。JoyCaptionが無拒否であるとの主張や、他候補を数値で下回る／上回るといった未測定の断言はしない。
 
 **実装上の必須差分**：JoyCaptionはJSON指示に安定して従う汎用VLMではなく、作者推奨のStraightforward Captionで自然文を返す。このため`image_drawer.prompting.joycaption.JoyCaptionVisionProvider`が自然文を取り出し、文章そのものから短文（冒頭1文）・標準文（冒頭2文）・詳細文（全文）を決定的に組み立てる。元の説明文にないsubjects・relations等を想像して埋めず空配列として保持し、別Taggerの結果を流用しない。日本語と英語の学習条件の混在はTextEncoderとの整合を別途評価する。
+
+Felldudeにも`adapter: "prose_caption"`という同じ自然文正規化を用い、JSON強制をしない。第3段に採用されてもそのCaptionを無条件で正しいと扱わず、特に静止画像が動画説明になった件数を品質評価する。
 
 **実行環境・権利**：JoyCaptionの公式案内はbf16でVRAM約17GB、24GB以上のGPUを推奨し、vLLMによるOpenAI互換サーバーも示している。モデルカードに`meta-llama/Llama-3.1-8B-Instruct`が基盤として記されている。JoyCaptionコードのApache 2.0とモデル重みの許諾条件は混同せず、導入時に基盤モデルの条件を確認する。Image_drawer本体へモデル重みは同梱しない。
 
