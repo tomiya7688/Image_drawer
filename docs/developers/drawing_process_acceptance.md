@@ -181,7 +181,7 @@ rendererのアンチエイリアス・線分ごとの重複合成・浮動小数
 
 1. **画像だけで登録**：画像ファイル1枚から追加ファイルなしで登録し、TagExtractorとCaptionExtractorを独立に切り替えられること。抽出キャッシュとdataset/versionが混線しない。
 2. **拒否時にN段切替**：高精度Vision modelが`refusal`・`content_filter`・空文・不正JSON・画像の重大な不一致を返したら、**ユーザーが登録した次のモデルへ任意段数フォールバック**。Qwen・2段階を必須にしない。各モデルの採用・拒否理由を内部記録する。Taggerも独立モデル列で再試行できる。
-3. **独立CaptionとTag**：Caption生成とTag抽出・分類・整形をそれぞれ実行し、同じ画像の結果を別々に保持する。Captionerがtagsを含んでもTagger推論を省略しない。`general/character/copyright/rating/style`と衣服/姿勢/表情/背景を分類し、confidenceと元タグを保持。rating等を肯定タグへ勝手に混ぜない。
+3. **独立CaptionとTag**：Caption生成とTag抽出・分類・整形をそれぞれ実行し、同じ画像の結果を別々に保持する。Captionerがtagsを含んでもTagger推論を省略しない。`general/character/copyright/rating/style/meta`と衣服/姿勢/表情/背景を分類し、confidenceと元タグを保持。rating等を肯定タグへ勝手に混ぜない。
 4. **非空の内部テキスト条件**：自動生成したプロンプトがTextEncoderに渡り、DrawingPolicyが文章条件に基づいて描く。両モデルで生成失敗した場合は画像IDと理由を記録し、手入力を要求せず、その例を当該学習から外す。
 5. **文章への忠実度**：短文・標準文・詳細文を混ぜて学習し、色・個数・対象・位置・画風・否定を変えた**未見の自然なプロンプト**で指示追従を独立評価する。高画質でも文章を無視するモデルは不合格。
 6. **target隔離**：Policyに渡すのはpromptからの内部文章条件と自身の描画状態だけ。学習用の正解画像・目標画像から導出した差分/特徴量はEvaluatorのみが参照する。
