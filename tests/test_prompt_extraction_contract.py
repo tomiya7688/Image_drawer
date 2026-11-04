@@ -19,12 +19,16 @@ def test_priority_fallback_and_failure_are_declared():
     routing = c["model_routing"]
     assert c["schema_version"] == "idraw-prompt-extraction/v1"
     assert c["external_training_input"] == ["image"]
-    assert routing["priority"] == ["quality_primary", "qwen_local_fallback"]
-    assert routing["qwen_local_fallback"]["local_model_required"] is True
-    assert routing["qwen_local_fallback"]["cannot_guarantee_all_content_is_supported"] is True
+    assert routing["priority"] == "user_registered_ordered_chains"
+    assert routing["caption_chain"]["minimum"] == 1
+    assert routing["caption_chain"]["maximum"] == 256
+    assert routing["caption_chain"]["requires_qwen"] is False
+    assert routing["caption_chain"]["requires_exactly_two"] is False
+    assert routing["tag_chain"]["requires_caption_model_for_tags"] is False
+    assert routing["qwen_is_optional_example"] is True
     for kind in ("refused", "empty", "invalid_format", "unverified_facts"):
         assert kind in routing["primary_failure_triggers"]
-    assert "never_write_generic_caption" in routing["both_failed"]
+    assert "never_require_manual_text" in routing["all_failed"] or "without_creating" in routing["all_failed"]
 
 
 def test_human_prompt_alignment_and_no_hallucination():
@@ -48,7 +52,9 @@ def test_pipeline_is_internal_and_no_user_caption_file_required():
     assert d["external_auxiliary_files_required"] is False
     assert d["prompt_extraction"]["profile_id"] == c["profile_id"]
     assert d["prompt_extraction"]["no_user_extra_files"] is True
-    assert d["prompt_extraction"]["pipeline"] == "image_drawer.prompting.ImagePromptPipeline"
+    assert d["prompt_extraction"]["pipeline"] == "image_drawer.prompting.ImageTrainingPreprocessor"
+    assert d["prompt_extraction"]["caption_and_tag_run_independently"] is True
+    assert "tagger" in d["prompt_extraction"]["tag_pipeline"].lower()
 
 
 def test_related_research_and_support_tools_are_documented():
