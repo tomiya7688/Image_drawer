@@ -5,12 +5,8 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-CONFIG = (
-    Path(__file__).resolve().parents[1]
-    / "docs"
-    / "developers"
-    / "training_scale_test_v1.json"
-)
+ROOT = Path(__file__).resolve().parents[1]
+CONFIG = ROOT / "docs" / "developers" / "training_scale_test_v1.json"
 
 
 def _plan() -> dict:
@@ -24,20 +20,14 @@ def test_tiers_are_explicit_and_not_empirically_guaranteed():
     assert plan["external_training_input"] == ["image"]
     assert plan["initial_recommended_image_count"] == 1000
     stages = plan["stages"]
-    assert [stage["id"] for stage in stages] == [
-        "smoke",
-        "pilot",
-        "limited_illustration",
-        "scaling",
-        "research_large",
-    ]
-    assert [stage["target_images"] for stage in stages] == [
-        100,
-        1000,
-        10000,
-        50000,
-        100000,
-    ]
+    expected = {
+        "smoke": 100,
+        "pilot": 1000,
+        "limited_illustration": 10000,
+        "scaling": 50000,
+        "research_large": 100000,
+    }
+    assert {stage["id"]: stage["target_images"] for stage in stages} == expected
     assert stages[0]["min_images"] == 10
     assert stages[-1]["max_images"] is None
     assert all(stage["min_images"] <= stage["target_images"] for stage in stages)
