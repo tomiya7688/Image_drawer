@@ -214,6 +214,8 @@ _ALIAS = {
     "ratings": "rating",
     "styles": "style",
     "image_style": "style",
+    "metas": "meta",
+    "meta_tags": "meta",
     "poses": "pose",
     "clothing": "clothes",
     "expressions": "expression",
@@ -226,6 +228,7 @@ _SUPPORTED = {
     "copyright",
     "rating",
     "style",
+    "meta",
     "pose",
     "clothes",
     "expression",
@@ -410,16 +413,18 @@ class TagFormatter:
         include_style: bool = False,
         include_copyright: bool = False,
         include_rating: bool = False,
+        include_meta: bool = False,
         exclude_quality_fillers: bool = True,
     ) -> None:
         self.include_style = include_style
         self.include_copyright = include_copyright
         self.include_rating = include_rating
+        self.include_meta = include_meta
         self.exclude_quality_fillers = exclude_quality_fillers
 
     @property
     def config_fingerprint(self) -> str:
-        return f"{self.include_style}:{self.include_copyright}:{self.include_rating}:{self.exclude_quality_fillers}"
+        return f"{self.include_style}:{self.include_copyright}:{self.include_rating}:{self.include_meta}:{self.exclude_quality_fillers}"
 
     def format(self, tags: TagSet) -> PreparedTags:
         grouped: dict[str, list[str]] = {}
@@ -433,6 +438,8 @@ class TagFormatter:
             if tag.category == "copyright" and not self.include_copyright:
                 continue
             if tag.category == "style" and not self.include_style:
+                continue
+            if tag.category == "meta" and not self.include_meta:
                 continue
             if display.casefold() not in seen:
                 seen.add(display.casefold())
