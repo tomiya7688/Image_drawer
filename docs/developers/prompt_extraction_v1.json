@@ -1,31 +1,37 @@
 {
   "schema_version": "idraw-prompt-extraction/v1",
   "profile_id": "human-prompt-aligned-v1",
-  "status": "architecture-and-router-implemented; model-weights-not-included",
+  "status": "independent_caption_tagger_pipeline_registry_cli_implemented;real_models_and_trainer_not_integrated",
   "external_training_input": [
     "image"
   ],
   "model_routing": {
-    "priority": [
-      "quality_primary",
-      "qwen_local_fallback"
+    "priority": "user_registered_ordered_chains",
+    "caption_chain": {
+      "minimum": 1,
+      "maximum": 256,
+      "strategy": "higher_caption_accuracy_first_then_high_visual_coverage_lower_refusal_rate",
+      "default_model_id": null,
+      "requires_qwen": false,
+      "requires_exactly_two": false
+    },
+    "tag_chain": {
+      "minimum": 1,
+      "maximum": 256,
+      "strategy": "independent_tags_with_taggers_in_user_priority_order",
+      "requires_caption_model_for_tags": false
+    },
+    "fallback_example_models": [
+      "Qwen/Qwen3-VL-8B-Instruct",
+      "any_registered_vision_language_model_with_acceptable_quality_and_broad_coverage"
     ],
-    "quality_primary": {
-      "role": "best_available_benchmarked_vision_language_model",
-      "provider_id": "user_selected_accuracy_first_vlm",
-      "model_id": "configured_in_application_settings",
-      "endpoint": "configured_https_openai_compatible_chat_completions",
-      "json_mode": "provider_dependent"
-    },
-    "qwen_local_fallback": {
-      "role": "fallback_when_primary_refuses_or_fails",
-      "provider_id": "qwen_local",
-      "model_example": "Qwen/Qwen3-VL-8B-Instruct",
-      "ollama_model_example": "qwen3-vl:8b",
-      "endpoint_example": "http://127.0.0.1:11434/v1/chat/completions",
-      "local_model_required": true,
-      "cannot_guarantee_all_content_is_supported": true
-    },
+    "model_selection_metrics": [
+      "caption_accuracy",
+      "refusal_rate",
+      "content_coverage",
+      "latency",
+      "image_understanding_quality"
+    ],
     "primary_failure_triggers": [
       "refused",
       "empty",
@@ -34,7 +40,7 @@
       "verifier_refused",
       "unavailable"
     ],
-    "both_failed": "skip_current_image_with_reason;never_write_generic_caption;never_request_manual_text",
+    "all_failed": "record_failure_and_skip_current_image_without_creating_fabricated_caption_or_tags;never_require_manual_text",
     "unexpected_invalid_input": "stop_and_report_configuration_error",
     "provider_refusal_sources": [
       "structured_message.refusal",
@@ -42,7 +48,9 @@
       "http_safety_error_code",
       "plain_refusal_text"
     ],
-    "retries_for_network_errors": "configurable;default_fallback"
+    "verifier_last_model_refusal": "keep_as_verifier_refused_unverified",
+    "qwen_is_optional_example": true,
+    "unrestricted_guarantee": false
   },
   "generation": {
     "structured_facts": [
@@ -62,7 +70,8 @@
       "no_hallucinated_negative_prompt",
       "preserve_count_color_spatial_relation",
       "keep_nsfw_descriptions_factual_when_model_supports_them",
-      "avoid_promises_about_unrestricted_models"
+      "avoid_promises_about_unrestricted_models",
+      "tags_and_caption_generated_independently"
     ],
     "optional_independent_verifier": true,
     "hallucination_rejection": "if verifier unsupported claims: retry with fallback",
@@ -96,9 +105,11 @@
         "en"
       ],
       "comparison_baselines": [
-        "plain_caption",
-        "structured_recaption",
-        "structured_recaption_with_fallback"
+        "caption_only",
+        "caption_plus_separate_tagger",
+        "caption_plus_tagger_normalization",
+        "unlimited_fallback_chain",
+        "single_caption_model"
       ]
     },
     "verifier_can_fail_closed": false,
@@ -108,11 +119,12 @@
   "cache": {
     "must_include": [
       "image_sha256",
-      "primary_id_and_model",
-      "fallback_id_and_model",
-      "verifier_id_and_model",
-      "profile_version",
-      "extraction_instruction_hash"
+      "ordered_caption_provider_ids_models_configs",
+      "ordered_tagger_provider_ids_models_configs",
+      "verifier_id_model_config",
+      "prompt_profile_and_instruction_hash",
+      "tag_normalizer_config_hash",
+      "tag_formatter_config_hash"
     ],
     "do_not_include": [
       "api_key",
@@ -127,5 +139,73 @@
     "https://ml-research.github.io/human-centered-genai/projects/t2i-synthetic-captions/index.html",
     "https://openaccess.thecvf.com/content/CVPR2026/html/Tang_CCCaption_Dual-Reward_Reinforcement_Learning_for_Complete_and_Correct_Image_Captioning_CVPR_2026_paper.html"
   ],
-  "related_repository": "https://github.com/tomiya7688/comfyUI_support_tools"
+  "related_repository": "https://github.com/tomiya7688/comfyUI_support_tools",
+  "tag_extraction": {
+    "independent_from_caption_generation": true,
+    "both_caption_and_tag_are_required": true,
+    "tagger_output_is_not_replaced_by_caption_json_tags": true,
+    "categories": [
+      "general",
+      "character",
+      "copyright",
+      "rating",
+      "style",
+      "clothes",
+      "pose",
+      "expression",
+      "background",
+      "situation",
+      "user_defined"
+    ],
+    "reference": "https://github.com/tomiya7688/comfyUI_support_tools/blob/main/src/comfyui_support_tools/shared/tag_result_normalizer.py",
+    "accepted_outputs": [
+      "PixAI_tag_scores",
+      "category_tag_json",
+      "flat_tag_scores",
+      "scored_tag_list",
+      "comma_separated_tags"
+    ],
+    "classification": "explicit_categories_first_and_user_overrides_then_conservative_keyword_grouping",
+    "confidence": {
+      "general": 0.35,
+      "character": 0.85,
+      "user_configurable": true
+    },
+    "normalization": [
+      "preserve_original_labels_and_scores",
+      "dedupe_case_insensitive",
+      "format_underscores_as_spaces_but_preserve_emoticons",
+      "filter_low_confidence",
+      "exclude_generic_quality_words"
+    ],
+    "no_implicit_prompt_merge_categories": [
+      "rating",
+      "copyright",
+      "style"
+    ],
+    "independent_tagger_fallback": true
+  },
+  "user_registration": {
+    "config_schema": "idraw-preprocessor-registry/v1",
+    "example": "docs/users/preprocessor_settings.example.json",
+    "registration": [
+      "caption",
+      "tagger",
+      "verifier",
+      "normalizer",
+      "tag_formatter",
+      "prompt_formatter",
+      "custom_adapter"
+    ],
+    "caption_chain_unbounded_fixed_tiers": true,
+    "tag_chain_unbounded_fixed_tiers": true,
+    "configuration_file_is_application_settings_not_training_input": true,
+    "no_arbitrary_code_import_from_json": true,
+    "adapters": [
+      "openai_compatible",
+      "tagger_http",
+      "python_plugin_custom_adapter"
+    ],
+    "cli": "image-drawer-preprocess --settings SETTINGS.json --image IMAGE.png"
+  }
 }
