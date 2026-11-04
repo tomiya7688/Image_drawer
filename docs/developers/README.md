@@ -46,6 +46,7 @@
 - [Workflow DSL](workflow_dsl.md)
 - [GUI実装仕様](gui.md)
 - [学習と評価](training_and_evaluation.md)
+- [画像数・分割・seed・Caption拒否率のテスト計画](training_scale_test_v1.md)（[機械可読契約](training_scale_test_v1.json)）
 - [評価結果の保存形式](score_sets.md)
 - [MVP範囲](mvp.md)
 
