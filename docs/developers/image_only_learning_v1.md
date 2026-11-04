@@ -65,7 +65,7 @@ AIは正解画像を見ながら「作者の過去の筆跡」を復元するの
   → TextEncoder → DrawingPolicy（文章条件付きで描画）
 ```
 
-共通API（概念。まだ実装済みではない）：
+共通API（`image_drawer/dataset/`に[実装済み](image_dataset.md)。モデルを使う抽出器は未実装）：
 
 ```text
 TagExtractor.extract(image) -> {tags, confidence, language, model_id, model_hash, config_hash}
