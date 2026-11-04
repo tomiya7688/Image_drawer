@@ -18,6 +18,8 @@ python scripts/check_local.py
 
 `triage`は、`gh`で先に処理するPRと優先度が未設定のIssueを表示します。PRや未設定がある場合は`WARN`とし、失敗終了にはしません。`gh`を使えない場合は理由付きの`SKIP`です。同じ内容は`python scripts/check_triage.py`だけでも確認できます。
 
+pytestの打ち切りは既定300秒です。テストが多い環境では`--test-timeout 600`、または環境変数`CHECK_LOCAL_TEST_TIMEOUT`で延ばせます。打ち切られた場合は`UNVERIFIED`になり、失敗終了します。
+
 結果はPASS / WARN / FAIL / SKIP / UNVERIFIEDと所要時間をまとめて表示します。Python変更がない検査はSKIPになりますが、文書・pytestは実行します。テスト収集0件はpytestの失敗終了として扱います。必須検査の失敗、依存不足、起動不能、120秒タイムアウトは失敗終了します。対象探索や構文が失敗した場合は、後続の検査をSKIPとして表示して中断します。結果と未確認範囲をPR本文に記載してください。
 
 ## 実装担当者の整形
