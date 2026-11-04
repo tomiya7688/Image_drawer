@@ -1,0 +1,74 @@
+{
+  "schema_version": "idraw-preprocessor-registry/v1",
+  "description_ja": "モデル・分類・整形器のユーザー設定例。モデル名と接続先は導入環境に合わせて変更。学習素材は画像のみ。",
+  "providers": [
+    {
+      "id": "accurate-vlm",
+      "kind": "caption",
+      "adapter": "openai_compatible",
+      "model_id": "REPLACE_WITH_HIGH_ACCURACY_VLM",
+      "endpoint": "http://127.0.0.1:8000/v1/chat/completions",
+      "json_mode": true
+    },
+    {
+      "id": "low-refusal-vlm",
+      "kind": "caption",
+      "adapter": "openai_compatible",
+      "model_id": "REPLACE_WITH_HIGH_COVERAGE_VLM",
+      "endpoint": "http://127.0.0.1:8001/v1/chat/completions",
+      "json_mode": true
+    },
+    {
+      "id": "last-resort-vlm",
+      "kind": "caption",
+      "adapter": "openai_compatible",
+      "model_id": "REPLACE_WITH_ANOTHER_IMAGE_VLM",
+      "endpoint": "http://127.0.0.1:8002/v1/chat/completions"
+    },
+    {
+      "id": "content-tagger",
+      "kind": "tagger",
+      "adapter": "tagger_http",
+      "backend": "tagger_service_http",
+      "model_id": "REPLACE_WITH_TAGGER_MODEL",
+      "endpoint": "http://127.0.0.1:7861/tagger/v1/interrogate",
+      "threshold": 0.35
+    },
+    {
+      "id": "backup-tagger",
+      "kind": "tagger",
+      "adapter": "tagger_http",
+      "backend": "pixai_http",
+      "model_id": "REPLACE_WITH_PIXAI_TAGGER_MODEL",
+      "endpoint": "http://127.0.0.1:7862/pixai/v1/interrogate",
+      "threshold": 0.35,
+      "character_threshold": 0.85
+    }
+  ],
+  "caption_chain": [
+    "accurate-vlm",
+    "low-refusal-vlm",
+    "last-resort-vlm"
+  ],
+  "tag_chain": [
+    "content-tagger",
+    "backup-tagger"
+  ],
+  "verifier_id": null,
+  "tag_normalizer": {
+    "min_confidence": 0.35,
+    "character_confidence": 0.85,
+    "category_overrides": {
+      "red_hair": "appearance"
+    },
+    "extra_categories": [
+      "appearance"
+    ]
+  },
+  "tag_formatter": {
+    "include_style": false,
+    "include_copyright": false,
+    "include_rating": false,
+    "exclude_quality_fillers": true
+  }
+}
