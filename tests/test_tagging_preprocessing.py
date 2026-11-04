@@ -99,7 +99,16 @@ def test_categorized_tagger_separates_rating_character_copyright_style():
     assert normalized.caption.startswith("元サービス")
     assert normalized.rating == "general"
     grouped = normalized.grouped()
-    assert set(grouped) == {"clothes", "expression", "pose", "character", "copyright", "style", "meta"}
+    expected_groups = {
+        "clothes",
+        "expression",
+        "pose",
+        "character",
+        "copyright",
+        "style",
+        "meta",
+    }
+    assert set(grouped) == expected_groups
     assert [t.label for t in grouped["character"]] == ["named_character"]
     formatted = TagFormatter().format(normalized)
     assert "some series" not in formatted.positive_tags
@@ -109,8 +118,10 @@ def test_categorized_tagger_separates_rating_character_copyright_style():
     assert formatted.category_tags["meta"] == ("absurdres",)
     assert "blue dress" in formatted.positive_tags
     assert "some series" in formatted.category_tags["copyright"]
-    assert "watercolor" in TagFormatter(include_style=True).format(normalized).positive_tags
-    assert TagFormatter(include_meta=True).format(normalized).positive_tags[-1] == "absurdres"
+    style_tags = TagFormatter(include_style=True).format(normalized)
+    assert "watercolor" in style_tags.positive_tags
+    meta_tags = TagFormatter(include_meta=True).format(normalized)
+    assert meta_tags.positive_tags[-1] == "absurdres"
 
 
 def test_category_override_supports_user_defined_names():
