@@ -74,6 +74,26 @@
       "accuracy_status": "producer_claims_confirmed;independent_image_benchmark_not_performed",
       "model_source": "https://huggingface.co/fancyfeast/llama-joycaption-beta-one-hf-llava",
       "developer_source": "https://github.com/fpgaminer/joycaption"
+    },
+    "standard_caption_chain": [
+      "Qwen/Qwen3-VL-8B-Instruct",
+      "fancyfeast/llama-joycaption-beta-one-hf-llava",
+      "Felldude/Qwen3-VL-8B-Instruct-Uncensored-V2"
+    ],
+    "additional_nsfw_fallback": {
+      "selected_at": "2026-11-05",
+      "position_in_example_chain": 3,
+      "model_id": "Felldude/Qwen3-VL-8B-Instruct-Uncensored-V2",
+      "adapter": "prose_caption",
+      "reason": "作者がNSFW画像説明への調整を明示し、Apache-2.0のライセンス表記あり",
+      "known_limitations": [
+        "may_caption_a_still_image_as_video",
+        "no_measured_zero_refusal_guarantee"
+      ],
+      "recommended_gpu_vram_gb_min": 24,
+      "response_type": "natural_language_caption",
+      "model_card": "https://huggingface.co/Felldude/Qwen3-VL-8B-Instruct-Uncensored-V2",
+      "quality_status": "model_card_verified_but_not_benchmarked_with_real_images"
     }
   },
   "generation": {
@@ -231,7 +251,8 @@
       "openai_compatible",
       "joycaption",
       "tagger_http",
-      "python_plugin_custom_adapter"
+      "python_plugin_custom_adapter",
+      "prose_caption"
     ],
     "cli": "image-drawer-preprocess --settings SETTINGS.json --image IMAGE.png"
   }
