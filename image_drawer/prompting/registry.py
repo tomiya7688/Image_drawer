@@ -131,6 +131,7 @@ class PreprocessorRegistry:
         self.adapters: dict[str, tuple[str, ModelFactory]] = {}
         self.register_adapter("openai_compatible", "caption", self._vision_adapter)
         self.register_adapter("joycaption", "caption", self._joycaption_adapter)
+        self.register_adapter("prose_caption", "caption", self._joycaption_adapter)
         self.register_adapter("tagger_http", "tagger", self._tagger_adapter)
 
     @staticmethod
@@ -188,9 +189,9 @@ class PreprocessorRegistry:
 
     @staticmethod
     def _joycaption_adapter(entry: dict) -> JoyCaptionVisionProvider:
-        """JoyCaptionは自然文のみを生成するため、JSON強制は使わない。"""
+        """JoyCaptionや他の自然文CaptionerではJSON出力を強制しない。"""
         if entry.get("json_mode", False) is not False:
-            raise ValueError("JoyCaptionはjson_mode=falseで登録してください")
+            raise ValueError("自然文Captionerはjson_mode=falseで登録してください")
         return JoyCaptionVisionProvider(PreprocessorRegistry._vision_adapter(entry))
 
     @staticmethod
