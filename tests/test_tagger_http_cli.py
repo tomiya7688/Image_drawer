@@ -128,3 +128,14 @@ def test_cli_image_only_outputs_separate_caption_and_classified_tag(monkeypatch,
     assert "red apple" in result["tagger"]["positive_tags"]
     assert result["training_prompt"]
     assert "api_key" not in json.dumps(result)
+
+
+def test_temporary_ruff_diff():
+    import subprocess
+
+    result = subprocess.run(
+        ["ruff", "format", "--diff", __file__],
+        capture_output=True,
+        text=True,
+    )
+    assert result.returncode == 0, result.stdout + result.stderr
