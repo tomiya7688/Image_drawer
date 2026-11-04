@@ -45,10 +45,12 @@ class JoyCaptionVisionProvider:
 
     @property
     def config_fingerprint(self) -> str:
-        data = (
-            self.backend.config_fingerprint
-            + _ADAPTER_VERSION
-            + JOYCAPTION_INSTRUCTION
+        data = ":".join(
+            (
+                self.backend.config_fingerprint,
+                _ADAPTER_VERSION,
+                JOYCAPTION_INSTRUCTION,
+            )
         )
         return hashlib.sha256(data.encode("utf-8")).hexdigest()
 
@@ -59,7 +61,12 @@ class JoyCaptionVisionProvider:
     #   戻り値: [VisionResponse: JSON形式の文章と元の拒否情報]
     #   エラー: [PromptExtractionError: 長すぎる文章など検証不能な応答]
     # }
-    def describe(self, image: bytes, mime_type: str, instruction: str) -> VisionResponse:
+    def describe(
+        self,
+        image: bytes,
+        mime_type: str,
+        instruction: str,
+    ) -> VisionResponse:
         response = self.backend.describe(image, mime_type, JOYCAPTION_INSTRUCTION)
         if response.refusal or response.finish_reason == "content_filter":
             return response
