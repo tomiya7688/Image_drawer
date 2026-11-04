@@ -44,7 +44,9 @@ def test_tagger_http_adapter_sends_image_and_category_response(monkeypatch):
 
     monkeypatch.setattr(http, "urlopen", fake_open)
     provider = HTTPTagProvider(
-        "t1", "pixai-model", "http://127.0.0.1:7862/pixai/v1/interrogate",
+        "t1",
+        "pixai-model",
+        "http://127.0.0.1:7862/pixai/v1/interrogate",
         backend="pixai_http",
     )
     result = TaggingPipeline([provider]).extract(b"\x89PNG\r\n\x1a\nbytes", "image/png")
@@ -63,9 +65,7 @@ def test_tagger_http_disallows_remote_http_and_handles_unavailable(monkeypatch):
         raise URLError("connection refused")
 
     monkeypatch.setattr(http, "urlopen", unavailable)
-    tagger = HTTPTagProvider(
-        "x", "tagger", "http://localhost:7861/tagger/v1/interrogate"
-    )
+    tagger = HTTPTagProvider("x", "tagger", "http://localhost:7861/tagger/v1/interrogate")
     with pytest.raises(PromptExtractionError, match="x:unavailable"):
         TaggingPipeline([tagger]).extract(b"image", "image/png")
 
@@ -128,14 +128,3 @@ def test_cli_image_only_outputs_separate_caption_and_classified_tag(monkeypatch,
     assert "red apple" in result["tagger"]["positive_tags"]
     assert result["training_prompt"]
     assert "api_key" not in json.dumps(result)
-
-
-def test_temporary_ruff_diff():
-    import subprocess
-
-    result = subprocess.run(
-        ["ruff", "format", "--diff", __file__],
-        capture_output=True,
-        text=True,
-    )
-    assert result.returncode == 0, result.stdout + result.stderr
