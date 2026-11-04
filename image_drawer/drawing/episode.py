@@ -25,7 +25,9 @@ SINGLE_ORIGINS = ("human", "model", "synthetic", "derived")
 #   責務: [ DrawingEpisode: 1枚を描く過程のヘッダとAction列。画像バイトは含まない ]
 #   フィールド: [
 #     renderer_version: raster-v1またはbrush-raster-v2, events: DrawingAction列,
-#     seed: v2のgrain seed（v1は0）, 他はdrawing_process_v1.md §6の同名キー
+#     seed: v2のgrain seed（v1は0）, 他はdrawing_process_v1.md §6の同名キー,
+#     workflow_id/workflow_sha256/style_intent/budget/status/termination_reason: 工程Controllerが付ける
+#       記録（S1bではメモリ上のみ。to_dict/from_dictは変えず、保存はS1cで拡張する）
 #   ]
 # }
 @dataclass
@@ -39,6 +41,12 @@ class DrawingEpisode:
     events: list[DrawingAction]
     metadata: dict[str, Any] = field(default_factory=dict)
     seed: int = 0
+    workflow_id: str | None = None
+    workflow_sha256: str | None = None
+    style_intent: dict[str, Any] | None = None
+    budget: dict[str, int] | None = None
+    status: str = "complete"
+    termination_reason: str | None = "finished"
 
     # {
     #   責務: [ to_dict: Episode JSON（v1は10キー、v2は+4キー）の辞書にする ]

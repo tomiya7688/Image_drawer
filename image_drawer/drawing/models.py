@@ -18,6 +18,24 @@ MAX_LAYER_AREA = 4_194_304
 LAYER_ROLES_Z_ORDER = (
     "rough", "sketch", "base_color", "shade", "final_drawing", "highlight", "correction",
 )  # fmt: skip
+STAGE_IDS = ("rough", "sketch", "final_drawing", "base_color", "shading", "refine")
+FINISH_STAGE_ID = "finish"
+REVIEW_REASONS = ("monochrome_line_art_only", "flat_style_no_shading", "no_correction_needed")
+
+
+# {
+#   責務: [
+#     EventGroup: 原子的に確定する記録グループ内での位置（グループ番号・順番・件数）
+#   ]
+#   フィールド: [
+#     id: 0始まりのグループ番号, index: グループ内の0始まりの順番, size: グループの件数
+#   ]
+# }
+@dataclass(frozen=True)
+class EventGroup:
+    id: int
+    index: int
+    size: int
 
 
 # {
@@ -25,7 +43,8 @@ LAYER_ROLES_Z_ORDER = (
 #     DrawingAction: 順序付きの1操作（seq・時刻・実行主体・種別・payload）
 #   ]
 #   フィールド: [
-#     type: 操作種別, payload: 操作の引数, actor: 実行主体, seq/time_ms: 省略時はEngineが次の値を補う
+#     type: 操作種別, payload: 操作の引数, actor: 実行主体, seq/time_ms: 省略時はEngineが次の値を補う,
+#     stage_id/group: 工程Controllerが付ける注釈（Engineは検査せず保持するだけ。to_dictには含めない）
 #   ]
 #   処理: [ to_dict/from_dict でEpisodeのevent形式と相互変換する ]
 # }
@@ -36,6 +55,8 @@ class DrawingAction:
     actor: str = "model"
     seq: int | None = None
     time_ms: int | None = None
+    stage_id: str | None = None
+    group: EventGroup | None = None
 
     # {
     #   責務: [ to_dict: Episodeのevent辞書（5キー）へ変換する ]
@@ -102,7 +123,8 @@ class Layer:
 #   フィールド: [
 #     width/height: 不変のキャンバス寸法, profile: renderer_version, seed: grain用の固定seed,
 #     layers: 作成順のレイヤー, active_layer_id/selected_color_id/selected_brush_id/phase: 選択状態,
-#     size_level_id/opacity_level_id: v2のブラシ調整値, finished: 終了済みか, history: 適用済みAction,
+#     size_level_id/opacity_level_id: v2のブラシ調整値, stage_id: v2の現在の工程（未入場はNone）,
+#     finished: 終了済みか, history: 適用済みAction,
 #     points_used/area_used: 累積の計算量予算
 #   ]
 # }
@@ -119,6 +141,7 @@ class DrawingState:
     size_level_id: int | None = None
     opacity_level_id: int | None = None
     phase: str | None = None
+    stage_id: str | None = None
     finished: bool = False
     history: list[DrawingAction] = field(default_factory=list)
     points_used: int = 0
