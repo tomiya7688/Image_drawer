@@ -246,6 +246,7 @@ class PreprocessorRegistry:
                 include_style=formatter.get("include_style", False),
                 include_copyright=formatter.get("include_copyright", False),
                 include_rating=formatter.get("include_rating", False),
+                include_meta=formatter.get("include_meta", False),
                 exclude_quality_fillers=formatter.get("exclude_quality_fillers", True),
             ),
         )
