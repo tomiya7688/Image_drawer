@@ -205,8 +205,80 @@ class PreprocessorRegistry:
             timeout_seconds=entry.get("timeout_seconds", 120),
         )
 
+    # {
+    #   責務: [
+    #     _snapshot: 設定の読込前の登録状態を控え、失敗時に戻せるようにする
+    #   ]
+    #   戻り値: [
+    #     state: 登録簿の可変な状態のコピー
+    #   ]
+    # }
+    def _snapshot(self) -> dict:
+        names = (
+            "caption_models",
+            "tag_models",
+            "verifiers",
+            "normalizers",
+            "formatters",
+            "prompt_formatters",
+            "adapters",
+        )
+        state = {name: dict(getattr(self, name)) for name in names}
+        for name in (
+            "caption_chain",
+            "tag_chain",
+            "verifier_id",
+            "normalizer_id",
+            "formatter_id",
+            "prompt_formatter_id",
+        ):
+            state[name] = getattr(self, name)
+        return state
+
+    # {
+    #   責務: [
+    #     _restore: _snapshotで控えた状態へ登録簿を戻す
+    #   ]
+    #   引数: [
+    #     state: _snapshotの戻り値
+    #   ]
+    # }
+    def _restore(self, state: dict) -> None:
+        for name, value in state.items():
+            setattr(self, name, value)
+
+    # {
+    #   責務: [
+    #     load_settings: ユーザー設定を登録簿へ読み込む。全か無かで、途中で失敗したら登録を残さない
+    #   ]
+    #   処理: [
+    #     1: 読込前の状態を控える
+    #     2: 設定を適用する。必須項目の欠落(KeyError)や型の誤り(TypeError)は設定エラー(ValueError)にする
+    #     3: 失敗したら控えた状態へ戻して例外を伝える
+    #   ]
+    #   引数: [
+    #     settings: idraw-preprocessor-registry/v1 の設定
+    #   ]
+    #   エラー: [
+    #     ValueError: 設定が不正。登録簿は読込前のまま
+    #   ]
+    # }
     def load_settings(self, settings: Mapping) -> None:
         """ユーザー設定。画像ごとの補助ファイルではない。"""
+        state = self._snapshot()
+        try:
+            self._apply_settings(settings)
+        except KeyError as exc:
+            self._restore(state)
+            raise ValueError(f"設定に必須項目がありません: {exc.args[0]}") from exc
+        except TypeError as exc:
+            self._restore(state)
+            raise ValueError(f"設定の型が不正です: {exc}") from exc
+        except BaseException:
+            self._restore(state)
+            raise
+
+    def _apply_settings(self, settings: Mapping) -> None:
         if settings.get("schema_version") != "idraw-preprocessor-registry/v1":
             raise ValueError("未知のユーザー前処理設定バージョン")
         providers = settings.get("providers", [])
@@ -263,10 +335,14 @@ class PreprocessorRegistry:
             ),
         )
         self.formatter_id = "user"
+        prompt_formatter_id = settings.get("prompt_formatter")
+        if prompt_formatter_id is not None and not isinstance(prompt_formatter_id, str):
+            raise ValueError("prompt_formatterは登録済みの整形器名(文字列)を指定する")
         self.configure(
             caption_chain=settings.get("caption_chain", []),
             tag_chain=settings.get("tag_chain", []),
             verifier_id=settings.get("verifier_id"),
+            prompt_formatter_id=prompt_formatter_id,
         )
 
     def configure(

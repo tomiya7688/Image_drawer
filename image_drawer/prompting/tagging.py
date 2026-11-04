@@ -435,6 +435,8 @@ class TagFormatter:
             if self.exclude_quality_fillers and display.casefold() in _QUALITY_FILLERS:
                 continue
             grouped.setdefault(tag.category, []).append(display)
+            if tag.category == "rating" and not self.include_rating:
+                continue
             if tag.category == "copyright" and not self.include_copyright:
                 continue
             if tag.category == "style" and not self.include_style:
@@ -445,8 +447,13 @@ class TagFormatter:
                 seen.add(display.casefold())
                 positive.append(display)
         if self.include_rating and tags.rating:
-            grouped["rating"] = [tags.rating]
-            positive.append(tags.rating)
+            # 同じ語が既にpromptへ入っている場合は重複して追加しない。
+            rating_group = grouped.setdefault("rating", [])
+            if tags.rating not in rating_group:
+                rating_group.append(tags.rating)
+            if tags.rating.casefold() not in seen:
+                seen.add(tags.rating.casefold())
+                positive.append(tags.rating)
         return PreparedTags(
             normalized=tags,
             positive_tags=tuple(positive),
@@ -515,6 +522,10 @@ class TaggingPipeline:
             except (TimeoutError, OSError):
                 attempts.append(
                     ExtractionAttempt(provider.provider_id, provider.model_id, "unavailable")
+                )
+            except Exception:  # noqa: BLE001 - 想定外の例外でも次のTaggerへ進む。文面は残さない
+                attempts.append(
+                    ExtractionAttempt(provider.provider_id, provider.model_id, "unexpected_error")
                 )
         report = ",".join(f"{a.provider_id}:{a.status}" for a in attempts)
         raise PromptExtractionError("all_taggers_failed", report)

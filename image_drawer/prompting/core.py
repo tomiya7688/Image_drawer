@@ -376,5 +376,9 @@ class ImagePromptPipeline:
                 attempts.append(ExtractionAttempt(model.provider_id, model.model_id, "unavailable"))
                 if not self.fallback_on_unavailable:
                     break
+            except Exception:  # noqa: BLE001 - 想定外の例外でも次のモデルへ進む。文面は残さない
+                attempts.append(
+                    ExtractionAttempt(model.provider_id, model.model_id, "unexpected_error")
+                )
         cause = ",".join(f"{a.provider_id}:{a.status}" for a in attempts)
         raise PromptExtractionError("all_models_failed", cause)
