@@ -150,6 +150,7 @@
       "copyright",
       "rating",
       "style",
+      "meta",
       "clothes",
       "pose",
       "expression",
@@ -181,7 +182,8 @@
     "no_implicit_prompt_merge_categories": [
       "rating",
       "copyright",
-      "style"
+      "style",
+      "meta"
     ],
     "independent_tagger_fallback": true
   },
