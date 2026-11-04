@@ -266,24 +266,32 @@ def _detect_mime(image: bytes) -> str:
 
 
 class ImagePromptPipeline:
-    """精度優先のモデルを試し、拒否・出力不備時は指定Qwen等へ自動切替。"""
+    """任意個の画像説明モデルを登録順に試す。特定メーカーは必須ではない。"""
 
     def __init__(
         self,
-        primary: VisionProvider,
-        fallback: VisionProvider,
+        primary: VisionProvider | None = None,
+        fallback: VisionProvider | None = None,
         *,
+        providers: tuple[VisionProvider, ...] | list[VisionProvider] | None = None,
         verifier: VisionProvider | None = None,
         profile_id: str = "human-prompt-aligned-v1",
         fallback_on_unavailable: bool = True,
     ) -> None:
-        if (primary.provider_id, primary.model_id) == (
-            fallback.provider_id,
-            fallback.model_id,
-        ):
-            raise ValueError("primaryとfallbackは異なるモデルが必要")
-        self.primary = primary
-        self.fallback = fallback
+        if providers is not None:
+            if primary is not None or fallback is not None:
+                raise ValueError("providersと旧primary/fallbackは同時に指定しない")
+            models = tuple(providers)
+        else:
+            models = tuple(model for model in (primary, fallback) if model is not None)
+        if not models:
+            raise ValueError("少なくとも1つの文章抽出モデルが必要")
+        ids = [(m.provider_id, m.model_id) for m in models]
+        if len(set(ids)) != len(ids):
+            raise ValueError("同じ文章抽出モデルを複数回登録できない")
+        self.providers = models
+        self.primary = models[0]  # 以前のAPIとの互換
+        self.fallback = models[1] if len(models) > 1 else None
         self.verifier = verifier
         self.profile_id = profile_id
         self.fallback_on_unavailable = fallback_on_unavailable
@@ -299,15 +307,13 @@ class ImagePromptPipeline:
             "verifier_instruction_sha256": hashlib.sha256(
                 VERIFY_INSTRUCTION.encode("utf-8")
             ).hexdigest(),
-            "primary": [
-                self.primary.provider_id,
-                self.primary.model_id,
-                getattr(self.primary, "config_fingerprint", ""),
-            ],
-            "fallback": [
-                self.fallback.provider_id,
-                self.fallback.model_id,
-                getattr(self.fallback, "config_fingerprint", ""),
+            "providers": [
+                [
+                    m.provider_id,
+                    m.model_id,
+                    getattr(m, "config_fingerprint", ""),
+                ]
+                for m in self.providers
             ],
             "verifier": (
                 [
@@ -323,7 +329,7 @@ class ImagePromptPipeline:
         return hashlib.sha256(canonical).hexdigest()
 
     def extract_image_file(self, image_path: str | Path) -> ExtractionResult:
-        """ユーザーの学習入力は画像ファイル一つのみ。MIMEを自動判定する。"""
+        """学習素材は画像だけ。MIMEと文章はシステムが自動生成する。"""
         path = Path(image_path)
         if path.stat().st_size > 32 * 1024 * 1024:
             raise ValueError("画像ファイルが32MiBを超えています")
@@ -336,7 +342,7 @@ class ImagePromptPipeline:
         if mime_type not in {"image/png", "image/jpeg", "image/webp"}:
             raise ValueError("PNG/JPEG/WebPのみ対応")
         attempts: list[ExtractionAttempt] = []
-        for index, model in enumerate((self.primary, self.fallback)):
+        for index, model in enumerate(self.providers):
             try:
                 scene = parse_scene(model.describe(image, mime_type, CAPTION_INSTRUCTION))
                 verification = "not_run"
@@ -344,8 +350,11 @@ class ImagePromptPipeline:
                     try:
                         verify_scene(self.verifier, image, mime_type, scene)
                     except PromptExtractionError as exc:
-                        if index == 1 and exc.kind == "verifier_refused":
-                            # 画像を説明できたQwenを、同じ厳しい検証器の拒否だけで捨てない。
+                        if (
+                            index == len(self.providers) - 1
+                            and exc.kind == "verifier_refused"
+                        ):
+                            # 代替モデル自体は説明できた。検証不能なことを明示して保持。
                             verification = "verifier_refused_unverified"
                         else:
                             raise
@@ -356,15 +365,19 @@ class ImagePromptPipeline:
                     scene=scene,
                     selected_model=model.model_id,
                     attempts=tuple(attempts),
-                    fallback_used=index == 1,
+                    fallback_used=index > 0,
                     verifier_status=verification,
                     cache_key=self._cache_key(image, mime_type),
                 )
             except PromptExtractionError as exc:
                 attempts.append(ExtractionAttempt(model.provider_id, model.model_id, exc.kind))
-                if index == 1 or exc.kind == "invalid_input":
+                if exc.kind == "invalid_input":
                     break
                 if exc.kind == "unavailable" and not self.fallback_on_unavailable:
+                    break
+            except (TimeoutError, OSError):
+                attempts.append(ExtractionAttempt(model.provider_id, model.model_id, "unavailable"))
+                if not self.fallback_on_unavailable:
                     break
         cause = ",".join(f"{a.provider_id}:{a.status}" for a in attempts)
         raise PromptExtractionError("all_models_failed", cause)
