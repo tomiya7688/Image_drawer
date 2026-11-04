@@ -1,6 +1,6 @@
 {
   "schema_version": "idraw-preprocessor-registry/v1",
-  "description_ja": "標準構成: Qwen3-VL-8Bで構造化Caption抽出、拒否時は低制限のJoyCaption Beta Oneへ切替。Taggerは別に実行。推論サービスは各自起動してください。",
+  "description_ja": "標準例: Qwen3-VLで構造化Caption、JoyCaption Beta Oneで低制限Caption、さらに拒否する画像はFelldude Uncensored V2で自然文Captionを試す。Taggerも別途実行。実モデルの接続先はユーザーの環境で起動する。",
   "providers": [
     {
       "id": "accurate-vlm",
@@ -16,6 +16,14 @@
       "adapter": "joycaption",
       "model_id": "fancyfeast/llama-joycaption-beta-one-hf-llava",
       "endpoint": "http://127.0.0.1:8001/v1/chat/completions",
+      "json_mode": false
+    },
+    {
+      "id": "nsfw-caption-last",
+      "kind": "caption",
+      "adapter": "prose_caption",
+      "model_id": "Felldude/Qwen3-VL-8B-Instruct-Uncensored-V2",
+      "endpoint": "http://127.0.0.1:8002/v1/chat/completions",
       "json_mode": false
     },
     {
@@ -40,7 +48,8 @@
   ],
   "caption_chain": [
     "accurate-vlm",
-    "joycaption-fallback"
+    "joycaption-fallback",
+    "nsfw-caption-last"
   ],
   "tag_chain": [
     "content-tagger",
