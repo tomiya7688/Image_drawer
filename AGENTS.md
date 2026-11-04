@@ -1,19 +1,16 @@
 # 共有エージェントコンテキスト
 
-Codex・Claude・ChatGPT・Copilot共通の短い入口です。手順や履歴の全文はここへ複製しません。
+Codex・Claude・ChatGPT・Copilot共通の**リンクポータル**です。全文は複製しません。今回の作業に合う1〜2文書だけを開いてください。
 
-- 依頼の目的と完了条件に必要な範囲を扱い、既存の未コミット変更を保持してください。追加worktreeは作らず、必要なら通常のブランチで分けてください。
-- 描画・学習では[制作過程v1](docs/developers/drawing_process_v1.md)と[合否](docs/developers/drawing_process_acceptance.md)を先に読む。Part合成を筆跡学習と混同しない。変更箇所と関連テストも読む。
-- 場所の再探索・引き継ぎ・保全実装の統合では、[image-drawer-context](.agents/skills/image-drawer-context/SKILL.md)から今回に合う参照先だけを開いてください。
-- コード変更では[コーディング規約](docs/kadoka-codex/coding_conventions.md)の対象となる節を参照してください。規約本文はこの入口へ複製しません。
-- 作業前に更新を取り込み、オープンPRを先に処理してください。[共同作業ルール](docs/kadoka-codex/collaboration_workflow.md)に従い、PR前は `python scripts/check_local.py` を実行してください。
-- 要約は入口です。現在のコード・Git差分・実行結果を根拠にし、確認済みと未確認を分けてください。
-- モデル・個人画像・生成レポートはGit管理外に置きます。説明は日本語を正本にします。詳細は必要なときだけ[保存場所](data/README.md)と[言語方針](docs/developers/language_policy.md)を参照してください。
+1. **開始時**: 最新を取り込み、オープンPRを先に処理し、Issueは優先度順に進めます。→[共同作業ルール](docs/kadoka-codex/collaboration_workflow.md)
+2. **設計が先**: 設計書に該当する節が無い作業は、実装せず設計PRを先に出します。→[実装マップ](docs/developers/implementation_map.md)
+3. **何を読むか**: 作業ごとの設計書・実装先・テストは、実装マップの経路表にあります。コードの探索は[参照表](.agents/skills/image-drawer-context/SKILL.md)から。
+4. **書き方**: [コーディング規約](docs/kadoka-codex/coding_conventions.md)の対象の節だけを読みます。
+5. **確認**: PR前に `python scripts/check_local.py` を実行します。→[ローカル確認](docs/developers/local_checks.md)
+6. **方針**: [実装計画](docs/kadoka/implementation_plan.md)、入力契約は[training_input_v1.json](docs/developers/training_input_v1.json)。
+7. **制約**: 既存の未コミット変更を保持します。モデル・個人画像・生成物はGit管理外です→[保存場所](data/README.md)。説明は日本語が正本です→[言語方針](docs/developers/language_policy.md)。
+8. **報告**: 現在のコード・差分・実行結果を根拠にし、確認済みと未確認を分けます。
 
 ## 保守
 
-一時的な進捗は引き継ぎメモへ移し、共通入口へ履歴を追記しないでください。繰り返した探索だけを参照表へ反映します。
-入口・参照先を変更した場合は `python scripts/check_agent_context.py` で行数・容量・リンクを確認できます。
-Claudeの入口は [CLAUDE.md](CLAUDE.md)、Copilotの入口は [.github/copilot-instructions.md](.github/copilot-instructions.md)です。
-自動読込のない環境では、依頼文でこのファイルを指定してください。
-ファイルにアクセスできない環境には、今回の参照行と必要な原文だけを渡してください。
+入口・参照先を変えたら `python scripts/check_agent_context.py` で行数・容量・リンクを確認します。Claudeの入口は [CLAUDE.md](CLAUDE.md)、Copilotの入口は [.github/copilot-instructions.md](.github/copilot-instructions.md) です。自動読込のない環境では、依頼文でこのファイルを指定してください。

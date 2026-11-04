@@ -202,3 +202,28 @@ def test_unrelated_failure_cannot_satisfy_case(git_repository, monkeypatch, caps
     monkeypatch.setattr(check_local, "main", fail_context_only)
     with pytest.raises(AssertionError, match=re.escape(f"FAIL: {EXPECTED_FAILURE_LABELS[case]}:")):
         test_standard_entrypoint(git_repository, monkeypatch, capsys, case)
+
+
+# {
+#   責務: [
+#     test_run_honors_the_timeout: 指定した秒数を超えた検査を成功扱いにせず、UNVERIFIEDにする
+#   ]
+# }
+def test_run_honors_the_timeout(tmp_path: Path) -> None:
+    checker = check_local.LocalCheck(tmp_path)
+    checker.run(
+        "slow", [check_local.sys.executable, "-c", "import time; time.sleep(5)"], timeout=0.5
+    )
+    assert checker.results[0][1] == "UNVERIFIED"
+    assert checker.summarize(0.0) == 1
+
+
+# {
+#   責務: [
+#     test_test_timeout_option_is_accepted: --test-timeoutが引数として受理される
+#   ]
+# }
+def test_test_timeout_option_is_accepted() -> None:
+    with pytest.raises(SystemExit) as caught:
+        check_local.main(["--test-timeout", "not-a-number"])
+    assert caught.value.code == 2
