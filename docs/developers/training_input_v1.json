@@ -30,7 +30,13 @@
     "prompt_variants",
     "fallback_reason",
     "selected_caption_model",
-    "verification_status"
+    "verification_status",
+    "tagger_fallback_attempts",
+    "normalized_tag_groups",
+    "formatted_tags",
+    "chosen_caption_model",
+    "chosen_tag_model",
+    "prompt_formatter_version"
   ],
   "text_condition": {
     "required_during_txt2img_training": true,
@@ -108,10 +114,18 @@
   "prompt_extraction": {
     "profile_id": "human-prompt-aligned-v1",
     "config_path": "docs/developers/prompt_extraction_v1.json",
-    "pipeline": "image_drawer.prompting.ImagePromptPipeline",
-    "primary": "user_selected_quality_first_vlm",
-    "fallback": "local_qwen_vl_on_primary_refusal_or_failure",
-    "human_prompt_alignment": "short_standard_detailed_with_same_text_encoder",
+    "pipeline": "image_drawer.prompting.ImageTrainingPreprocessor",
+    "caption_pipeline": "image_drawer.prompting.ImagePromptPipeline",
+    "tag_pipeline": "image_drawer.prompting.TaggingPipeline",
+    "registry": "image_drawer.prompting.PreprocessorRegistry",
+    "external_input_only_image": true,
+    "caption_and_tag_run_independently": true,
+    "caption_priorities": "user_ordered_N_models_accuracy_then_coverage",
+    "tagger_priorities": "user_ordered_N_taggers",
+    "qwen_optional_example": true,
+    "tag_categories": "general_character_copyright_rating_style_and_semantic_subtypes",
+    "tag_formatting": "confidence_dedupe_reclassify_category_filter",
+    "same_text_encoder_for_training_and_inference": true,
     "no_user_extra_files": true
   }
 }
