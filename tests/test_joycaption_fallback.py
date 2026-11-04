@@ -184,9 +184,7 @@ def test_third_model_handles_earlier_refusals_without_skipping_tagger(
     assert tagger_calls == ["REPLACE_WITH_TAGGER_MODEL"]
 
 
-def test_all_three_fail_without_fake_training_label_and_tagger_still_runs(
-    monkeypatch,
-):
+def test_all_three_fail_without_fake_training_label_and_tagger_still_runs(monkeypatch):
     tagger_calls: list[str] = []
 
     def fake_describe(self, image, mime_type, instruction):
@@ -210,9 +208,7 @@ def test_all_three_fail_without_fake_training_label_and_tagger_still_runs(
 
 def test_third_model_changes_caption_cache_identity():
     registry = PreprocessorRegistry.from_settings_file(SETTINGS)
-    providers = [
-        registry.caption_models[name] for name in registry.caption_chain
-    ]
+    providers = [registry.caption_models[name] for name in registry.caption_chain]
     two_models = ImagePromptPipeline(providers=providers[:2])
     three_models = ImagePromptPipeline(providers=providers)
     sample = b"image bytes"
