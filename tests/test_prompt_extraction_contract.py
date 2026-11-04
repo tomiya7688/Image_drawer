@@ -62,6 +62,8 @@ def test_pipeline_is_internal_and_no_user_caption_file_required():
 
 def test_related_research_and_support_tools_are_documented():
     c = _config()
+    assert "meta" in c["tag_extraction"]["categories"]
+    assert "meta" in c["tag_extraction"]["no_implicit_prompt_merge_categories"]
     assert "tomiya7688/comfyUI_support_tools" in c["related_repository"]
     assert len(c["research"]) >= 3
     d = (ROOT / "docs" / "developers" / "prompt_extraction_v1.md").read_text(encoding="utf-8")
