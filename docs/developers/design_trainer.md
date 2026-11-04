@@ -553,7 +553,7 @@ GPUと大規模モデルは本書の範囲外です。上の拡張点から後�
 | --- | --- | --- |
 | Rewardを計算する時点 | [画像のみ学習](image_only_learning_v1.md)の擬似コードは、各Action後に`evaluator.compare`を呼ぶ | 学習ループ中ではなく、trial終了後に事後計算する。正本の「同一trial内でtarget依存Rewardを観測に入れない」をより強く守る。報酬の値は同じ式で、更新はtrial後 |
 | `stage_reward_v2.json`の`stage_ids` | 6工程（`finish`なし） | `finish`はpotentialを持たない。`finish`のstepは`final_bonus`だけ。JSONを変更しない |
-| 特徴量の数値化 | Sobel、縮小、正規化は未freeze（`pending-exact-v2-feature-normalization-and-goldens`） | `stage-reward-impl-v0`として暫定実装を置く。縮小は箱フィルタ、輪郭は輝度のSobel大きさを3×3平均した上でのsoft Dice、RGB類似度は`1 − 平均絶対差`、ヒストグラムは16bin/チャンネルの交差。正本のfreezeは別PRで行う |
+| 特徴量の数値化 | Sobel、縮小、正規化は未freeze（`pending-exact-v2-feature-normalization-and-goldens`） | `stage-reward-impl-v0`として暫定実装を置く。縮小は箱フィルタ、輪郭は輝度のSobel大きさ（4で割って1へ飽和）を3×3平均した上でのsoft Dice（`2Σab/(Σa²+Σb²)`、同一画像で1）、RGB類似度は`1 − 平均絶対差`、`luma_64`は縮小輝度の`1 − 平均絶対差`、ヒストグラムは16bin/チャンネルの交差（縮小せず全画素）。正本のfreezeは別PRで行う |
 | 解像度 | `edge_64`、`edge_128`、`rgb_128` | キャンバスが32×32なので、特徴の解像度を`min(指定, canvas_side)`にcapする。工程の重みが同じ解像度に縮退し、粗い・細かいの区別が弱くなる。`effective_resolution`に記録する |
 | 成分 | 形・輪郭・色・知覚差・文章一致・進捗・コストの別成分（Issue #70） | JSONの特徴を`outline`/`color`/`perceptual`に対応させ、JSONに無い`shape`と`text_match`は学習重み0で記録・評価だけに使う |
 | Policyの入力 | [Policy仕様](drawing_policy_accuracy_v1.md)は`seed`と視覚encoderを例示 | `seed`は観測に含めず、`rng`として別に渡す。視覚encoderの代わりに8×8の縮小サマリを使う |
