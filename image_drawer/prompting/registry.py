@@ -210,10 +210,14 @@ class PreprocessorRegistry:
                 raise ValueError(f"未登録のadapter: {adapter}")
             kind, factory = self.adapters[adapter]
             configured_kind = entry.get("kind", kind)
-            if configured_kind != kind:
+            if configured_kind != kind and not (
+                kind == "caption" and configured_kind == "verifier"
+            ):
                 raise ValueError("adapterとkindが一致しない")
             provider = factory(entry)
-            if kind == "caption":
+            if configured_kind == "verifier":
+                self.register_verifier(entry["id"], provider)
+            elif kind == "caption":
                 self.register_caption(entry["id"], provider)
             elif kind == "tagger":
                 self.register_tagger(entry["id"], provider)
@@ -229,6 +233,7 @@ class PreprocessorRegistry:
                 min_confidence=normalizer.get("min_confidence", 0.35),
                 character_confidence=normalizer.get("character_confidence", 0.85),
                 category_overrides=normalizer.get("category_overrides", {}),
+                extra_categories=tuple(normalizer.get("extra_categories", [])),
             ),
         )
         self.normalizer_id = "user"
