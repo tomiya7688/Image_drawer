@@ -175,7 +175,7 @@ class TagNormalizer:
         self.character_confidence = _score(character_confidence)
         self.extra_categories = frozenset(_custom_category(name) for name in extra_categories)
         self.overrides = {
-            _label(key).casefold(): self._validate_category(value)
+            _label(key).replace("_", " ").casefold(): self._validate_category(value)
             for key, value in (category_overrides or {}).items()
         }
 
