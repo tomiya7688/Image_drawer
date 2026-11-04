@@ -54,7 +54,7 @@ def test_pipeline_is_internal_and_no_user_caption_file_required():
     assert d["prompt_extraction"]["no_user_extra_files"] is True
     assert d["prompt_extraction"]["pipeline"] == "image_drawer.prompting.ImageTrainingPreprocessor"
     assert d["prompt_extraction"]["caption_and_tag_run_independently"] is True
-    assert "tagger" in d["prompt_extraction"]["tag_pipeline"].lower()
+    assert d["prompt_extraction"]["tag_pipeline"] == "image_drawer.prompting.TaggingPipeline"
 
 
 def test_related_research_and_support_tools_are_documented():
