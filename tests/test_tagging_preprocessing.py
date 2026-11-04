@@ -121,13 +121,16 @@ def test_category_override_supports_user_defined_names():
         TagNormalizer(category_overrides={"red_hair": "unregistered_custom"})
 
 
-@pytest.mark.parametrize("invalid", [
-    {"tag": {"x": True}},
-    {"tag": {"x": float("nan")}},
-    {"tags": [{"name": "x", "confidence": 2}]},
-    {"tags": []},
-    {"error": "not supported"},
-])
+@pytest.mark.parametrize(
+    "invalid",
+    [
+        {"tag": {"x": True}},
+        {"tag": {"x": float("nan")}},
+        {"tags": [{"name": "x", "confidence": 2}]},
+        {"tags": []},
+        {"error": "not supported"},
+    ],
+)
 def test_bad_tagger_results_are_not_silently_accepted(invalid):
     with pytest.raises(PromptExtractionError):
         TagNormalizer().normalize(invalid)
@@ -157,7 +160,10 @@ def test_caption_models_are_unlimited_in_number_and_not_qwen_specific():
     result = ImagePromptPipeline(providers=models).extract(b"image bytes", "image/png")
     assert result.selected_model == "local-anything"
     assert [a.status for a in result.attempts] == [
-        "refused", "empty", "unavailable", "ok",
+        "refused",
+        "empty",
+        "unavailable",
+        "ok",
     ]
     assert all(model.calls == 1 for model in models)
 
@@ -213,21 +219,27 @@ def test_json_user_settings_allow_three_caption_models_two_taggers_and_verifier(
         "providers": [
             *[
                 {
-                    "id": f"caption{i}", "kind": "caption",
-                    "adapter": "openai_compatible", "model_id": f"model{i}",
+                    "id": f"caption{i}",
+                    "kind": "caption",
+                    "adapter": "openai_compatible",
+                    "model_id": f"model{i}",
                     "endpoint": "http://127.0.0.1:8000/v1/chat/completions",
                 }
                 for i in range(3)
             ],
             {
-                "id": "checker", "kind": "verifier",
-                "adapter": "openai_compatible", "model_id": "checker-model",
+                "id": "checker",
+                "kind": "verifier",
+                "adapter": "openai_compatible",
+                "model_id": "checker-model",
                 "endpoint": "http://127.0.0.1:8000/v1/chat/completions",
             },
             *[
                 {
-                    "id": f"tagger{i}", "kind": "tagger",
-                    "adapter": "tagger_http", "model_id": f"tags{i}",
+                    "id": f"tagger{i}",
+                    "kind": "tagger",
+                    "adapter": "tagger_http",
+                    "model_id": f"tags{i}",
                     "endpoint": "http://127.0.0.1:7861/tagger/v1/interrogate",
                 }
                 for i in range(2)
@@ -257,41 +269,25 @@ def test_plain_json_config_cannot_import_arbitrary_code_or_contain_api_key():
         registry.load_settings(
             {
                 "schema_version": "idraw-preprocessor-registry/v1",
-                "providers": [{
-                    "id": "bad", "adapter": "openai_compatible",
-                    "api_key": "do_not_embed_keys",
-                }],
+                "providers": [
+                    {
+                        "id": "bad",
+                        "adapter": "openai_compatible",
+                        "api_key": "do_not_embed_keys",
+                    }
+                ],
             }
         )
     with pytest.raises(ValueError, match="未登録"):
         registry.load_settings(
             {
                 "schema_version": "idraw-preprocessor-registry/v1",
-                "providers": [{
-                    "id": "module", "adapter": "python:arbitrary.module", "kind": "caption",
-                }],
+                "providers": [
+                    {
+                        "id": "module",
+                        "adapter": "python:arbitrary.module",
+                        "kind": "caption",
+                    }
+                ],
             }
         )
-
-
-def test_temporary_ruff_differences():
-    import subprocess
-
-    root = Path(__file__).resolve().parents[1]
-    diffs = []
-    for relative in (
-        "image_drawer/prompting/core.py",
-        "image_drawer/prompting/tagger_http.py",
-        "image_drawer/prompting/tagging.py",
-        "image_drawer/prompting/registry.py",
-        "tests/test_prompt_extraction_contract.py",
-        "tests/test_tagging_preprocessing.py",
-    ):
-        result = subprocess.run(
-            ["ruff", "format", "--diff", str(root / relative)],
-            capture_output=True,
-            text=True,
-        )
-        if result.returncode != 0:
-            diffs.append(f"{relative}\n{result.stdout}\n{result.stderr}")
-    assert not diffs, "\n".join(diffs)

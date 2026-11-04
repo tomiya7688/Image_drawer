@@ -85,9 +85,7 @@ def _entries(value: object) -> list[tuple[str, float]]:
     if value is None:
         return []
     if isinstance(value, str):
-        raw: list[tuple[object, object]] = [
-            (s, 1.0) for s in value.split(",") if s.strip()
-        ]
+        raw: list[tuple[object, object]] = [(s, 1.0) for s in value.split(",") if s.strip()]
     elif isinstance(value, dict):
         raw = list(value.items())
     elif isinstance(value, list):
@@ -120,18 +118,90 @@ def _entries(value: object) -> list[tuple[str, float]]:
 
 # 用語の完全一致を基本とする。単純な文字列部分一致による誤分類を避ける。
 _SEMANTIC_HINTS = {
-    "clothes": ("dress", "shirt", "skirt", "pants", "uniform", "hoodie", "coat",
-                "socks", "shoes", "swimsuit", "bra", "underwear", "ジャケット", "服", "シャツ"),
-    "pose": ("standing", "sitting", "lying", "kneeling", "walking", "running",
-             "full body", "upper body", "cowboy shot", "arms raised", "立ち", "座り"),
-    "expression": ("smile", "laugh", "crying", "angry", "sad", "blush", "wink",
-                   "closed eyes", "open mouth", "笑顔", "笑い", "泣き"),
-    "background": ("sky", "forest", "beach", "room", "street", "background",
-                   "mountain", "city", "bedroom", "背景", "空", "森"),
-    "situation": ("night", "sunset", "sunrise", "rain", "snow", "festival",
-                  "lighting", "nighttime", "夕焼け", "夜", "雨", "雪"),
-    "style": ("anime style", "watercolor", "oil painting", "lineart",
-              "sketch", "photorealistic", "pixel art", "水彩", "線画"),
+    "clothes": (
+        "dress",
+        "shirt",
+        "skirt",
+        "pants",
+        "uniform",
+        "hoodie",
+        "coat",
+        "socks",
+        "shoes",
+        "swimsuit",
+        "bra",
+        "underwear",
+        "ジャケット",
+        "服",
+        "シャツ",
+    ),
+    "pose": (
+        "standing",
+        "sitting",
+        "lying",
+        "kneeling",
+        "walking",
+        "running",
+        "full body",
+        "upper body",
+        "cowboy shot",
+        "arms raised",
+        "立ち",
+        "座り",
+    ),
+    "expression": (
+        "smile",
+        "laugh",
+        "crying",
+        "angry",
+        "sad",
+        "blush",
+        "wink",
+        "closed eyes",
+        "open mouth",
+        "笑顔",
+        "笑い",
+        "泣き",
+    ),
+    "background": (
+        "sky",
+        "forest",
+        "beach",
+        "room",
+        "street",
+        "background",
+        "mountain",
+        "city",
+        "bedroom",
+        "背景",
+        "空",
+        "森",
+    ),
+    "situation": (
+        "night",
+        "sunset",
+        "sunrise",
+        "rain",
+        "snow",
+        "festival",
+        "lighting",
+        "nighttime",
+        "夕焼け",
+        "夜",
+        "雨",
+        "雪",
+    ),
+    "style": (
+        "anime style",
+        "watercolor",
+        "oil painting",
+        "lineart",
+        "sketch",
+        "photorealistic",
+        "pixel art",
+        "水彩",
+        "線画",
+    ),
 }
 _ALIAS = {
     "general_tags": "general",
@@ -151,12 +221,27 @@ _ALIAS = {
     "situations": "situation",
 }
 _SUPPORTED = {
-    "general", "character", "copyright", "rating", "style", "pose",
-    "clothes", "expression", "background", "situation",
+    "general",
+    "character",
+    "copyright",
+    "rating",
+    "style",
+    "pose",
+    "clothes",
+    "expression",
+    "background",
+    "situation",
 }
 _QUALITY_FILLERS = {
-    "masterpiece", "best quality", "high quality", "worst quality",
-    "low quality", "8k", "4k", "rating", "quality",
+    "masterpiece",
+    "best quality",
+    "high quality",
+    "worst quality",
+    "low quality",
+    "8k",
+    "4k",
+    "rating",
+    "quality",
 }
 
 
@@ -283,9 +368,7 @@ class TagNormalizer:
             for label, confidence in records:
                 if confidence < limit:
                     continue
-                tags.append(
-                    ScoredTag(label, confidence, self.classify(label, original), original)
-                )
+                tags.append(ScoredTag(label, confidence, self.classify(label, original), original))
         if not tags:
             raise PromptExtractionError("empty", "分類可能なタグが得られなかった")
         return TagSet(tuple(tags), caption=caption, rating=rating)
@@ -398,9 +481,7 @@ class TaggingPipeline:
             "formatter": self.formatter.config_fingerprint,
             "tag_schema_version": "idraw-tag-normalizer/v1",
         }
-        return hashlib.sha256(
-            json.dumps(payload, sort_keys=True).encode()
-        ).hexdigest()
+        return hashlib.sha256(json.dumps(payload, sort_keys=True).encode()).hexdigest()
 
     def extract(self, image: bytes, mime_type: str) -> TagExtractionResult:
         if not image or mime_type not in {"image/png", "image/jpeg", "image/webp"}:
@@ -419,11 +500,15 @@ class TaggingPipeline:
                     cache_key=self.cache_key(image),
                 )
             except PromptExtractionError as exc:
-                attempts.append(ExtractionAttempt(provider.provider_id, provider.model_id, exc.kind))
+                attempts.append(
+                    ExtractionAttempt(provider.provider_id, provider.model_id, exc.kind)
+                )
                 if exc.kind == "invalid_input":
                     break
             except (TimeoutError, OSError):
-                attempts.append(ExtractionAttempt(provider.provider_id, provider.model_id, "unavailable"))
+                attempts.append(
+                    ExtractionAttempt(provider.provider_id, provider.model_id, "unavailable")
+                )
         report = ",".join(f"{a.provider_id}:{a.status}" for a in attempts)
         raise PromptExtractionError("all_taggers_failed", report)
 

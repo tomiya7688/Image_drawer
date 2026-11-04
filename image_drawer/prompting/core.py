@@ -350,10 +350,7 @@ class ImagePromptPipeline:
                     try:
                         verify_scene(self.verifier, image, mime_type, scene)
                     except PromptExtractionError as exc:
-                        if (
-                            index == len(self.providers) - 1
-                            and exc.kind == "verifier_refused"
-                        ):
+                        if index == len(self.providers) - 1 and exc.kind == "verifier_refused":
                             # 代替モデル自体は説明できた。検証不能なことを明示して保持。
                             verification = "verifier_refused_unverified"
                         else:

@@ -28,7 +28,10 @@ def test_priority_fallback_and_failure_are_declared():
     assert routing["qwen_is_optional_example"] is True
     for kind in ("refused", "empty", "invalid_format", "unverified_facts"):
         assert kind in routing["primary_failure_triggers"]
-    assert "never_require_manual_text" in routing["all_failed"] or "without_creating" in routing["all_failed"]
+    assert (
+        "never_require_manual_text" in routing["all_failed"]
+        or "without_creating" in routing["all_failed"]
+    )
 
 
 def test_human_prompt_alignment_and_no_hallucination():

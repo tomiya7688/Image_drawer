@@ -30,7 +30,9 @@ class HTTPTagProvider:
         if parsed.scheme not in {"http", "https"} or not parsed.hostname:
             raise ValueError("Tagger URLはhttp(s)を指定する")
         if parsed.scheme == "http" and parsed.hostname not in {
-            "localhost", "127.0.0.1", "::1",
+            "localhost",
+            "127.0.0.1",
+            "::1",
         }:
             raise ValueError("localhost以外のTaggerはHTTPSが必要")
         if parsed.username or parsed.password or parsed.query or parsed.fragment:
