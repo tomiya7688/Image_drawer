@@ -69,6 +69,7 @@
     "include_style": false,
     "include_copyright": false,
     "include_rating": false,
+    "include_meta": false,
     "exclude_quality_fillers": true
   }
 }
