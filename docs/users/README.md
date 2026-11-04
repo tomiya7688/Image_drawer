@@ -1,3 +1,7 @@
+## 画像から自動でタグ・プロンプトを生成する
+
+[前処理モデルを自由に登録する方法](preprocessing.md)／[設定例JSON](preprocessor_settings.example.json)。画像以外の学習素材は必要ありません。
+
 # 利用者向け文書
 
 **対象読者:** Image Drawerを使いたい人  
