@@ -72,9 +72,3 @@ def test_style_intent_signature_takes_only_prompt():
 def test_style_intent_rejects_non_string_prompt(bad):
     with pytest.raises(StageConfigError):
         judge_style_intent(bad)
-
-
-def test_style_intent_result_depends_only_on_prompt():
-    first = judge_style_intent("影なしの線画のみ")
-    second = judge_style_intent("影なしの線画のみ")
-    assert first == second

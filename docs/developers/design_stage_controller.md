@@ -1,6 +1,6 @@
 > **対象読者:** StageController・Engine拡張・Policy・テストを実装する開発者
 > **目的:** S1b（Issue #67）で実装する`StageController`の公開API、状態遷移、失敗処理、受け入れテスト、PR分割を実装前に確定する。
-> **状態:** 実装設計書。**StageControllerは未実装**です。本書の「実装する」は計画であり、実装済みを意味しません。正本は[Controller契約](stage_controller_contract_v2.md)、[固定工程](fixed_drawing_workflow_v2.md)、[Stage JSON](drawing_stage_workflow_v2.json)で、本書はこれらを変更しません。
+> **状態:** 実装設計書。S1b（Issue #67）のStageControllerは、本書の「実装手順（PR分割）」どおりに実装済み（ブランチ`claude/67-stage-controller`、マージ前）です。本書の記述との差分は§12に記録しています。正本は[Controller契約](stage_controller_contract_v2.md)、[固定工程](fixed_drawing_workflow_v2.md)、[Stage JSON](drawing_stage_workflow_v2.json)で、本書はこれらを変更しません。
 
 # StageController 実装設計（S1b）
 
@@ -571,6 +571,10 @@ S1b-5のテストが500行を超える場合は、§10.5と§10.6を独立PRに�
 | 不正提案の例外 | 契約§3は拒否の記録のみを要求 | 通常の拒否は戻り値、閉じたControllerへの提案だけ例外とする |
 | 工程名`shading`のrole | 契約表は「陰影・仕上げ: `shade`」 | 工程IDは`shading`、既定レイヤーのroleは`shade`、追加できるroleは`shade`と`highlight` |
 | `refine`の`create_layer` | 契約§2は「新しいレイヤー不要」、表は`correction`を追加可 | 入場時は作成せず、model提案の`correction`だけ許可する |
+| モジュール分割 | §3.1は`groups.py`・`rules.py`・`controller.py`など | 300行超のファイルを避けるため、`advance_stage`の審査を`exit_rules.py`、提案の基本検査と複製を`envelope.py`、Episode組立を`episode_build.py`へ分離した。公開APIは不変 |
+| systemレイヤーの名前 | roleごとの日本語名（§9） | `table.py`の`ROLE_LAYER_NAMES`で定義（ラフ・下書き・本描き・基本色・陰影。`highlight`は「ハイライト」、`correction`は「修正」） |
+| Actionでない提案の試行ログ | `AttemptRecord.action`は提案時点のコピー | `DrawingAction`でない値、またはコピーできない提案は`type="<invalid>"`の代用Actionで記録する |
+| 不正な`time_ms` | 記載なし | model提案の`time_ms`が範囲外・逆行のときは、Controllerが事前に検査して`engine_rejected`で拒否する（遷移グループの適用失敗＝`StageInvariantError`と区別するため） |
 
 ## 13. 未決事項
 
