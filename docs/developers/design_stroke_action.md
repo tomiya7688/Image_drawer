@@ -1,0 +1,87 @@
+> **対象読者:** Policy・action_codec・Trainerの実装者とレビュー担当
+>
+> **目的:** 学習初期の絵が「うようよ」になる原因を除き、直線を描けるストローク表現に置き換える。
+>
+> **状態:** 2026-11-05。設計のみ。コードは未実装。[design_trainer.md](design_trainer.md) 4.2節の `stroke` head の記述を置き換える。
+
+# ストローク表現の設計（直線を描ける離散Action）
+
+## 1. 問題
+
+現在の `stroke` head は、始点・中間・終点の6座標を連続値のガウスから得ます（`u ~ N(Wx, σ²)`、σは0.15から0.05）。
+
+- 座標が独立にゆれるため、中間点がずれるたびに線が折れ曲がる。σ=0.15はキャンバスの15%で、方向のそろった直線にならない。
+- 「まっすぐ進む」を選ぶ手段がなく、直線は座標3つがたまたま一直線になる確率に頼る。
+- 連続座標は丸めが細かく、同じ意図でも毎回違う画素になり、Reward の勾配がノイズに埋もれる。
+
+Engine の `stroke_v2{samples}` は変えません。変えるのは、Policy が `samples` を作る手前（`action_codec`）だけです。
+
+## 2. 案
+
+ストロークを「始点の格子マス＋最大 K 本の線分」で表します。線分は **方向 × 長さ** の離散値です（「書いた地点から、どの方向に何マス進むか」）。
+
+| head | 選択肢 | 内容 |
+| --- | --- | --- |
+| `start` | 格子 `G×G`（既定 G=32） | 始点のマス。マス中心をキャンバス座標へ写す |
+| `start_mode` | 2 | `new`（`start`のマス）／`continue`（直前のストロークの終点から続ける） |
+| `segments` | K（既定 4） | 線分の数 1〜K |
+| `dir[i]` | 16方向（22.5度刻み） | 線分 i の向き。最初の線分は絶対方向、2本目以降は **直前の線分に対する相対方向**（直進を含む 16 通り） |
+| `len[i]` | 6段階 `{1,2,3,5,8,13}` マス | 線分 i の長さ。Fibonacci 風で、大きな動きと細かい動きを少ない選択肢で両立する |
+
+- 直線は `segments=1`、折れ線は複数、緩い曲線は小さい相対角を連ねて表す。
+- 線分の端点は整数マスに丸め、`samples` は端点を結ぶ **等間隔の点列** にする（線分1本あたり最低2点、全体で `stroke_samples` 上限）。同じ選択からは必ず同じ `samples` ができる。
+- キャンバス外へ出る線分は `mask` で選べなくする（位置は観測の `tool_state` だけで決まり、目標画像に依存しない）。
+- すべて categorical（softmax）で、`kind`・`color` などの既存 head と同じ扱いにする。ガウスの σ 減衰設定は不要になり、探索は softmax の温度（既定1.0）と entropy bonus で制御する。
+
+方向を 16 にする理由: 8 方向だと 22.5度ずつの斜線（髪・布のひだ）が出せない。32 以上は選択肢が増えて学習初期の探索が薄まる。K・G・長さの段階は設定値にして実測で調整する。
+
+## 3. 代替案と採用しなかった理由
+
+| 案 | 採用しない理由 |
+| --- | --- |
+| 連続座標のまま σ を小さくする | 直線の問題は残り、探索も止まる。 |
+| 描画後に線を平滑化・直線化する | Replay で再現する対象が Action 列からずれる。画像に後処理を足す形になり、Episode と画素の対応が崩れる。 |
+| 始点と終点の 2 点だけを選ぶ | 直線は描けるが、曲線が描けず、描ける形が減る。 |
+| 全画素の座標を離散化する（G=256 など） | 選択肢が多すぎて 1 ステップあたりの勾配が薄い。粗い格子＋線分の方が少ないパラメータで済む。 |
+
+## 4. 契約への影響
+
+| 項目 | 変更 |
+| --- | --- |
+| `HEAD_SIZES["stroke"]=6` | 廃止。`start`（G²）、`start_mode`（2）、`segments`（K）、`dir`（16）、`len`（6）に分ける |
+| `ActionChoice.stroke_u` | 廃止。`stroke_start`・`stroke_mode`・`stroke_segments`・`stroke_dirs`・`stroke_lens` に置き換える |
+| `build_stroke_samples` | 入力を離散選択に変え、格子座標→`x_q8,y_q8` の変換と線分の補間を行う（`time_us`・`pressure_level_id` の契約は同じ） |
+| Policy の対数確率・勾配 | 追加 head は softmax の標準勾配。`dir`・`len` は線分数ぶん加算（使わない線分は勾配 0） |
+| Engine・Episode・Replay・schema | 変更なし。`stroke_v2` の `samples` の形が同じため |
+| target 隔離 | 変更なし。新 head も観測だけを入力とする |
+| パラメータ数 | 約 9.1 万 → `D≈280` に対し出力 `1024+2+4+16×4+6×4=1118` 前後が加わり約 40 万個（float64 で約 3MB）。Adam 状態を含めても 10MB 未満の見積り（実測は実装 PR で行う） |
+
+## 5. 受け入れテスト
+
+| テスト | 確認 |
+| --- | --- |
+| `test_stroke_single_segment_is_straight` | `segments=1` の `samples` が始点と終点を結ぶ一直線上にある（誤差は丸め 1 単位以内） |
+| `test_stroke_directions_cover_16_angles` | 16 方向の角度が 22.5 度刻みで、長さ段階の通りに端点が動く |
+| `test_stroke_relative_direction_zero_is_straight` | 相対方向 0 の連続線分が 1 本の直線と同じ画素になる |
+| `test_stroke_outside_canvas_is_masked` | 外へ出る方向・長さの選択肢がマスされ、サンプルされない |
+| `test_stroke_samples_are_deterministic` | 同じ選択から同じ `samples`（Replay と一致） |
+| `test_stroke_continue_starts_at_previous_end` | `continue` が直前の終点から始まる。直前がなければ `new` だけ選べる |
+| `test_stroke_policy_gradient_matches_numeric` | 新 head の勾配が数値微分と一致する |
+| `test_policy_stroke_has_no_target_input` | 新 head も目標画像・パスを受け取らない（既存の隔離テストを拡張） |
+
+「直線が描けること」は上のとおり画素で確かめますが、**絵が良くなるか**は実学習で測る必要があり、この設計だけでは確認できません。
+
+## 6. 実装手順
+
+1. `policy_params`・`action_codec` に離散ストローク（head、mask、`build_stroke_samples`）を実装し、上のテストを通す。
+2. `policy.py` の sample・log_prob・勾配を新 head に合わせる。ガウス σ の設定項目を廃止し、温度・entropy を使う。
+3. `config` の既定値（G・K・長さ段階・方向数）と checkpoint の互換（旧 checkpoint は読み込み拒否し、理由を出す）。
+4. スモーク学習で直線率（1 線分ストロークの割合と、折れ線の平均曲がり角）を `training/evaluation` の記録に追加する。
+
+実装手順 1〜3 は 1 PR（500 行以下に収まらなければ 1 と 2 を分ける）、4 は別 PR。
+
+## 7. 未確認事項
+
+- 既定の G=32・K=4・方向 16・長さ 6 段階は **見積り**で、実測していない。
+- 学習が収束するか、絵が実際にまとまるかは未確認。
+- 筆圧の変化・消しゴム（`erase_v2`）は対象外のまま（design_trainer.md 10節）。
