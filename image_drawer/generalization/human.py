@@ -263,10 +263,18 @@ def collect_human_results(
     adjusted = holm_adjust([tasks[t]["p_value"] for t in plan.tasks])
     for task, p_holm in zip(plan.tasks, adjusted):
         tasks[task]["p_holm"] = p_holm
+    catch_rows = [r for r in rows if key[r["item_id"]]["catch"]]
+    per_pair = Counter((r["task"], r["item_id"]) for r in kept)
     return {
         "plan_sha256": plan.digest(),
         "raters": len({r["rater_id"] for r in rows}),
         "excluded_raters": len(excluded),
+        "min_raters_per_item": min(per_pair.values(), default=0),
+        "catch_pass_rate": (
+            sum(r["choice"] == key[r["item_id"]]["expected"] for r in catch_rows) / len(catch_rows)
+            if catch_rows
+            else 0.0
+        ),
         "tasks": tasks,
     }
 

@@ -1,0 +1,111 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "idraw-eval-report/v1",
+  "title": "Image Drawer 汎化評価報告書 v1",
+  "type": "object",
+  "required": [
+    "schema_version", "report_id", "created_at", "status", "claim_level", "code", "dataset",
+    "conditions", "protocol", "results", "human_eval", "gates", "claims", "limitations",
+    "unverified", "reproduction"
+  ],
+  "properties": {
+    "schema_version": {"const": "idraw-eval-report/v1"},
+    "report_id": {"type": "string", "minLength": 1},
+    "created_at": {"type": "string"},
+    "status": {"enum": ["draft", "frozen", "published"]},
+    "claim_level": {
+      "enum": ["none", "pipeline_verified", "improvement_observed", "high_accuracy_claim_allowed"]
+    },
+    "code": {"type": "object"},
+    "dataset": {
+      "type": "object",
+      "required": ["dataset_hash", "split_seed", "eval_set_id", "eval_set_sha256", "counts", "exclusions"],
+      "properties": {
+        "counts": {"type": "object"},
+        "exclusions": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["image_id", "reason"],
+            "properties": {"image_id": {"type": "string"}, "reason": {"type": "string"}}
+          }
+        }
+      }
+    },
+    "conditions": {"type": "array", "items": {"type": "object"}},
+    "protocol": {"type": "object"},
+    "results": {
+      "type": "object",
+      "required": ["by_condition", "comparisons", "controls", "process"],
+      "properties": {
+        "by_condition": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "object",
+            "required": ["n_items", "n_generations", "metrics", "failure_breakdown", "cost"],
+            "properties": {
+              "n_items": {"type": "integer", "minimum": 0},
+              "n_generations": {"type": "integer", "minimum": 0},
+              "metrics": {"type": "object"},
+              "failure_breakdown": {
+                "type": "object",
+                "additionalProperties": {
+                  "type": "object",
+                  "required": ["count", "rate"],
+                  "properties": {
+                    "count": {"type": "integer", "minimum": 0},
+                    "rate": {"type": "number", "minimum": 0, "maximum": 1}
+                  }
+                }
+              },
+              "cost": {"type": "object"}
+            }
+          }
+        },
+        "comparisons": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["a", "b", "metric", "subset", "delta", "ci95", "win_rate", "n_groups"],
+            "properties": {
+              "subset": {"enum": ["test_unseen_image", "test_unseen_prompt", "train"]},
+              "ci95": {"type": "array", "minItems": 2, "maxItems": 2}
+            }
+          }
+        },
+        "controls": {"type": "object"},
+        "process": {"type": "object"}
+      }
+    },
+    "human_eval": {"type": ["object", "null"]},
+    "gates": {
+      "type": "array",
+      "minItems": 11,
+      "maxItems": 11,
+      "items": {
+        "type": "object",
+        "required": ["gate_id", "passed", "evidence"],
+        "properties": {
+          "gate_id": {"pattern": "^G(10|[0-9])$"},
+          "passed": {"type": "boolean"},
+          "evidence": {"type": "string"}
+        }
+      }
+    },
+    "claims": {
+      "type": "object",
+      "required": ["allowed", "disallowed"],
+      "properties": {
+        "allowed": {"type": "array", "items": {"type": "string"}},
+        "disallowed": {"type": "array", "items": {"type": "string"}}
+      }
+    },
+    "limitations": {"type": "array", "items": {"type": "string"}},
+    "unverified": {"type": "array", "items": {"type": "string"}},
+    "reproduction": {
+      "type": "object",
+      "required": ["commands"],
+      "properties": {"commands": {"type": "array", "items": {"type": "string"}}}
+    }
+  }
+}
