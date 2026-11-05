@@ -19,6 +19,40 @@ class DrawingError(ValueError):
     """不正なAction・状態・設定を表す。"""
 
 
+# {
+#   責務: [
+#     EpisodeFormatError: Episodeの文字列・header・event・構造（グループ・工程連鎖）が不正
+#   ]
+# }
+class EpisodeFormatError(DrawingError):
+    """保存形式または構造の違反。何も返さない。"""
+
+
+# {
+#   責務: [
+#     EpisodeStorageError: Episodeファイルの読み書き・置換の失敗（OSErrorを__cause__に保持する）
+#   ]
+# }
+class EpisodeStorageError(DrawingError):
+    """ファイル操作の失敗。既存の保存先は変更しない。"""
+
+
+# {
+#   責務: [
+#     ReplayError: 再生中のEngine拒否・stage_id注釈の不一致・until_seqの不正
+#   ]
+#   フィールド: [
+#     seq: 失敗したeventのseq（特定できないときはNone）
+#   ]
+# }
+class ReplayError(DrawingError):
+    """再生の失敗。部分的な結果は返さない。"""
+
+    def __init__(self, message: str, seq: int | None = None) -> None:
+        super().__init__(message if seq is None else f"seq {seq}: {message}")
+        self.seq = seq
+
+
 IDENTIFIER_PATTERN = re.compile(r"[A-Za-z][A-Za-z0-9_-]{0,63}")
 
 

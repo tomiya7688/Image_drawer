@@ -12,6 +12,7 @@ ACTORS = ("human", "model", "system", "synthetic", "derived")
 MAX_SEQ = 19999
 MAX_TIME_MS = 604_800_000
 MAX_EVENTS = 20000
+MAX_GROUP_SIZE = 64
 MAX_LAYERS = 16
 MAX_CANVAS_SIDE = 1024
 MAX_LAYER_AREA = 4_194_304
@@ -44,7 +45,7 @@ class EventGroup:
 #   ]
 #   フィールド: [
 #     type: 操作種別, payload: 操作の引数, actor: 実行主体, seq/time_ms: 省略時はEngineが次の値を補う,
-#     stage_id/group: 工程Controllerが付ける注釈（Engineは検査せず保持するだけ。to_dictには含めない）
+#     stage_id/group: 工程Controllerが付ける注釈（Engineは検査せず保持するだけ。v2のEpisode JSONにだけ出力する）
 #   ]
 #   処理: [ to_dict/from_dict でEpisodeのevent形式と相互変換する ]
 # }
@@ -59,30 +60,57 @@ class DrawingAction:
     group: EventGroup | None = None
 
     # {
-    #   責務: [ to_dict: Episodeのevent辞書（5キー）へ変換する ]
-    #   エラー: [ DrawingError: seqまたはtime_msが未確定 ]
+    #   責務: [ to_dict: Episodeのevent辞書へ変換する。v1は5キー、v2（annotated=True）は+stage_id・group ]
+    #   エラー: [ DrawingError: seqまたはtime_msが未確定、v2でstage_idまたはgroupが未設定 ]
     # }
-    def to_dict(self) -> dict[str, Any]:
+    def to_dict(self, annotated: bool = False) -> dict[str, Any]:
         if self.seq is None or self.time_ms is None:
             raise DrawingError("seq and time_ms must be set before serialization")
-        return {
+        data: dict[str, Any] = {
             "seq": self.seq,
             "time_ms": self.time_ms,
             "actor": self.actor,
             "type": self.type,
             "payload": self.payload,
         }
+        if annotated:
+            if self.stage_id is None or self.group is None:
+                raise DrawingError("a v2 event requires stage_id and group")
+            data["stage_id"] = self.stage_id
+            data["group"] = {
+                "id": self.group.id,
+                "index": self.group.index,
+                "size": self.group.size,
+            }
+        return data
 
     # {
-    #   責務: [ from_dict: Episodeのevent辞書を厳密なキー集合で読み込む ]
+    #   責務: [ from_dict: Episodeのevent辞書を厳密なキー集合で読み込む（v2は7キー、v1は5キー） ]
     #   エラー: [ DrawingError: キー集合・型の不一致 ]
     # }
     @classmethod
-    def from_dict(cls, raw: Any) -> DrawingAction:
-        data = require_exact_keys(raw, {"seq", "time_ms", "actor", "type", "payload"}, "event")
+    def from_dict(cls, raw: Any, annotated: bool = False) -> DrawingAction:
+        keys = {"seq", "time_ms", "actor", "type", "payload"}
+        data = require_exact_keys(
+            raw, keys | ({"stage_id", "group"} if annotated else set()), "event"
+        )
         if type(data["type"]) is not str or not isinstance(data["payload"], dict):
             raise DrawingError("event type must be a string and payload an object")
-        return cls(data["type"], data["payload"], data["actor"], data["seq"], data["time_ms"])
+        stage_id, group = None, None
+        if annotated:
+            stage_id = data["stage_id"]
+            if stage_id not in (*STAGE_IDS, FINISH_STAGE_ID):
+                raise DrawingError(f"event stage_id is unknown: {stage_id!r}")
+            fields = require_exact_keys(data["group"], {"id", "index", "size"}, "event.group")
+            group = EventGroup(
+                require_int(fields["id"], "group.id", 0, MAX_SEQ),
+                require_int(fields["index"], "group.index", 0, MAX_GROUP_SIZE - 1),
+                require_int(fields["size"], "group.size", 1, MAX_GROUP_SIZE),
+            )
+        return cls(
+            data["type"], data["payload"], data["actor"], data["seq"], data["time_ms"],
+            stage_id, group,
+        )  # fmt: skip
 
 
 # {
