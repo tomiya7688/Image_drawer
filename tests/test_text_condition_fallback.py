@@ -6,6 +6,7 @@ from dataclasses import dataclass
 
 import pytest
 
+from image_drawer.prompting.text_encoder_registry import TextEncoderRegistry
 from image_drawer.prompting.text_condition import (
     HashedNgramTextEncoder,
     TextConditionEncoder,
@@ -106,3 +107,32 @@ def test_hashed_ngram_is_deterministic_but_not_compatible_with_sentence_model():
     assert len(first.values) == 64
     assert first.model_id == "hashed-ngram-v1"
     assert abs(sum(v * v for v in first.values) - 1) < 1e-7
+
+
+def test_developer_can_register_custom_text_encoder_without_arbitrary_json_import():
+    events: list[str] = []
+    registry = TextEncoderRegistry()
+    registry.register_adapter(
+        "custom-test-provider",
+        lambda entry: FakeEncoder(entry["id"], "ok", events),
+    )
+    encoder = registry.build(
+        {
+            "text_encoder": {
+                "providers": [
+                    {"id": "custom", "adapter": "custom-test-provider"}
+                ]
+            }
+        }
+    )
+    assert encoder.encode("赤いリンゴ").encoder_id == "custom"
+    with pytest.raises(ValueError, match="未登録"):
+        TextEncoderRegistry().build(
+            {
+                "text_encoder": {
+                    "providers": [
+                        {"id": "bad", "adapter": "python:unsafe.module"}
+                    ]
+                }
+            }
+        )
