@@ -2,7 +2,7 @@
 >
 > **目的:** Issue #72（S5）の実装設計を定める。同じ条件で学習前後を再現し、未見画像・未見promptで改善を確認する手順と、「高精度」と公表してよい条件・してはいけない条件を、検証できる形で決める。
 >
-> **状態:** 設計書。この文書の`image-drawer-evaluate`、指標、報告書、ゲートは**まだ実装されていない**。Policy、Trainer、Reward、Controllerも未実装のため、現時点では学習の効果を測定した結果は存在しない。文書が揃ったこと、CIが通ることは、モデルが絵を描けること、学習で上達したことを意味しない。
+> **状態:** 設計書。`image-drawer-evaluate`、指標、報告書、ゲートは`image_drawer/generalization/`に実装済みです（`useful_stroke_rate`、対照指標の実行配線、OpenCLIP系の独立指標を除く）。実checkpointでの評価は未実測です。Policy、Trainer、Reward、Controllerも未実装のため、現時点では学習の効果を測定した結果は存在しない。文書が揃ったこと、CIが通ることは、モデルが絵を描けること、学習で上達したことを意味しない。
 
 # 汎化評価プロトコルの実装設計（S5）
 
@@ -557,7 +557,7 @@ image-drawer-evaluate human-collect --pack reports/eval/human_pack --responses r
 
 ## 14. 実装手順（PRの分割）
 
-1PRは1つの目的で、変更は500行以下を目安にします。パッケージは`image_drawer/generalization/`とし、既存の`image_drawer/evaluation/`（Workflowの候補選択用）と混ぜません。
+1PRは1つの目的で、変更は500行以下を目安にします。パッケージは`image_drawer/generalization/`とし、既存の`image_drawer/evaluation/`（Workflowの候補選択用）と混ぜません。実装済みのPRは S5-1〜S5-8 です（S5-9は本書の再現手順と[ユーザー向け手順](../users/evaluation.md)）。
 
 | PR | 目的 | 主な内容 | 前提 |
 | --- | --- | --- | --- |

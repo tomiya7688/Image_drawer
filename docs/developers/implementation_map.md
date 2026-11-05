@@ -19,7 +19,7 @@
 | タグ・説明文の抽出（#78） | [prompt_extraction_v1.md](prompt_extraction_v1.md)、[統合方針](design_data_pipeline_integration.md) | `image_drawer/prompting/` | `tests/test_prompting_*.py`、`tests/test_dataset_prompting_integration.py`、`tests/test_external_upload_policy.py` |
 | 学習（S3 #70） | [design_trainer.md](design_trainer.md)、[Policy](drawing_policy_accuracy_v1.md)、[Reward](stage_reward_v2.md)、[画像のみ学習](image_only_learning_v1.md) | `image_drawer/training/` | 設計書の受け入れテスト一覧 |
 | 推論・GUI（S4 #71） | [design_inference_gui.md](design_inference_gui.md)、[DSL](workflow_dsl.md)、[GUI](gui.md) | `image_drawer/steps/`、`gui/`、CLI | 同上 |
-| 汎化評価（S5 #72） | [design_evaluation_protocol.md](design_evaluation_protocol.md)、[学習と評価](training_and_evaluation.md) | `image_drawer/evaluation/`（報告） | 同上 |
+| 汎化評価（S5 #72） | [design_evaluation_protocol.md](design_evaluation_protocol.md)、[学習と評価](training_and_evaluation.md) | `image_drawer/generalization/`（`image-drawer-evaluate`） | 同上 |
 | Runtime・DSL・Artifact | [アーキテクチャ](architecture.md)、[DSL](workflow_dsl.md)、[ソースコードガイド](source_code_guide.md) | `image_drawer/core/`、`runtime/`、`dsl/`、`steps/` | `tests/test_runtime.py` ほか |
 | 補助機能（Part Bank・COMPOSE・SELECT） | [part_bank.md](part_bank.md)、[score_sets.md](score_sets.md) | `part_bank/`、`steps/compose.py`、`evaluation/` | 既存テスト |
 | 配布・CI・署名 | [verify_release.md](../users/verify_release.md)、[ローカル確認](local_checks.md) | `.github/workflows/`、`scripts/` | CI |
@@ -86,7 +86,8 @@ S2 Dataset ←→ #78 抽出（統合）─────────────�
 | Dataset登録（S2） | 実装済み（PR #74）。基本の抽出器は画素の統計だけ |
 | 抽出パイプライン（#78）と統合（#83） | 実装済み（PR #78・#88）。実モデルでの精度と実ネットワーク接続は未検証 |
 | 学習（S3） | 前半は実装済み（PR #89）。後半（観測・Policy・Rollout・Reward・Trainer・ClaimGate）は PR #90 で実装。CLIと実測は未実装で、学習の成功は未確認 |
-| 推論・GUI（S4）・汎化評価（S5） | 設計済み（PR #81）。**コードは未実装** |
+| 推論・GUI（S4） | 設計済み（PR #81）。**コードは未実装** |
+| 汎化評価（S5） | 評価集合・帳簿・統計・監査器・工程指標・人間評価（PR #92）、画質指標・ランナー・CLI・報告書・ゲート（本ブランチ）を実装。**実checkpointでの評価は未実測**で、学習の成功・精度は未確認。`useful_stroke_rate`・`prompt_shuffle_delta`等の対照指標の実行配線とOpenCLIP系の独立指標は未実装 |
 | 旧M6〜M14（GUI・実験ランナー・探索など） | 保留（Issue #62）。S4・S5・S3に再定義 |
 
 「設計済み」「コードは未実装」の項目を、実装済みとして報告しないでください。

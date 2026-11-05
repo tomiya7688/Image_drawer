@@ -47,6 +47,7 @@
 - [GUI実装仕様](gui.md)
 - [学習と評価](training_and_evaluation.md)
 - [評価結果の保存形式](score_sets.md)
+- [汎化評価プロトコル（S5）](design_evaluation_protocol.md)と[報告書スキーマ](schemas/eval_report_v1.schema.json)
 - [MVP範囲](mvp.md)
 
 ## AI / 探索
