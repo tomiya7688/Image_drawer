@@ -7,7 +7,16 @@ from __future__ import annotations
 
 import base64
 import tkinter as tk
+from pathlib import Path
 from tkinter import filedialog, ttk
+
+from image_drawer.gui.controller import (
+    GenerationComplete,
+    GenerationController,
+    GenerationDraft,
+    GenerationFailed,
+    Generating,
+)
 
 from image_drawer.gui.viewmodel import (
     ViewerController,
@@ -16,7 +25,10 @@ from image_drawer.gui.viewmodel import (
     ViewerLoadError,
     ViewerModel,
 )
+from image_drawer.inference.cli import default_policies
 from image_drawer.inference.png import encode_png_rgba
+from image_drawer.inference.policy import PolicyError, PolicyRegistry
+from image_drawer.inference.session import DEFAULT_SIDE, DrawRequest
 
 STATUS_LABEL = {
     "unreached": "未到達", "in_progress": "進行中", "done": "完了",
@@ -24,6 +36,7 @@ STATUS_LABEL = {
 }  # fmt: skip
 VIEW_SIDE = 320
 PLAY_INTERVAL_MS = 120
+POLL_INTERVAL_MS = 100
 
 
 # {
@@ -168,13 +181,82 @@ class ReplayView(ttk.Frame):
 
 
 # {
-#   責務: [ build_main_window: ウィンドウとReplay画面を組み立てる ]
+#   責務: [ GenerationView: 生成画面(G2)。入力欄・生成・停止。生成はGenerationControllerが別スレッドで行う ]
 # }
-def build_main_window(root: tk.Tk) -> ReplayView:
+class GenerationView(ttk.Frame):
+    def __init__(self, master: tk.Misc, controller: GenerationController, replay: ReplayView):
+        super().__init__(master)
+        self.controller = controller
+        self.replay = replay
+        self.entries: dict[str, tk.StringVar] = {}
+        for label, default in (
+            ("prompt", ""), ("seed", "0"), ("max_actions", "1000"), ("out_dir", "out/gui"),
+        ):  # fmt: skip
+            row = ttk.Frame(self)
+            row.pack(fill="x")
+            ttk.Label(row, text=label, width=12).pack(side="left")
+            self.entries[label] = tk.StringVar(value=default)
+            ttk.Entry(row, textvariable=self.entries[label]).pack(
+                side="left", fill="x", expand=True
+            )
+        row = ttk.Frame(self)
+        row.pack(fill="x")
+        ttk.Label(row, text="policy", width=12).pack(side="left")
+        ids = [entry["policy_id"] for entry in controller.policies.describe()]
+        self.policy = tk.StringVar(value=ids[0] if ids else "")
+        ttk.Combobox(row, textvariable=self.policy, values=ids, state="readonly").pack(side="left")
+        buttons = ttk.Frame(self)
+        buttons.pack(fill="x")
+        ttk.Button(buttons, text="生成", command=self.generate).pack(side="left")
+        ttk.Button(buttons, text="停止", command=controller.stop).pack(side="left")
+        self.status = ttk.Label(self, text="待機中")
+        self.status.pack(anchor="w")
+
+    def generate(self) -> None:
+        try:
+            loaded = self.controller.policies.resolve(self.policy.get())
+            side = loaded.canvas or (DEFAULT_SIDE, DEFAULT_SIDE)
+            request = DrawRequest(
+                self.entries["prompt"].get(),
+                self.policy.get(),
+                int(self.entries["max_actions"].get()),
+                int(self.entries["seed"].get()),
+                side[0],
+                side[1],
+            )
+        except (ValueError, PolicyError) as error:
+            self.status.config(text=f"実行できません: {error}")
+            return
+        if self.controller.start(request, Path(self.entries["out_dir"].get())):
+            self.after(POLL_INTERVAL_MS, self._poll)
+
+    def _poll(self) -> None:
+        state = self.controller.poll()
+        if isinstance(state, Generating):
+            self.status.config(text=f"生成中: {state.accepted_actions}件 {state.stage_id or ''}")
+            self.after(POLL_INTERVAL_MS, self._poll)
+        elif isinstance(state, GenerationComplete):
+            self.status.config(text="完成")
+            self.replay.open_path(str(state.episode_path), policy_trained=state.policy_trained)
+        elif isinstance(state, GenerationDraft):
+            self.status.config(text=f"未完成: {state.reason}")
+            self.replay.open_path(str(state.draft_path), policy_trained=state.policy_trained)
+        elif isinstance(state, GenerationFailed):
+            self.status.config(text=f"実行できません: {state.reason}")
+
+
+# {
+#   責務: [ build_main_window: ウィンドウとタブ（Replay・生成）を組み立て、Replay画面を返す ]
+# }
+def build_main_window(root: tk.Tk, policies: PolicyRegistry | None = None) -> ReplayView:
     root.title("Image Drawer")
-    view = ReplayView(root)
-    view.pack(fill="both", expand=True)
-    return view
+    tabs = ttk.Notebook(root)
+    tabs.pack(fill="both", expand=True)
+    replay = ReplayView(tabs)
+    tabs.add(replay, text="Replay")
+    registry = policies if policies is not None else default_policies([], None)
+    tabs.add(GenerationView(tabs, GenerationController(registry), replay), text="生成")
+    return replay
 
 
 def run(open_path: str | None = None) -> int:

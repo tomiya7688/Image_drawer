@@ -182,3 +182,100 @@ def test_tk_window_builds_when_display_is_available() -> None:
         assert view.history.size() > 0
     finally:
         root.destroy()
+
+
+# --- G2: 生成 ---
+
+
+def make_generation(tmp_path: Path, service=None):
+    from image_drawer.gui.controller import GenerationController
+
+    kwargs = {} if service is None else {"service": service}
+    return GenerationController(scripted_registry(), **kwargs)
+
+
+def request_for(**kwargs) -> DrawRequest:
+    return DrawRequest("猫", "scripted", width=SIDE, height=SIDE, **kwargs)
+
+
+def test_generation_state_machine_idle_generating_complete(tmp_path: Path) -> None:
+    import threading
+
+    from image_drawer.gui.controller import GenerationComplete, GenerationIdle, Generating
+
+    gate = threading.Event()
+
+    def gated(request, policies, *, cancel=None, on_progress=None):
+        gate.wait(5)
+        return generate_episode(request, policies, cancel=cancel, on_progress=on_progress)
+
+    controller = make_generation(tmp_path, gated)
+    assert isinstance(controller.state, GenerationIdle)
+    assert controller.start(request_for(), tmp_path / "g")
+    assert isinstance(controller.state, Generating)
+    assert not controller.start(request_for(), tmp_path / "other")  # 生成中は開始しない
+    gate.set()
+    controller.wait(10)
+    state = controller.poll()
+    assert isinstance(state, GenerationComplete) and state.episode_path.is_file()
+    assert state.policy_trained is False
+    loaded = ViewerController().load(state.episode_path, policy_trained=state.policy_trained)
+    assert loaded.model.policy_badge == "未学習／テスト用"
+    controller.reset()
+    assert isinstance(controller.state, GenerationIdle)
+
+
+def test_generation_stop_requests_cancel_and_shows_draft(tmp_path: Path) -> None:
+    import time
+
+    from image_drawer.gui.controller import GenerationDraft
+
+    def until_cancelled(request, policies, *, cancel=None, on_progress=None):
+        while not cancel.is_set():
+            time.sleep(0.005)
+        return generate_episode(request, policies, cancel=cancel)
+
+    controller = make_generation(tmp_path, until_cancelled)
+    controller.start(request_for(), tmp_path / "g")
+    controller.stop()
+    controller.wait(10)
+    state = controller.poll()
+    assert isinstance(state, GenerationDraft) and state.reason == "cancelled"
+    assert state.draft_path.name == "draft.json" and not (tmp_path / "g" / "episode.json").exists()
+    shown = ViewerController().load(state.draft_path)
+    assert shown.model.draft_badge == "未完成（cancelled）"
+
+
+def test_generation_failure_and_progress_are_reported(tmp_path: Path) -> None:
+    from image_drawer.gui.controller import GenerationFailed, Generating
+
+    controller = make_generation(tmp_path)
+    (tmp_path / "busy").mkdir()
+    (tmp_path / "busy" / "x.txt").write_text("x", encoding="utf-8")
+    controller.start(request_for(), tmp_path / "busy")
+    controller.wait(10)
+    assert isinstance(controller.poll(), GenerationFailed)
+    controller.reset()
+    seen: list[object] = []
+
+    def slow(request, policies, *, cancel=None, on_progress=None):
+        outcome = generate_episode(request, policies, cancel=cancel, on_progress=on_progress)
+        return outcome
+
+    controller = make_generation(tmp_path, slow)
+    controller.start(request_for(), tmp_path / "ok")
+    controller.wait(10)
+    seen.append(controller._messages.qsize())
+    assert seen[0] > 1  # 受理ごとの進捗がキューに積まれる
+    assert not isinstance(controller.poll(), Generating)
+
+
+def test_gui_generation_calls_the_same_service_as_cli(tmp_path: Path) -> None:
+    from image_drawer.gui.controller import GenerationController
+    from image_drawer.inference import cli, replay
+    from image_drawer.steps import draw_episode
+
+    assert GenerationController(scripted_registry()).service is generate_episode
+    assert cli.generate_episode is generate_episode
+    assert draw_episode.generate_episode is generate_episode
+    assert replay.replay_episode_file is cli.replay_episode_file
