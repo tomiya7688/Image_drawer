@@ -106,16 +106,23 @@ def draft_bytes(outcome: DrawOutcome) -> bytes:
 
 
 # {
-#   責務: [ prepare_out_dir: 出力先を作る。空でない既存先は--overwrite時だけ許す ]
+#   責務: [ check_out_dir: 出力先を作らずに衝突だけ確認する。空でない既存先は--overwrite時だけ許す ]
 #   エラー: [ OutputConflictError ]
 # }
-def prepare_out_dir(out_dir: Path, overwrite: bool) -> None:
+def check_out_dir(out_dir: Path, overwrite: bool) -> None:
     if out_dir.exists() and not out_dir.is_dir():
         raise OutputConflictError(f"出力先がディレクトリではありません: {out_dir}")
     if out_dir.is_dir() and any(out_dir.iterdir()) and not overwrite:
         raise OutputConflictError(
-            f"出力先が空ではありません（--overwriteで既知の4ファイルだけ上書き）: {out_dir}"
+            f"出力先が空ではありません（--overwriteで既知のファイルだけ上書き）: {out_dir}"
         )
+
+
+# {
+#   責務: [ prepare_out_dir: 衝突を確認してから出力先を作る ]
+# }
+def prepare_out_dir(out_dir: Path, overwrite: bool) -> None:
+    check_out_dir(out_dir, overwrite)
     out_dir.mkdir(parents=True, exist_ok=True)
 
 
