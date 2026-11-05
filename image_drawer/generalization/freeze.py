@@ -4,6 +4,10 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
+import time
+from collections.abc import Iterator
+from contextlib import contextmanager
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
@@ -20,7 +24,12 @@ LEDGER_NAME = "test_ledger.jsonl"
 #   ]
 # }
 def sha256_file(path: Path) -> str:
-    return hashlib.sha256(path.read_bytes()).hexdigest()
+    digest = hashlib.sha256()
+    with path.open("rb") as stream:
+        # 大きなcheckpointでも全体をメモリへ読まないよう、チャンクで更新する。
+        while chunk := stream.read(1 << 20):
+            digest.update(chunk)
+    return digest.hexdigest()
 
 
 # {
@@ -125,16 +134,57 @@ class LedgerError(RuntimeError):
     pass
 
 
+LEDGER_KEYS = ("eval_set_id", "freeze_manifest_sha256", "run_index", "retest", "rerun", "timestamp")
+LOCK_TIMEOUT_SECONDS = 30.0
+
+
 # {
 #   責務: [
-#     read_ledger: 帳簿の全行を読む。無ければ空
+#     read_ledger: 帳簿の全行を読み、形式を検証する。無ければ空
 #   ]
+#   エラー: [ LedgerError: JSONでない行、または必須キーの欠けた行 ]
 # }
 def read_ledger(ledger_path: Path) -> list[dict]:
     if not ledger_path.exists():
         return []
-    lines = ledger_path.read_text(encoding="utf-8").splitlines()
-    return [json.loads(line) for line in lines if line.strip()]
+    entries: list[dict] = []
+    for number, line in enumerate(ledger_path.read_text(encoding="utf-8").splitlines(), start=1):
+        if not line.strip():
+            continue
+        try:
+            entry = json.loads(line)
+        except json.JSONDecodeError as error:
+            raise LedgerError(f"corrupt ledger line {number}: {error}") from error
+        if not isinstance(entry, dict) or any(key not in entry for key in LEDGER_KEYS):
+            raise LedgerError(f"corrupt ledger line {number}: required keys are missing")
+        entries.append(entry)
+    return entries
+
+
+# {
+#   責務: [
+#     _ledger_lock: 帳簿の読込から追記までを排他にする(外部依存なし、WindowsとPOSIX共通)
+#   ]
+#   処理: [ ロックファイルをO_EXCLで作れた1者だけが進み、終了時に削除する。取得できなければLedgerError ]
+# }
+@contextmanager
+def _ledger_lock(ledger_path: Path) -> Iterator[None]:
+    lock_path = ledger_path.with_name(ledger_path.name + ".lock")
+    ledger_path.parent.mkdir(parents=True, exist_ok=True)
+    deadline = time.monotonic() + LOCK_TIMEOUT_SECONDS
+    while True:
+        try:
+            descriptor = os.open(lock_path, os.O_CREAT | os.O_EXCL | os.O_WRONLY)
+            os.close(descriptor)
+            break
+        except FileExistsError:
+            if time.monotonic() > deadline:
+                raise LedgerError(f"ledger lock is held: {lock_path}") from None
+            time.sleep(0.01)
+    try:
+        yield
+    finally:
+        lock_path.unlink(missing_ok=True)
 
 
 # {
@@ -176,10 +226,26 @@ def authorize_run(
         raise LedgerError(f"unsupported split for evaluation: {split}")
     if freeze_manifest_path is None or not freeze_manifest_path.exists():
         raise LedgerError("test run requires --freeze-manifest")
-    manifest = FreezeManifest.from_json(freeze_manifest_path.read_text(encoding="utf-8"))
-    if manifest.eval_set_sha256 != eval_set.eval_set_sha256:
+    try:
+        manifest = FreezeManifest.from_json(freeze_manifest_path.read_text(encoding="utf-8"))
+    except (ValueError, TypeError, KeyError) as error:
+        raise LedgerError(f"freeze manifest is unreadable: {error}") from error
+    if (
+        manifest.eval_set_id != eval_set.eval_set_id
+        or manifest.eval_set_sha256 != eval_set.eval_set_sha256
+    ):
         raise LedgerError("freeze manifest does not match the eval_set")
     freeze_digest = manifest.digest()
+    with _ledger_lock(ledger_path):
+        return _append_entry(eval_set, freeze_digest, ledger_path, now)
+
+
+# {
+#   責務: [ _append_entry: ロックを持った状態で、過去の記録からretest等を決めて1行を追記する ]
+# }
+def _append_entry(
+    eval_set: EvalSet, freeze_digest: str, ledger_path: Path, now: str | None
+) -> dict:
     previous = [e for e in read_ledger(ledger_path) if e["eval_set_id"] == eval_set.eval_set_id]
     retest = any(e["freeze_manifest_sha256"] != freeze_digest for e in previous)
     rerun = any(e["freeze_manifest_sha256"] == freeze_digest for e in previous)
@@ -192,7 +258,6 @@ def authorize_run(
         "timestamp": now or datetime.now(timezone.utc).isoformat(),
     }
     # 追記専用: 既存の行を書き換えず、1行を末尾に足すだけにする。
-    ledger_path.parent.mkdir(parents=True, exist_ok=True)
     with ledger_path.open("a", encoding="utf-8") as stream:
         stream.write(json.dumps(entry, ensure_ascii=False, sort_keys=True) + "\n")
     return entry

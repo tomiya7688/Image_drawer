@@ -8,7 +8,12 @@ import pytest
 
 from image_drawer.dataset import DatasetManifest, ExtractorInfo
 from image_drawer.dataset.models import TrainingImage
-from image_drawer.generalization.eval_set import EvalSet, build_eval_set, build_probes
+from image_drawer.generalization.eval_set import (
+    EvalItem,
+    EvalSet,
+    build_eval_set,
+    build_probes,
+)
 from image_drawer.generalization.freeze import (
     LedgerError,
     authorize_run,
@@ -209,3 +214,59 @@ def test_validation_run_does_not_touch_the_ledger(tmp_path):
     with pytest.raises(LedgerError):
         authorize_run("train", eval_set, None, ledger)
     assert dataclasses.is_dataclass(eval_set)
+
+
+def test_probe_matches_whole_ascii_words_only():
+    item = EvalItem("x", "h", "g", "A certificate and a cat")
+    template = {"probe_id": "p", "base_image_id": "x", "attribute": "object", "replacement": "dog"}
+    probe = build_probes([item], [{**template, "original": "cat"}])[0]
+    assert probe.prompt == "A certificate and a dog"
+    # 語の一部にしか現れない語は、現れないものとして拒否する。
+    with pytest.raises(ValueError, match="exactly once"):
+        build_probes(
+            [
+                EvalItem("x", "h", "g", "A certificate"),
+            ],
+            [{**template, "original": "cat"}],
+        )
+
+
+def test_eval_set_hash_depends_on_item_and_probe_order(tmp_path):
+    dataset = write_dataset(tmp_path / "ds", BASE_IMAGES)
+    eval_set = build_eval_set(dataset, "main_v1", created_at="t")
+    original = eval_set.eval_set_sha256
+    eval_set.items.reverse()
+    assert eval_set.compute_hash() != original
+
+
+def test_authorize_run_rejects_mismatched_id_and_corrupt_ledger(tmp_path):
+    eval_set, first = frozen_setup(tmp_path)
+    ledger = tmp_path / "ledger.jsonl"
+    data = json.loads(first.read_text(encoding="utf-8"))
+    data["eval_set_id"] = "other"
+    other = tmp_path / "other.json"
+    other.write_text(json.dumps(data), encoding="utf-8")
+    with pytest.raises(LedgerError, match="does not match"):
+        authorize_run("test", eval_set, other, ledger)
+    ledger.write_text("{broken\n", encoding="utf-8")
+    with pytest.raises(LedgerError, match="ledger"):
+        authorize_run("test", eval_set, first, ledger)
+    ledger.write_text(json.dumps({"eval_set_id": "main_v1"}) + "\n", encoding="utf-8")
+    with pytest.raises(LedgerError, match="ledger"):
+        authorize_run("test", eval_set, first, ledger)
+
+
+def test_authorize_run_is_exclusive_under_concurrency(tmp_path):
+    import threading
+
+    eval_set, first = frozen_setup(tmp_path)
+    ledger = tmp_path / "ledger.jsonl"
+    threads = [
+        threading.Thread(target=authorize_run, args=("test", eval_set, first, ledger))
+        for _ in range(8)
+    ]
+    for thread in threads:
+        thread.start()
+    for thread in threads:
+        thread.join()
+    assert sorted(e["run_index"] for e in read_ledger(ledger)) == list(range(1, 9))

@@ -95,13 +95,17 @@ S2の制限として、新しい画像の追加で既存画像の`group_id`と`s
 | `train_group_ids_sha256` | 分離の確認用 |
 | `eval_set_sha256` | 上記全体のハッシュ |
 
+`items`はimage_id順、`probes`はテンプレートの記載順で保存し、この順序も`eval_set_sha256`の対象です（順序を変えるとハッシュが変わります）。`prompt_seen_in_train`は`prompt`と同様に空白と大文字小文字を揃えた文字列（`normalize_prompt`）で判定し、`items[].prompt`自体は元の文字列を保持します。
+
+構成的な未見promptのテンプレートは、`probe_id`、`base_image_id`、`attribute`、`original`、`replacement`を持ちます。`original`が英数字と下線だけの語なら、前後が英数字・下線でない位置だけに一致させ（`cat`は`certificate`に一致しない）、日本語など空白で語を区切らない文字列は大文字小文字を区別する完全一致の部分文字列とします。どちらも基準itemのpromptにちょうど1回だけ現れる必要があり、そうでなければ拒否します。
+
 Datasetが後で変わっても、`eval_set`は変更しません。新しい画像を加えた評価は、新しい`eval_set_id`で行います。
 
 ### 3.4 固定したtestを調整に使わない規則
 
 1. **禁止**: testの目標画像、抽出文、得点、人間評価を、学習、抽出器の選択、Reward重み、ハイパーパラメータ、checkpointの選択、停止条件、評価用テンプレートの修正に使うこと。
 2. **凍結宣言**: test評価の前に`freeze_manifest.json`を保存します。内容は、`after`と`before`のcheckpointのSHA-256、コードのgit commit、Rewardと指標のversionと設定のSHA-256、`eval_set_sha256`、推論seed、`max_actions`、分析計画のSHA-256です。
-3. **1回だけ実行**: `image-drawer-evaluate run --split test`は`--freeze-manifest`を必須とし、無ければ拒否します。実行は`test_ledger.jsonl`（追記専用）に、`eval_set_id`、凍結宣言のSHA-256、日時を記録します。
+3. **1回だけ実行**: `image-drawer-evaluate run --split test`は`--freeze-manifest`を必須とし、無ければ拒否します。実行は`test_ledger.jsonl`（追記専用）に、`eval_set_id`、凍結宣言のSHA-256、日時を記録します。凍結宣言の`eval_set_id`と`eval_set_sha256`が評価集合と一致しなければ拒否します。帳簿の読込から追記までは、ロックファイル（`<帳簿>.lock`）で排他にします。壊れた行や必須キーの欠けた行は、`LedgerError`（終了コード2）にします。
 4. **再実行の扱い**: 同じ凍結宣言の再実行は、決定性の確認だけに使い、結果の選択に使いません。**同じ`eval_set_id`に対して別の凍結宣言でtestを実行すると、帳簿が`retest`を付け、その`eval_set`の結果は公表条件（10節）を満たしません**。新しいtest集合が必要です。
 5. **汚染の扱い**: 規則に反してtestの結果を調整に使った場合、その`eval_set`は`contaminated`として記録し、以後の公表に使いません。
 
