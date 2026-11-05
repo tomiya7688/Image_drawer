@@ -57,10 +57,10 @@ python scripts/setup_local_8g_models.py --check
 手順2の最後に表示された `llama-server` コマンドを実行します。既定の例：
 
 ```powershell
-llama-server --models-dir "$HOME/.cache/image-drawer/local8g" --models-max 1 --models-memory-margin 1024 -c 4096 -np 1 --host 127.0.0.1 --port 8080
+llama-server --models-dir "$HOME/.cache/image-drawer/local8g" --models-max 1 --models-memory-margin 2048 --fit on --fit-target 2048 --gpu-layers auto --no-mmproj-offload -c 4096 -np 1 --host 127.0.0.1 --port 8080
 ```
 
-`--models-max 1`で同時ロード1モデル、`-np 1`で同時推論1件、
+`--models-max 1`で同時ロード1モデル、`--fit on --gpu-layers auto`でVRAMに合わせてGPUとCPUの層を自動配置します。`--fit-target 2048`で2GiB分のGPU余裕を持ち、`--no-mmproj-offload`で画像投影器をCPUへ配置します。`-np 1`で同時推論1件、
 `-c 4096`で小さなコンテキストを指定します。llama.cppのルーターは
 リクエストの`model`名に合わせてサブフォルダのモデルを必要に応じてロード・アンロードします。
 3つのVLMを同時常駐させないことが8GB運用の重要条件です。
@@ -91,7 +91,7 @@ image-drawer-preprocess --settings docs/users/preprocessor_settings.example.json
 1. 既存のGPUを使う別アプリ（ComfyUIやゲームなど）を停止し、ルーターが1モデルだけ
    ロードしているか確認してください。最初のモデルの切替は読み込み時間が発生します。
 2. 画像投影器やGPUバッファでOOMになる場合はルーターの設定を調整し、
-   `-ngl 20`などで一部レイヤーをCPUへオフロードする（GPU計算を減らす）方法を試してください。
+   まず自動fitのログとGPU使用量を確認してください。自動でもOOMする場合に限り`-ngl 20`等でGPU層数の上限を減らします。
    必要に応じて`--no-mmproj-offload`を使い、画像投影器をCPU上で実行してください。
 3. それでも不足する場合は、Qwen3-VL-2B Q4_K_M（[公式GGUF](https://huggingface.co/Qwen/Qwen3-VL-2B-Instruct-GGUF)）への差し替えが候補です。
    **自動的に精度が同じになるわけではない**ため、標準の4Bと別の実験として測定してください。
