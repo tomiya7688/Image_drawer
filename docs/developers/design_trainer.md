@@ -327,7 +327,7 @@ Actor-critic、PPO、画像encoderを使うPolicyは、v0で比較する価値�
 - `brush` head: 12プリセットのsoftmax。色とは別のheadです（色×ブラシの直積分類をしません）。
 - `size` head（19段階）、`opacity` head（11段階）: それぞれsoftmax。
 - `layer` head: 存在するレイヤー上限`MAX_LAYERS`（16）のうち`layer_summary`で書込可能なものへのsoftmax。
-- `stroke` head: ストロークを3個の制御点（始点・中間・終点）で表し、6個の座標を各ガウス分布から得ます。`u ~ N(Wx, σ²)`、座標は`sigmoid(u)`でキャンバスの[0,1]に写します。`σ`は固定（学習中に0.15から0.05へ直線的に減衰させる設定値）です。
+- `stroke` head（**置き換え予定**。直線を描けない問題のため、始点マス＋方向×長さの離散線分に変更します。[design_stroke_action.md](design_stroke_action.md)。実装は未着手で、現在のコードは下の連続座標版です）: ストロークを3個の制御点（始点・中間・終点）で表し、6個の座標を各ガウス分布から得ます。`u ~ N(Wx, σ²)`、座標は`sigmoid(u)`でキャンバスの[0,1]に写します。`σ`は固定（学習中に0.15から0.05へ直線的に減衰させる設定値）です。
 - `advance_stage`は種別の1つとして選びます。進めてよいかはControllerが決め、飛び先はPolicyが選べません。
 
 可変長の座標列と`POINT_END`、筆圧パターン、`erase_v2`はv0に入れません（10節）。ストロークは制御点から`stroke_samples`（既定6）個の点を等間隔に補間して`stroke_v2`の`samples`を作ります。筆圧は設定の固定値（既定は中央のlevel）です。`samples`の厳密なキー集合は`image_drawer.drawing`の実装に合わせ、`action_codec.py`のラウンドトリップテストで確認します。
