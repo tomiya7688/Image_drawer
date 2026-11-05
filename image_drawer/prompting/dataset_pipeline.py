@@ -8,6 +8,7 @@ import os
 import tempfile
 from dataclasses import asdict, dataclass
 from pathlib import Path
+from urllib.parse import urlsplit
 
 from image_drawer.dataset import DatasetManifest, ExtractorInfo, QualityIssue
 
@@ -41,6 +42,8 @@ def _read_stage(path: Path, expected_key: str) -> dict | None:
         return None
     try:
         data = json.loads(path.read_text(encoding="utf-8"))
+        if not isinstance(data, dict):
+            return None
         digest = data.pop("payload_sha256")
         actual = hashlib.sha256(
             json.dumps(data, ensure_ascii=False, sort_keys=True).encode("utf-8")
@@ -133,6 +136,18 @@ def preprocess_dataset(
     *,
     seed: int = 0,
 ) -> DatasetPreprocessingReport:
+    # Datasetからの無断外部送信を防ぐため、この専用入口はローカル接続のみを認める。
+    providers = (
+        *pipeline.caption_pipeline.providers,
+        *pipeline.tag_pipeline.providers,
+    )
+    for provider in providers:
+        backend = getattr(provider, "backend", provider)
+        endpoint = getattr(backend, "endpoint", None)
+        if endpoint is None:
+            continue
+        if urlsplit(endpoint).hostname not in {"localhost", "127.0.0.1", "::1"}:
+            raise ValueError("Dataset3パスの抽出はローカルAPIのみ対応です")
     manifest = DatasetManifest.load(dataset_dir)
     # 結果が異なるモデル列や整形設定で混ざらないよう、キャッシュ空間を分ける。
     identities = [
