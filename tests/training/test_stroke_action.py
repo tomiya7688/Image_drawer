@@ -85,10 +85,12 @@ def rendered_ink(samples) -> np.ndarray:
     return rgba[..., :3].sum(axis=2) < 3 * 250
 
 
-def make_observation(side: int = 16):
+def make_observation(side: int = 16, tools=()):
     engine = Engine(side, side, seed=1)
     budget = Budget(24)
     controller = StageController(engine, judge_style_intent("test"), budget)
+    for action in tools:
+        assert controller.propose(action).accepted
     text = np.linspace(-1, 1, 8, dtype=np.float32)
     return ObservationBuilder(tail_length=8, summary_side=4).build(text, controller, engine, budget)
 
@@ -237,7 +239,8 @@ def _stroke_sample(policy: ParametricPolicy, segments: int, mode: int = 0, prev_
         4, stroke_mode=walked.mode, stroke_start=walked.start_cell,
         stroke_segments=walked.requested, stroke_dirs=walked.dirs, stroke_lens=walked.lens,
     )  # fmt: skip
-    kinds, layers = codec.kind_mask(observation), codec.layer_mask(observation)
+    # 勾配の検査なので種別は全て選べるマスクにする(実際のマスクはtest_legal_mask.py)。
+    kinds, layers = np.ones(6, dtype=bool), codec.layer_mask(observation)
     return PolicySample(
         build_features(observation), "rough", kinds, layers, choice, stroke_prev_end=prev_end
     ), walked
@@ -315,6 +318,12 @@ def test_stroke_all_invalid_truncates_segments(monkeypatch: pytest.MonkeyPatch) 
     # 0本のときはstroke_v2を選べない。
     tiny = geo.StrokeShape(grid=1, max_segments=2, lengths=(1,))
     observation = make_observation()
+    tools = (
+        DrawingAction("select_layer", {"layer_id": "sys_rough_001"}),
+        DrawingAction("select_color", {"color_id": 0}),
+        DrawingAction("select_brush", {"brush_id": "ink_gpen"}),
+    )
+    observation = make_observation(tools=tools)
     assert not codec.kind_mask(observation, tiny)[codec.ACTION_KINDS.index("stroke_v2")]
     assert codec.kind_mask(observation, SHAPE)[codec.ACTION_KINDS.index("stroke_v2")]
     with pytest.raises(ValueError):

@@ -13,6 +13,7 @@ from numpy.typing import NDArray
 from image_drawer.drawing import DrawingAction
 from image_drawer.training.action_codec import (
     ActionChoice,
+    brush_mask,
     decode_action,
     kind_mask,
     layer_mask,
@@ -149,7 +150,7 @@ def categorical_terms(
     elif kind == "select_color":
         terms.append(("color", int(choice.color_id), None))
     elif kind == "select_brush":
-        terms.append(("brush", int(choice.brush_index), None))
+        terms.append(("brush", int(choice.brush_index), brush_mask()))
     elif kind == "set_brush_params":
         terms.append(("size", int(choice.size_level), None))
         terms.append(("opacity", int(choice.opacity_level), None))
@@ -220,7 +221,7 @@ class ParametricPolicy:
         elif kind == "select_color":
             fields["color_id"] = draw("color")
         elif kind == "select_brush":
-            fields["brush_index"] = draw("brush")
+            fields["brush_index"] = draw("brush", brush_mask())
         elif kind == "set_brush_params":
             fields["size_level"] = draw("size")
             fields["opacity_level"] = draw("opacity")
@@ -338,7 +339,7 @@ class RandomLegalPolicy:
         pick: dict[str, Callable[[], dict[str, object]]] = {
             "select_layer": lambda: {"layer_index": int(rng.choice(np.flatnonzero(layers)))},
             "select_color": lambda: {"color_id": int(rng.integers(HEAD_SIZES["color"]))},
-            "select_brush": lambda: {"brush_index": int(rng.integers(HEAD_SIZES["brush"]))},
+            "select_brush": lambda: {"brush_index": int(rng.choice(np.flatnonzero(brush_mask())))},
             "set_brush_params": lambda: {
                 "size_level": int(rng.integers(HEAD_SIZES["size"])),
                 "opacity_level": int(rng.integers(HEAD_SIZES["opacity"])),

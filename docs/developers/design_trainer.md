@@ -329,6 +329,14 @@ Actor-critic、PPO、画像encoderを使うPolicyは、v0で比較する価値�
 - `layer` head: 存在するレイヤー上限`MAX_LAYERS`（16）のうち`layer_summary`で書込可能なものへのsoftmax。
 - ストローク head（実装済み。直線を描けない連続座標版を置き換えました。仕様は[design_stroke_action.md](design_stroke_action.md)）: 始点の格子マス（`stroke_start`、G×G）、`stroke_mode`（new／continue）、線分数（`stroke_segments`、1〜K）、線分ごとの方向（`stroke_dir_i`、16方向。2本目以降は直前に対する相対）と長さ（`stroke_len_i`、段階 {1,2,3,5,8,13} マス）のsoftmaxです。端点が盤面外になる選択は逐次にマスし、使わない線分・`start`は対数確率・エントロピー・勾配に入れません。探索は温度`softmax_temperature`（既定1.0、logitsをTで割る）とエントロピー項で制御し、ガウスの`σ`設定は廃止しました。
 - `advance_stage`は種別の1つとして選びます。進めてよいかはControllerが決め、飛び先はPolicyが選べません。
+- 観測から合法と分かるActionだけを選ぶマスク（`action_codec.kind_mask`・`brush_mask`）: 拒否の大半は、道具未選択のstrokeと、筆跡のない工程での`advance_stage`でした（合成画像100枚・seed1の実測は下記）。Controllerの受理条件のうち、`Observation`（`tool_state`・`layer_summary`・`action_tail`）だけで判定できるものをマスクにします。目標画像・`RewardTarget`・`canvas_summary`・`text_condition`は使いません。
+  - `stroke_v2`: レイヤー・色・ブラシがすべて選択済み（`tool_state`）で、始点を置けるマスがある。
+  - `set_brush_params`: ブラシが選択済み（Engineは未選択を拒否）。
+  - `advance_stage`: 筆跡が必須の工程（ラフ・下書き・本描き・基本色・陰影）では、その工程の役割レイヤーに可視の画素がある（工程入場時のレイヤーは空なので、画素があれば有効な筆跡が受理済み）。必須描画のない`refine`では、直近の受理済み`advance_stage`以降に受理済み`stroke_v2`が`action_tail`にある。`review_reason`付きの退出はPolicyが出さないので対象外です。
+  - `select_layer`: 書込可能な可視レイヤーがある（従来どおり）。`layer` headも同じ。
+  - `brush` head: 消去ブラシ（`eraser_*`）を除く。`stroke_v2`は消去ブラシを必ず拒否し、`erase_v2`はv0の対象外です。定数のマスクです。
+  - `select_color`・`select_brush`は常に選べるので、全候補が消えることはありません（`advance_stage`は条件を満たした後に必ず選べ、逃げ道になります）。マスクは保守的でよく、Controllerが受理する提案を禁じる誤りは契約テスト`test_legal_mask.py`が完走台本で検査します。`action_tail`は直近`tail_length`件だけなので、`refine`で長く他のActionを続けるとstrokeを見失い、`advance_stage`が一時的に選べなくなります（strokeを選び直せば戻る）。
+  - 実測（合成画像100枚・seed1・20 iteration、`scripts/run_training_experiment.py`）: マスク前は27,442 attemptのうち5,476件（20.0%）を拒否しました。内訳は、`stroke_v2`が3,831件（レイヤー未選択1,636、消去ブラシ1,356、色未選択635、ブラシ未選択204）、`advance_stage`が1,433件（筆跡なし）、`set_brush_params`が212件（ブラシ未選択）です。マスク後は23,051 attemptの拒否が0件で、受理された`stroke_v2`は3,584から7,778になりました。学習の成否はこの数値から主張しません。
 
 可変長の座標列と`POINT_END`、筆圧パターン、`erase_v2`はv0に入れません（10節）。ストロークは格子点の経路から`stroke_samples`（既定12）個の点を線分ごとに等間隔に補間して`stroke_v2`の`samples`を作ります（`K+1 ≤ stroke_samples`を設定検証）。筆圧は設定の固定値（既定は中央のlevel）です。`samples`の厳密なキー集合は`image_drawer.drawing`の実装に合わせ、`action_codec.py`のラウンドトリップテストで確認します。
 
