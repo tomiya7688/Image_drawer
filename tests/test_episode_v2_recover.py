@@ -8,6 +8,7 @@ import pytest
 from episode_helpers import full_raw, groups_of, transition_index
 
 from image_drawer.drawing.episode_io import dumps_episode, load_episode, loads_episode, save_episode
+from image_drawer.drawing.replay import replay
 from image_drawer.drawing.validation import EpisodeFormatError
 
 
@@ -67,3 +68,14 @@ def test_recovered_draft_can_be_saved_and_loaded(tmp_path):
     recovered = loads_episode(json.dumps(raw), recover=True)
     save_episode(recovered, tmp_path / "draft.json")
     assert load_episode(tmp_path / "draft.json") == recovered
+
+
+def test_recover_result_replays_to_state_after_last_complete_group():
+    raw, index = truncated_raw()
+    recovered = loads_episode(json.dumps(raw), recover=True)
+    full = loads_episode(json.dumps(full_raw()))
+    seq = recovered.events[-1].seq
+    expected = replay(full, until_seq=seq)
+    actual = replay(recovered)
+    assert actual.image == expected.image and actual.layers == expected.layers
+    assert actual.state.stage_id == expected.state.stage_id and not actual.state.finished
