@@ -131,8 +131,10 @@ PRが滞留すると、依存関係の把握が難しくなり、`main`との差
    - 依存関係を`pyproject.toml`に宣言している。
    - 秘密情報や生成物が含まれていない。
    - 仕様が変わる場合、`docs/developers/`と`docs/users/`を日本語で更新している。
-3. 問題を見つけたら修正し、CIと自己レビューをやり直してください。
-4. CIがすべて成功し、自己レビューで問題が残っていない場合に限り、マージしてください。
+   - 設計書が名指しするテストが実在する(`python scripts/check_design_coverage.py`)。
+3. **マージ前に外部レビューを実行します。** `python scripts/review_packet.py <base> <head> <出力先>` で資料(12000バイト以下)を作り、`scripts/review_run.ps1 -Dir <出力先>` でCodex Luna・Continue・Qwen・Antigravity・Grok・Ori・Julesを起動します。CodeRabbitはPRコメントで依頼します。結果は `<出力先>/summary.txt` に残り、省略は理由を書きます。証跡が無いPRはマージしません(`scripts/pr_flow.py` が確認します)。
+4. 問題を見つけたら修正し、CIと自己レビューをやり直してください。
+5. CIがすべて成功し、自己レビューで問題が残っていない場合に限り、マージしてください。
 
    ```bash
    gh pr merge <PR番号> --merge --delete-branch
