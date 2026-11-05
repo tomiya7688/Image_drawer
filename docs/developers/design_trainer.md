@@ -143,6 +143,9 @@ class DrawingPolicy(Protocol):
 
 ### 3.2 TextEncoder
 
+**更新（通常8GBの実装）**：[Dataset全体のタグ→Caption→PromptComposer→TextEncoder](dataset_preprocessing_text_encoder_v1.md)を正本とする。v0の`HashedNgramTextEncoder(dim=64)`は追加依存なしのテストbaselineであり、8GB通常設定の多言語SentenceTransformer（384次元）とは**別の意味空間**。`TrainConfig.text_encoder_id`とエンコーダー次元を固定値64と決めつけず、選んだTextEncoderを特徴入力の次元とcheckpointへ伝播させる。GPUで失敗した場合は同一モデル・同一revision・同次元のCPU実行へフォールバックする。学習時と推論時に異なる意味空間を黙って混ぜない。
+
+
 ```python
 class TextEncoder(Protocol):
     encoder_version: str             # 例: "hashed-ngram-v1"
@@ -321,7 +324,7 @@ Actor-critic、PPO、画像encoderを使うPolicyは、v0で比較する価値�
 
 `ParametricPolicy`は、観測を固定長の特徴ベクトル`x`に変換し、複数のheadで次のActionを選びます。
 
-- 特徴ベクトル`x`（次元`D`）: `text_condition`（64）、`stage_id`のone-hot（7）、`canvas_summary`の平坦化（8×8×3=192）、`tool_state`（5）、`budget`（2）、直近`action_tail`（直近1件の種別のone-hot 8と、直近8件のacceptedの比率1で計9）、バイアス（1）。合計はおよそ280です。
+- 特徴ベクトル`x`（次元`D`）: `text_condition`（選択したTextEncoderの次元。v0 hashedのみ64）、`stage_id`のone-hot（7）、`canvas_summary`の平坦化（8×8×3=192）、`tool_state`（5）、`budget`（2）、直近`action_tail`（直近1件の種別のone-hot 8と、直近8件のacceptedの比率1で計9）、バイアス（1）。合計はおよそ280です。
 - `kind` head: Action種別（`select_layer`、`select_color`、`select_brush`、`set_brush_params`、`stroke_v2`、`advance_stage`）のsoftmax。工程別の候補（`action_codec.legal_kinds(stage_id)`）にマスクをかけます。マスクは固定工程表だけで決まり、目標画像に依存しません。
 - `color` head: 固定256色の`color_id`へのsoftmax。
 - `brush` head: 12プリセットのsoftmax。色とは別のheadです（色×ブラシの直積分類をしません）。
