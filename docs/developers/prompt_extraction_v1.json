@@ -23,8 +23,8 @@
     },
     "fallback_example_models": [
       "fancyfeast/llama-joycaption-beta-one-hf-llava",
-      "Felldude/Qwen3-VL-8B-Instruct-Uncensored-V2",
-      "GitMylo/nsfwcaption-qwen3-vl-8b-v2-safetensors"
+      "Felldude/Qwen3-VL-4B-Instruct-Uncensored",
+      "Felldude/Qwen3-VL-8B-Instruct-Uncensored-V2"
     ],
     "model_selection_metrics": [
       "caption_accuracy",
@@ -73,27 +73,75 @@
       "implementation": "natural_language_to_scene_without_inventing_structured_facts",
       "accuracy_status": "producer_claims_confirmed;independent_image_benchmark_not_performed",
       "model_source": "https://huggingface.co/fancyfeast/llama-joycaption-beta-one-hf-llava",
-      "developer_source": "https://github.com/fpgaminer/joycaption"
+      "developer_source": "https://github.com/fpgaminer/joycaption",
+      "local_quantized_profile_id": "joycaption-beta-one-q3"
     },
     "standard_caption_chain": [
-      "Qwen/Qwen3-VL-8B-Instruct",
+      "Qwen/Qwen3-VL-4B-Instruct",
       "fancyfeast/llama-joycaption-beta-one-hf-llava",
-      "Felldude/Qwen3-VL-8B-Instruct-Uncensored-V2"
+      "Felldude/Qwen3-VL-4B-Instruct-Uncensored"
     ],
     "additional_nsfw_fallback": {
       "selected_at": "2026-11-05",
       "position_in_example_chain": 3,
-      "model_id": "Felldude/Qwen3-VL-8B-Instruct-Uncensored-V2",
+      "model_id": "Felldude/Qwen3-VL-4B-Instruct-Uncensored",
       "adapter": "prose_caption",
       "reason": "作者がNSFW画像説明への調整を明示し、Apache-2.0のライセンス表記あり",
       "known_limitations": [
-        "may_caption_a_still_image_as_video",
-        "no_measured_zero_refusal_guarantee"
+        "uncensored_is_not_a_zero_refusal_guarantee",
+        "quality_and_memory_require_real_device_validation",
+        "model_author_warns_limited_video_caption_ability"
       ],
-      "recommended_gpu_vram_gb_min": 24,
+      "recommended_gpu_vram_gb_min": 8,
       "response_type": "natural_language_caption",
-      "model_card": "https://huggingface.co/Felldude/Qwen3-VL-8B-Instruct-Uncensored-V2",
-      "quality_status": "model_card_verified_but_not_benchmarked_with_real_images"
+      "model_card": "https://huggingface.co/Felldude/Qwen3-VL-4B-Instruct-Uncensored",
+      "quality_status": "producer_reports_nsfw_caption_tuning;real_8gb_smoke_not_performed",
+      "high_model_id": "Felldude/Qwen3-VL-8B-Instruct-Uncensored-V2",
+      "local_quantized_profile_id": "qwen3vl4b-uncensored-q4",
+      "quantized_model_card": "https://huggingface.co/mradermacher/Qwen3-VL-4B-Instruct-Uncensored-GGUF"
+    },
+    "high_caption_chain": [
+      "Qwen/Qwen3-VL-8B-Instruct",
+      "fancyfeast/llama-joycaption-beta-one-hf-llava",
+      "Felldude/Qwen3-VL-8B-Instruct-Uncensored-V2"
+    ],
+    "profiles": {
+      "default_profile": "local8g",
+      "local8g": {
+        "settings_file": "docs/users/preprocessor_settings.example.json",
+        "target_vram_gb": 8,
+        "target_ram_gb": 32,
+        "backend": "llama.cpp router, max_loaded_models=1, context=4096, parallel=1",
+        "model_dir_setup": "python scripts/setup_local_8g_models.py",
+        "caption_ids": [
+          "qwen3vl4b-q4",
+          "joycaption-beta-one-q3",
+          "qwen3vl4b-uncensored-q4"
+        ],
+        "tagger_ids": [
+          "qwen3vl4b-q4",
+          "qwen3vl4b-uncensored-q4"
+        ],
+        "model_quantization": [
+          "Q4_K_M",
+          "Q3_K_M",
+          "Q4_K_M"
+        ],
+        "mmproj_required": true,
+        "tagging_uses_separate_vision_inference": true,
+        "real_hardware_smoke": "not_performed",
+        "memory_fit_guaranteed": false
+      },
+      "high": {
+        "settings_file": "docs/users/preprocessor_settings.high.example.json",
+        "min_gpu_vram_gb": 24,
+        "caption_ids": [
+          "Qwen/Qwen3-VL-8B-Instruct",
+          "fancyfeast/llama-joycaption-beta-one-hf-llava",
+          "Felldude/Qwen3-VL-8B-Instruct-Uncensored-V2"
+        ],
+        "tagger_endpoints_user_configured": true
+      }
     }
   },
   "generation": {
@@ -229,7 +277,9 @@
       "style",
       "meta"
     ],
-    "independent_tagger_fallback": true
+    "independent_tagger_fallback": true,
+    "vision_tagger_independent_inference": true,
+    "vision_tagger_can_reuse_caption_weights": true
   },
   "user_registration": {
     "config_schema": "idraw-preprocessor-registry/v1",
@@ -252,7 +302,8 @@
       "joycaption",
       "tagger_http",
       "python_plugin_custom_adapter",
-      "prose_caption"
+      "prose_caption",
+      "vision_tagger"
     ],
     "cli": "image-drawer-preprocess --settings SETTINGS.json --image IMAGE.png"
   }
