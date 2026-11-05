@@ -166,3 +166,10 @@ def test_python_validator_and_schema_agree_on_header_key_set():
 
 def test_schema_events_max_items_equals_engine_limit():
     assert SCHEMA["properties"]["events"]["maxItems"] == MAX_EVENTS
+
+
+def test_schema_accepts_all_v2_fixtures():
+    files = sorted(FIXTURES.glob("*.episode.json"))
+    assert len(files) >= 3
+    for path in files:
+        assert valid(json.loads(path.read_text(encoding="utf-8"))), path.name
