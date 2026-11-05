@@ -6,6 +6,7 @@ import hashlib
 import json
 import random
 import re
+import unicodedata
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Protocol
@@ -136,6 +137,8 @@ def _text(obj: object, name: str, optional: bool = False) -> str:
     if not isinstance(obj, str):
         raise PromptExtractionError("invalid_format", f"{name}は文字列が必要")
     value = re.sub(r"\s+", " ", obj).strip()
+    if any(unicodedata.category(char) == "Cc" for char in value):
+        raise PromptExtractionError("invalid_format", f"{name}に制御文字が含まれる")
     if len(value) > 1500:
         raise PromptExtractionError("invalid_format", f"{name}が長すぎる")
     if not value and not optional:

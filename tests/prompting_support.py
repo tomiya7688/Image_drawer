@@ -112,3 +112,90 @@ def write_images(directory: Path, count: int = 3) -> Path:
     for index in range(count):
         solid(directory / f"img{index}.png", colors[index])
     return directory
+
+
+class FakeServer:
+    """127.0.0.1の疑似APIサーバー。受けた要求を記録し、modeに応じて応答する。外部ネットワークには出ない。"""
+
+    def __init__(self, mode: str = "ok", body: bytes | None = None, redirect_to: str = "") -> None:
+        import threading
+        from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+
+        outer = self
+        self.mode, self.body, self.redirect_to = mode, body, redirect_to
+        self.requests: list[tuple[str, dict, bytes]] = []
+
+        class Handler(BaseHTTPRequestHandler):
+            def log_message(self, *args):  # テスト出力を汚さない
+                pass
+
+            def do_POST(self):
+                length = int(self.headers.get("Content-Length", 0))
+                data = self.rfile.read(length)
+                outer.requests.append((self.path, dict(self.headers), data))
+                status, headers, payload = outer.respond(self.path)
+                self.send_response(status)
+                for key, value in headers.items():
+                    self.send_header(key, value)
+                self.send_header("Content-Length", str(len(payload)))
+                self.end_headers()
+                self.wfile.write(payload)
+
+        self.server = ThreadingHTTPServer(("127.0.0.1", 0), Handler)
+        self.port = self.server.server_address[1]
+        self.thread = threading.Thread(target=self.server.serve_forever, daemon=True)
+        self.thread.start()
+
+    @property
+    def base(self) -> str:
+        return f"http://127.0.0.1:{self.port}"
+
+    def respond(self, path: str):
+        if self.mode == "redirect":
+            return 302, {"Location": self.redirect_to}, b""
+        if self.mode == "error":
+            return 500, {"Content-Type": "application/json"}, self.body or b"{}"
+        if self.body is not None:
+            return 200, {"Content-Type": "application/json"}, self.body
+        if path.endswith("/chat/completions"):
+            reply = {
+                "choices": [{"message": {"content": json.dumps(SCENE)}, "finish_reason": "stop"}]
+            }
+        else:
+            reply = {"tags": {"apple": 0.9, "red": 0.8}}
+        return 200, {"Content-Type": "application/json"}, json.dumps(reply).encode()
+
+    def close(self) -> None:
+        self.server.shutdown()
+        self.server.server_close()
+
+
+def external_settings(base: str, **provider) -> dict:
+    """127.0.0.1の疑似サーバーを、外部ホストとして宣言したプロバイダ設定(Caption1つ・Tagger1つ)。"""
+    declared = {
+        "data_egress": "external",
+        "allowed_hosts": ["127.0.0.1"],
+        "api_key_env": "IDRAW_TEST_KEY",
+        **provider,
+    }
+    return {
+        "schema_version": "idraw-preprocessor-registry/v1",
+        "providers": [
+            {
+                "id": "vlm",
+                "adapter": "openai_compatible",
+                "model_id": "remote-vlm",
+                "endpoint": base + "/v1/chat/completions",
+                **declared,
+            },
+            {
+                "id": "tagger",
+                "adapter": "tagger_http",
+                "model_id": "remote-tagger",
+                "endpoint": base + "/tag",
+                **declared,
+            },
+        ],
+        "caption_chain": ["vlm"],
+        "tag_chain": ["tagger"],
+    }

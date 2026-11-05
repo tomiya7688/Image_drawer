@@ -150,14 +150,15 @@ def test_cli_reports_a_missing_key_as_a_settings_error(tmp_path, capsys):
 def test_prompt_formatter_can_be_selected_in_settings():
     registry = PreprocessorRegistry()
     registry.register_prompt_formatter("custom", lambda scene, tags, seed: "x")
-    registry.load_settings(settings(prompt_formatter="custom"))
+    with pytest.warns(FutureWarning, match="prompt_formatter"):
+        registry.load_settings(settings(prompt_formatter="custom"))
     assert registry.prompt_formatter_id == "custom"
     assert registry.build().prompt_formatter is registry.prompt_formatters["custom"]
 
 
 def test_unregistered_prompt_formatter_in_settings_is_rejected_and_rolled_back():
     registry = PreprocessorRegistry()
-    with pytest.raises(ValueError, match="prompt formatter"):
+    with pytest.raises(ValueError, match="prompt formatter"), pytest.warns(FutureWarning):
         registry.load_settings(settings(prompt_formatter="nope"))
     assert registry.caption_models == {}
     with pytest.raises(ValueError, match="prompt_formatter"):

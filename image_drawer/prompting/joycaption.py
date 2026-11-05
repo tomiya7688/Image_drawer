@@ -44,6 +44,18 @@ class JoyCaptionVisionProvider:
         return self.backend.model_id
 
     @property
+    def endpoint(self) -> str:
+        return self.backend.endpoint
+
+    @property
+    def data_egress(self) -> str:
+        return self.backend.data_egress
+
+    @property
+    def allowed_hosts(self) -> tuple[str, ...]:
+        return self.backend.allowed_hosts
+
+    @property
     def config_fingerprint(self) -> str:
         data = ":".join(
             (

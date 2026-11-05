@@ -6,10 +6,12 @@ import hashlib
 import json
 import os
 import re
+import warnings
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Callable, Mapping
 
+from ._egress_policy import validate_provider_entry
 from .core import (
     ExtractionResult,
     ImagePromptPipeline,
@@ -186,6 +188,8 @@ class PreprocessorRegistry:
             model_revision=entry.get("model_revision", ""),
             timeout_seconds=entry.get("timeout_seconds", 120),
             json_mode=entry.get("json_mode", False),
+            data_egress=entry.get("data_egress", "local"),
+            allowed_hosts=tuple(entry.get("allowed_hosts", ())),
         )
 
     @staticmethod
@@ -197,6 +201,11 @@ class PreprocessorRegistry:
 
     @staticmethod
     def _tagger_adapter(entry: dict) -> HTTPTagProvider:
+        env_name = entry.get("api_key_env", "")
+        if not isinstance(env_name, str):
+            raise ValueError("api_key_envは環境変数名を指定する")
+        if env_name and not os.environ.get(env_name):
+            raise ValueError(f"環境変数{env_name}が未設定または空です")
         return HTTPTagProvider(
             provider_id=entry["id"],
             model_id=entry["model_id"],
@@ -205,6 +214,9 @@ class PreprocessorRegistry:
             threshold=entry.get("threshold", 0.35),
             character_threshold=entry.get("character_threshold", 0.85),
             timeout_seconds=entry.get("timeout_seconds", 120),
+            api_key=os.environ.get(env_name, "") if env_name else "",
+            data_egress=entry.get("data_egress", "local"),
+            allowed_hosts=tuple(entry.get("allowed_hosts", ())),
         )
 
     # {
@@ -301,6 +313,7 @@ class PreprocessorRegistry:
                 kind == "caption" and configured_kind == "verifier"
             ):
                 raise ValueError("adapterとkindが一致しない")
+            validate_provider_entry(entry)
             provider = factory(entry)
             if configured_kind == "verifier":
                 self.register_verifier(entry["id"], provider)
@@ -347,6 +360,13 @@ class PreprocessorRegistry:
         prompt_formatter_id = settings.get("prompt_formatter")
         if prompt_formatter_id is not None and not isinstance(prompt_formatter_id, str):
             raise ValueError("prompt_formatterは登録済みの整形器名(文字列)を指定する")
+        if prompt_formatter_id is not None:
+            warnings.warn(
+                "settingsのprompt_formatterは廃止予定です。学習用promptの組み立ては"
+                "Datasetのprompt builderのversionに一本化されます",
+                FutureWarning,
+                stacklevel=3,
+            )
         self.configure(
             caption_chain=settings.get("caption_chain", []),
             tag_chain=settings.get("tag_chain", []),

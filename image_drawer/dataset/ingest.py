@@ -11,6 +11,7 @@ from pathlib import Path
 from typing import Any, Iterator
 
 from image_drawer.core import SerializableModel
+from image_drawer.dataset.egress import prepare_egress
 from image_drawer.dataset.extraction import extract_with_cache
 from image_drawer.dataset.manifest import DatasetManifest
 from image_drawer.dataset.models import (
@@ -359,12 +360,14 @@ class _Context:
 #     registry: 抽出器のregistry
 #     tagger_id, captioner_id: 利用者が選んだ抽出器
 #     seed: 分割の再現用の値
+#     allow_external_upload: 実行時の外部送信の許可。外部へ送る抽出器は、Datasetの設定と宣言も必要
 #   ]
 #   戻り値: [
 #     report: 追加・重複・再抽出・警告・失敗の件数と理由
 #   ]
 #   エラー: [
 #     KeyError: 未登録の抽出器
+#     ExternalUploadDenied: 外部送信の許可が足りない(画像を読む前に止める)
 #   ]
 # }
 def register_images(
@@ -375,6 +378,7 @@ def register_images(
     tagger_id: str,
     captioner_id: str,
     seed: int = 0,
+    allow_external_upload: bool = False,
 ) -> IngestReport:
     context = _Context(
         dataset_dir,
@@ -384,6 +388,7 @@ def register_images(
         seed,
     )
     context.builder_version = prompt_builder_version(context.captioner)
+    prepare_egress([context.tagger, context.captioner], dataset_dir, allow_external_upload)
     report = IngestReport()
     previous: dict[str, TrainingImage] = {}
     if (dataset_dir / "manifest.json").is_file():
