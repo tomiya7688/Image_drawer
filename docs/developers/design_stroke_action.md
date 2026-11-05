@@ -35,6 +35,18 @@ Engine の `stroke_v2{samples}` は変えません。変えるのは、Policy �
 
 方向を 16 にする理由: 8 方向だと 22.5度ずつの斜線（髪・布のひだ）が出せない。32 以上は選択肢が増えて学習初期の探索が薄まる。K・G・長さの段階は設定値にして実測で調整する。
 
+## 2.1 確定規則（実装が一意に決まるための定義）
+
+- **サンプルの順序**: `start_mode`→(`new`なら`start`)→`segments`→線分1の`dir`,`len`→線分2の…の順に、確定済みの現在位置を使って逐次選ぶ。
+- **方向番号**: `d=0..15`、角度 `θ=d×22.5度`、`d=0` が画面右(+x)、画面座標のyは下向きを正として時計回りに増える。相対方向は `d_i = (d_{i-1} + r_i) mod 16`（`r_i=0` が直進）。
+- **変位の整数化**: 線分 i の変位は `(round(L·cosθ), round(L·sinθ))`（L=長さ段階のマス数、`round` は0.5を0から遠い方へ丸める）で格子単位の整数。丸めたあとの変位が `(0,0)` になる選択（L=1の斜め等は `(1,1)` や `(1,0)` になるため通常起きないが、起きた場合）は無効としてマスする。
+- **座標変換**: 格子点 `(gx,gy)` は `x_q8 = round((gx+0.5)/G × (canvas_side-1) × 256)`（マス中心）。前ストロークの終点は格子点（整数）で保持し、`continue` は `start` を使わず（`start`のlogitは使わない）その格子点から始める。直前にストロークがなければ`continue`はマスされる。
+- **逐次マスク**: 各段階で、確定済みの現在位置に候補の変位を足した終点が `0≤gx,gy<G` にあるものだけを有効にする（境界上は有効）。線分の途中はキャンバス内の凸領域なので、終点が内側なら途中も内側。全候補が無効のとき: その線分を作らず、そこまでのストロークで確定する（`segments` は実際の線分数に切り詰め、ログに残す）。線分が0本なら`stroke_v2`を出さず、`kind`のマスで `stroke_v2` を選べないようにする。
+- **補間**: 線分ごとに端点間を等間隔に補間し、連続する線分の共有端点は1点にまとめる。全体のサンプル数は `stroke_samples` 以下（既定 6→ **12 に引き上げ**、設定値）。線分数×2−(線分数−1)=線分数+1 点が最低限必要なので、`K+1 ≤ stroke_samples` を設定検証する。余りの点は長い線分から順に配る。`time_us`は0から`STROKE_POINT_STEP_US`刻み、`pressure_level_id`は設定の固定値（現行と同じ）。
+- **有効なhead**: 実際に使う `dir[i]`・`len[i]`（i < `segments`）、`start`（`new`のときだけ）だけを log-prob と entropy に含める。使わない線分・`start`はサンプルせず、勾配もentropyも0。`segments` は1〜Kの個数で、softmaxの添字 0..K−1 が個数 1..K に対応する。
+- **「同じ画素」の基準**: 受け入れテストの直線判定は、`samples` の座標（`x_q8,y_q8`）が始点・終点を結ぶ線から1マス（`256×(canvas_side-1)/G`）以内、Engineで描いた画素が同条件の1本線とのIoU 0.95以上で判定する。
+- **checkpoint**: checkpointにhead構成のhash（head名と出力数、G・K・方向数・長さ段階）を保存し、読み込み時に不一致なら `ValueError("checkpointのstroke head構成が一致しません: ...")` で拒否する。
+
 ## 3. 代替案と採用しなかった理由
 
 | 案 | 採用しない理由 |
@@ -54,19 +66,25 @@ Engine の `stroke_v2{samples}` は変えません。変えるのは、Policy �
 | Policy の対数確率・勾配 | 追加 head は softmax の標準勾配。`dir`・`len` は線分数ぶん加算（使わない線分は勾配 0） |
 | Engine・Episode・Replay・schema | 変更なし。`stroke_v2` の `samples` の形が同じため |
 | target 隔離 | 変更なし。新 head も観測だけを入力とする |
-| パラメータ数 | 約 9.1 万 → `D≈280` に対し出力 `1024+2+4+16×4+6×4=1118` 前後が加わり約 40 万個（float64 で約 3MB）。Adam 状態を含めても 10MB 未満の見積り（実測は実装 PR で行う） |
+| パラメータ数 | 出力数は `start` 1024、`start_mode` 2、`segments` 4、`dir` 16×4=64、`len` 6×4=24で合計1118(既存head 326のうちstroke 6を除いた320を足すと1438)。単一線形層で `D≈280` の重み+バイアスは約40万個(float64で約3.2MB)。Adamのm・vと勾配バッファを含め3倍強の約10MB。実測は実装PRで行う |
 
 ## 5. 受け入れテスト
 
 | テスト | 確認 |
 | --- | --- |
-| `test_stroke_single_segment_is_straight` | `segments=1` の `samples` が始点と終点を結ぶ一直線上にある（誤差は丸め 1 単位以内） |
+| `test_stroke_single_segment_is_straight` | `segments=1` の `samples` が始点と終点を結ぶ一直線上にある（基準は2.1節） |
 | `test_stroke_directions_cover_16_angles` | 16 方向の角度が 22.5 度刻みで、長さ段階の通りに端点が動く |
-| `test_stroke_relative_direction_zero_is_straight` | 相対方向 0 の連続線分が 1 本の直線と同じ画素になる |
+| `test_stroke_relative_direction_zero_is_straight` | 相対方向 0 の連続線分が、合計変位が同じ1本線と、2.1節の基準（座標1マス以内・IoU 0.95以上）で一致する |
 | `test_stroke_outside_canvas_is_masked` | 外へ出る方向・長さの選択肢がマスされ、サンプルされない |
 | `test_stroke_samples_are_deterministic` | 同じ選択から同じ `samples`（Replay と一致） |
 | `test_stroke_continue_starts_at_previous_end` | `continue` が直前の終点から始まる。直前がなければ `new` だけ選べる |
 | `test_stroke_policy_gradient_matches_numeric` | 新 head の勾配が数値微分と一致する |
+| `test_stroke_mask_is_sequential_and_inclusive_of_border` | 確定済みの現在位置から逐次にマスされ、境界上の終点は有効 |
+| `test_stroke_all_invalid_truncates_segments` | 全候補が無効のとき線分数を切り詰める。0本なら`stroke_v2`が選べない |
+| `test_stroke_unused_heads_excluded_from_logprob_and_entropy` | 使わない`dir`・`len`・`start`が対数確率とentropyに入らない（線分数1〜Kで確認） |
+| `test_stroke_diagonal_rounding_is_deterministic` | 16方向×全長さ段階で整数変位が仕様どおり、(0,0)は無効 |
+| `test_stroke_sample_budget_rejects_small_stroke_samples` | `K+1 > stroke_samples` の設定を拒否。上限超過時は長い線分に点を配る |
+| `test_checkpoint_rejects_old_stroke_head` | 旧構成のcheckpointを理由つきで拒否し、新構成は読める |
 | `test_policy_stroke_has_no_target_input` | 新 head も目標画像・パスを受け取らない（既存の隔離テストを拡張） |
 
 「直線が描けること」は上のとおり画素で確かめますが、**絵が良くなるか**は実学習で測る必要があり、この設計だけでは確認できません。
