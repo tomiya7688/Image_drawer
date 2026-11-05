@@ -166,7 +166,8 @@ def main(argv: list[str] | None = None) -> int:
     print("画像の重みとmmprojを確認しました。以下でルーターを起動してください。")
     print(
         f'llama-server --models-dir "{root}" --models-max 1 '
-        "--models-memory-margin 1024 -c 4096 -np 1 "
+        "--models-memory-margin 2048 --fit on --fit-target 2048 "
+        "--gpu-layers auto --no-mmproj-offload -c 4096 -np 1 "
         "--host 127.0.0.1 --port 8080"
     )
     return 0
