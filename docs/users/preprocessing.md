@@ -32,6 +32,27 @@ VRAM 8GB/32GB RAM実機での性能と対応率の実測は未実施です。
 以前の`Qwen3-VL-8B → 非量子化JoyCaption Beta One → Felldude 8B V2`
 は**高設定用に分離**しました。通常設定では選択しません。
 
+## Dataset全体の3パス前処理
+
+登録済みDatasetでは**①タグを全画像から抽出→②キャプションを全画像から生成→③両者を統合してプロンプト生成**の順番で処理します。各パスの成果物を別々にキャッシュし、成功済み処理を再開時に再利用します。
+
+```powershell
+image-drawer-preprocess --settings docs/users/preprocessor_settings.example.json --dataset E:\datasets\my-drawings --seed 11
+```
+
+タグが失敗した画像もCaptionの実行を試みます。どちらか失敗すれば、その画像にはダミープロンプトを作らず、理由を保存します。タグの重複・明白な矛盾を調整する既定のPromptComposerは暫定ルールであり、自由登録したFormatterに差し替えできます。
+
+## TextEncoderの選択・CPUフォールバック
+
+通常設定では`paraphrase-multilingual-MiniLM-L12-v2`の384次元埋め込みを使用し、まずGPU、その後は**同じモデルをCPUで実行**します。異なる埋め込みモデルへの切替は学習済みcheckpointとの互換性が保証されないため、自動で混ぜません。
+
+```powershell
+python -m pip install -e ".[text-encoder]"
+image-drawer-text-encode --settings docs/users/preprocessor_settings.example.json --prompt "赤いリンゴが1つ"
+```
+
+このCLIはTextEncoder単体の検査用で、現時点では描画PolicyのTrainerへは接続されていません。
+
 ## 画像1枚から結果を出す
 
 [8GB環境のセットアップ](preprocessing_local8g.md)後に、リポジトリのルートで実行します。
