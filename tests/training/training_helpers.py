@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import random
 from collections.abc import Mapping, Sequence
 
 import numpy as np
@@ -157,7 +158,7 @@ def run_scripted(
 #   責務: [ make_dataset: 単色の長方形を持つ合成PNGを登録したDatasetを作る(画像だけを登録する) ]
 #   戻り値: [ dataset_dir ]
 # }
-def make_dataset(root, count: int = 12):
+def make_dataset(root, count: int = 12, diverse: bool = False):
     from PIL import Image
 
     from image_drawer.dataset import create_default_registry, register_images
@@ -172,6 +173,14 @@ def make_dataset(root, count: int = 12):
         for x in range(left, left + 12):
             for y in range(8, 24):
                 image.putpixel((x, y), color)
+        if diverse:  # 近重複として1群にまとまらないよう、画像ごとに異なるブロック模様を重ねる
+            rng = random.Random(index)
+            for _ in range(24):
+                x0, y0 = rng.randrange(0, 28), rng.randrange(0, 28)
+                block = tuple(rng.randrange(256) for _ in range(3))
+                for x in range(x0, x0 + 4):
+                    for y in range(y0, y0 + 4):
+                        image.putpixel((x, y), block)
         image.save(source / f"img_{index:02d}.png")
     dataset_dir = root / "dataset"
     register_images(

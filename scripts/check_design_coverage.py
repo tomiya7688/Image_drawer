@@ -21,6 +21,7 @@ IMPLEMENTED = [
     "design_data_pipeline_integration.md",
     "design_evaluation_protocol.md",
     "design_inference_gui.md",
+    "design_trainer.md",
 ]
 # テスト名ではなく、設計書がデータ名・ファイル名・部分集合のIDとして使う語
 NOT_TEST_NAMES = {"test_xxx", "test_ledger", "test_run", "test_unseen_image", "test_unseen_prompt"}

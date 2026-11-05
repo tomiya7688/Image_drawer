@@ -2,7 +2,7 @@
 >
 > **目的:** 文章と白紙からAI自身が描き、描画結果のRewardでPolicyを更新するTrainer（S3、Issue #70）の実装設計を定める。
 >
-> **状態:** 設計案（2026-11-05）。Trainer、Policy、RewardEvaluator、TextEncoderは**未実装**です。この文書は「モデルが絵を描いて学習できた」ことを示しません。
+> **状態:** 実装済み（Trainer、Policy、RewardEvaluator、TextEncoder、ClaimGate、学習CLI）。**実測（`training_experiment`）は未実施**です。この文書は「モデルが絵を描いて学習できた」ことを示しません。
 
 # Trainer実装設計（S3）
 
@@ -592,7 +592,7 @@ PR8の後、実験結果（`learned`/`not_learned`/`inconclusive`）を記録す
 
 ## 13. 実装時の差分（claude/70-trainer）
 
-契約を変えない範囲で、実装が設計書から外れた点です。`__main__.py`（CLI）と実測（PR8の実測部分）は未実装です。
+契約を変えない範囲で、実装が設計書から外れた点です。実測（PR8の実測部分）は未実施です。
 
 | 項目 | 実装 |
 | --- | --- |
@@ -606,3 +606,4 @@ PR8の後、実験結果（`learned`/`not_learned`/`inconclusive`）を記録す
 | 目標画像 | `RewardTarget.image_sha256`は正規化前のファイルのハッシュで、保存済みPNGと一致しないため検証しない。非正方形は正方形へ伸ばして縮小する（暫定） |
 | 終了理由（11節） | `Trial.end_reason`は`controller.termination_reason`を写す（`finished`/`action_budget_exhausted`/`attempt_budget_exhausted`） |
 | 学習できるAction | `erase_v2`・`create_layer`・レビュー退出（`review_reason`）はv0のPolicyが出さない |
+| CLI（`__main__.py`） | `python -m image_drawer.training train <dataset> [--config JSON] [--output-dir] [--seed] [--iterations] [--resume iter_N.json] [--stop-after N]` と `evaluate <experiment_dir> --dataset <dataset> [--images 8] [--seeds 5]`。出力先の既定は `reports/training/exp-<設定ハッシュ先頭8桁>`。終了コードは 0=完了（`evaluate`の判定が`not_learned`/`inconclusive`でも0。`verdict`を見る）、1=学習が中断、2=実行できない。`evaluate`はtest splitで学習前・学習後・ランダムを同条件（sigmaは`sigma_end`で統一）で測り、`claim.json`・`evaluation.jsonl`を書いて`experiment.json`の`claim`を更新する。`integrity_ok`は学習前Policyの試行のReplay一致と許可Action検査の結果（target隔離は契約テストで確認） |
