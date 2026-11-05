@@ -20,6 +20,7 @@ from .core import (
 from .joycaption import JoyCaptionVisionProvider
 from .openai_compatible import OpenAICompatibleVisionProvider
 from .tagger_http import HTTPTagProvider
+from .vision_tagger import VisionTaggerProvider
 from .tagging import (
     PreparedTags,
     TagExtractionResult,
@@ -133,6 +134,7 @@ class PreprocessorRegistry:
         self.register_adapter("joycaption", "caption", self._joycaption_adapter)
         self.register_adapter("prose_caption", "caption", self._joycaption_adapter)
         self.register_adapter("tagger_http", "tagger", self._tagger_adapter)
+        self.register_adapter("vision_tagger", "tagger", self._vision_tagger_adapter)
 
     @staticmethod
     def _ensure_new(target: dict, name: str) -> None:
@@ -193,6 +195,11 @@ class PreprocessorRegistry:
         if entry.get("json_mode", False) is not False:
             raise ValueError("自然文Captionerはjson_mode=falseで登録してください")
         return JoyCaptionVisionProvider(PreprocessorRegistry._vision_adapter(entry))
+
+    @staticmethod
+    def _vision_tagger_adapter(entry: dict) -> VisionTaggerProvider:
+        """Captionとは別のVLM推論としてタグを抽出する。"""
+        return VisionTaggerProvider(PreprocessorRegistry._vision_adapter(entry))
 
     @staticmethod
     def _tagger_adapter(entry: dict) -> HTTPTagProvider:
