@@ -13,11 +13,13 @@ dependencies = []
 [project.optional-dependencies]
 part-bank = ["Pillow>=12.3.0,<13"]
 dataset = ["Pillow>=12.3.0,<13"]
+train = ["numpy>=1.26,<3", "Pillow>=12.3.0,<13"]
 openclip = ["open-clip-torch>=3.3,<4", "safetensors>=0.4", "Pillow>=12.3.0,<13"]
 dev = [
   "ruff==0.15.22",
   "build>=1.2",
   "pytest>=8.0",
+  "numpy>=1.26,<3",
   "jsonschema>=4.18",
   "Pillow>=12.3.0,<13",
 ]
