@@ -22,7 +22,7 @@ CONFIG = {
 
 @pytest.fixture(scope="module")
 def dataset_dir(tmp_path_factory) -> Path:
-    return make_dataset(tmp_path_factory.mktemp("cli_data"), count=24)
+    return make_dataset(tmp_path_factory.mktemp("cli_data"), count=120)
 
 
 def write_config(tmp_path: Path) -> str:
