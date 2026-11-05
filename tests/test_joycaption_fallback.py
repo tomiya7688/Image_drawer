@@ -69,7 +69,7 @@ def test_prose_fallback_and_tagger_run_independently(monkeypatch):
     assert result.caption.scene.relations == ()
     assert "red apple" in result.formatted_tags
     assert len(invoked) == 3
-    assert invoked[1][1].startswith("Write a straightforward caption")
+    assert invoked[2][1].startswith("Write a straightforward caption")
 
 
 @pytest.mark.parametrize(
