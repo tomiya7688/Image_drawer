@@ -19,6 +19,7 @@ from .core import (
 )
 from .joycaption import JoyCaptionVisionProvider
 from .openai_compatible import OpenAICompatibleVisionProvider
+from .prompt_composer import ComposedPrompt, PromptComposer
 from .tagger_http import HTTPTagProvider
 from .vision_tagger import VisionTaggerProvider
 from .tagging import (
@@ -43,13 +44,17 @@ class TrainingPreprocessingResult:
     image_sha256: str
     prompt_formatter: PromptFormatter | None = None
 
-    def training_prompt(self, seed: int) -> str:
+    def composed_prompt(self, seed: int) -> ComposedPrompt:
+        """CaptionとTagの両方を使い、保留したタグと理由を記録する。"""
         if self.prompt_formatter is None:
-            return self.caption.training_prompt(seed)
+            return PromptComposer().compose(self.caption.scene, self.tags.prepared, seed)
         result = self.prompt_formatter(self.caption.scene, self.tags.prepared, seed)
         if not isinstance(result, str) or not result.strip():
             raise PromptExtractionError("empty", "ユーザー登録のPromptFormatterが空を返した")
-        return result.strip()
+        return ComposedPrompt(result.strip(), (), ())
+
+    def training_prompt(self, seed: int) -> str:
+        return self.composed_prompt(seed).text
 
     @property
     def formatted_tags(self) -> tuple[str, ...]:
@@ -81,14 +86,15 @@ class ImageTrainingPreprocessor:
         caption: ExtractionResult | None = None
         tags: TagExtractionResult | None = None
         failed: list[str] = []
-        try:
-            caption = self.caption_pipeline.extract(image, mime_type)
-        except PromptExtractionError as exc:
-            failed.append(f"caption:{exc.kind}:{exc}")
+        # ①Tagger → ②Captioner → ③Composer。どちらかが失敗しても独立実行する。
         try:
             tags = self.tag_pipeline.extract(image, mime_type)
         except PromptExtractionError as exc:
             failed.append(f"tags:{exc.kind}:{exc}")
+        try:
+            caption = self.caption_pipeline.extract(image, mime_type)
+        except PromptExtractionError as exc:
+            failed.append(f"caption:{exc.kind}:{exc}")
         if failed:
             raise PromptExtractionError("preprocessing_failed", "; ".join(failed))
         assert caption is not None and tags is not None
