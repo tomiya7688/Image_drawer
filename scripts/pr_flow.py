@@ -53,10 +53,13 @@ def main() -> int:
     print(run("git", "merge", "origin/main", "-m", "merge main", check=False).splitlines()[-1])
     if run("git", "diff", "--name-only", "--diff-filter=U"):
         sys.exit("マージ競合があります。解消してから再実行してください")
-    print(
-        run(sys.executable, "scripts/check_local.py", "--test-timeout", "900", check=False)[-600:]
-    )
-    print(run(sys.executable, "scripts/check_design_coverage.py", check=False))
+    out = run(sys.executable, "scripts/check_local.py", "--test-timeout", "900", check=False)
+    print(out[-600:])
+    # 既知の失敗(Windows権限のsymlink試験)以外のFAILがあれば中断する
+    fails = [ln for ln in out.splitlines() if ln.startswith("FAIL:") and "tests" not in ln]
+    if fails or ("FAIL: tests" in out and "test_symlinks_are_not_followed" not in out):
+        sys.exit("ローカル検査に失敗があるため中断します")
+    run(sys.executable, "scripts/check_design_coverage.py")
     run("git", "push", "-q", "-u", "origin", "HEAD")
     body = Path(a.body_file).read_text(encoding="utf-8")
     url = run("gh", "pr", "create", "--title", a.title, "--body", body, "--base", "main")
