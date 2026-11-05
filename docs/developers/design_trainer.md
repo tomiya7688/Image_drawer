@@ -62,7 +62,7 @@
 | `text_encoder.py` | `TextEncoder` Protocol、`HashedNgramTextEncoder`、`register_text_encoder` |
 | `observation.py` | `Observation`、`OBSERVATION_KEYS`、`ObservationBuilder`。targetを知らない |
 | `action_codec.py` | Policyの離散・連続出力を`DrawingAction`へ変換。工程別の候補Action種別 |
-| `policy.py` | `DrawingPolicy` Protocol、`PolicyDecision`、`ParametricPolicy`（線形softmax＋ガウスの各head） |
+| `policy.py` | `DrawingPolicy` Protocol、`PolicyDecision`、`ParametricPolicy`（線形softmaxの各head。ストロークは離散） |
 | `policy_params.py` | パラメータ配列の初期化、勾配の蓄積、Adam状態 |
 | `rollout.py` | `TrialStep`、`Trial`、`TrainingRollout`、`RolloutRunner`（Policy×Controllerのループ。評価器を持たない） |
 | `reward_features.py` | numpyだけの画像特徴（縮小、Sobel、Dice、ヒストグラム）。純関数 |
@@ -306,7 +306,7 @@ class ExperimentRecord:
 
 ### 4.1 選択
 
-**線形softmax・ガウス型の確率的Policyを、REINFORCE（方策勾配）＋工程別のbaselineで更新します。**
+**線形softmaxの確率的Policyを、REINFORCE（方策勾配）＋工程別のbaselineで更新します。**
 
 選んだ理由です。
 
@@ -327,10 +327,10 @@ Actor-critic、PPO、画像encoderを使うPolicyは、v0で比較する価値�
 - `brush` head: 12プリセットのsoftmax。色とは別のheadです（色×ブラシの直積分類をしません）。
 - `size` head（19段階）、`opacity` head（11段階）: それぞれsoftmax。
 - `layer` head: 存在するレイヤー上限`MAX_LAYERS`（16）のうち`layer_summary`で書込可能なものへのsoftmax。
-- `stroke` head（**置き換え予定**。直線を描けない問題のため、始点マス＋方向×長さの離散線分に変更します。[design_stroke_action.md](design_stroke_action.md)。実装は未着手で、現在のコードは下の連続座標版です）: ストロークを3個の制御点（始点・中間・終点）で表し、6個の座標を各ガウス分布から得ます。`u ~ N(Wx, σ²)`、座標は`sigmoid(u)`でキャンバスの[0,1]に写します。`σ`は固定（学習中に0.15から0.05へ直線的に減衰させる設定値）です。
+- ストローク head（実装済み。直線を描けない連続座標版を置き換えました。仕様は[design_stroke_action.md](design_stroke_action.md)）: 始点の格子マス（`stroke_start`、G×G）、`stroke_mode`（new／continue）、線分数（`stroke_segments`、1〜K）、線分ごとの方向（`stroke_dir_i`、16方向。2本目以降は直前に対する相対）と長さ（`stroke_len_i`、段階 {1,2,3,5,8,13} マス）のsoftmaxです。端点が盤面外になる選択は逐次にマスし、使わない線分・`start`は対数確率・エントロピー・勾配に入れません。探索は温度`softmax_temperature`（既定1.0、logitsをTで割る）とエントロピー項で制御し、ガウスの`σ`設定は廃止しました。
 - `advance_stage`は種別の1つとして選びます。進めてよいかはControllerが決め、飛び先はPolicyが選べません。
 
-可変長の座標列と`POINT_END`、筆圧パターン、`erase_v2`はv0に入れません（10節）。ストロークは制御点から`stroke_samples`（既定6）個の点を等間隔に補間して`stroke_v2`の`samples`を作ります。筆圧は設定の固定値（既定は中央のlevel）です。`samples`の厳密なキー集合は`image_drawer.drawing`の実装に合わせ、`action_codec.py`のラウンドトリップテストで確認します。
+可変長の座標列と`POINT_END`、筆圧パターン、`erase_v2`はv0に入れません（10節）。ストロークは格子点の経路から`stroke_samples`（既定12）個の点を線分ごとに等間隔に補間して`stroke_v2`の`samples`を作ります（`K+1 ≤ stroke_samples`を設定検証）。筆圧は設定の固定値（既定は中央のlevel）です。`samples`の厳密なキー集合は`image_drawer.drawing`の実装に合わせ、`action_codec.py`のラウンドトリップテストで確認します。
 
 パラメータ数は、`D≈280`、全headの出力数の合計が`6+256+12+19+11+16+6=326`なので、約9.1万個（float64で約0.7MB）です。Adamの`m`・`v`と勾配バッファを含めても3MB未満です。
 
@@ -422,7 +422,7 @@ GPUと大規模モデルは本書の範囲外です。上の拡張点から後�
 
 - `TrainConfig.master_seed`から`numpy.random.SeedSequence`を作り、`spawn`で `init`（パラメータ初期化）、`iteration_i/trial_j`（Policyのサンプル）、`engine`（`DrawingState.seed`、grain用）、`split`（画像の選択順）に分けます。乱数は`PCG64`を使い、グローバルな`numpy.random`・`random`は使いません。
 - 同じ環境（Python、numpy、OS、CPU）で、同じ`master_seed`、dataset、設定なら、Action列とcheckpointが一致することをテストで確認します。環境が異なる場合の浮動小数点の完全一致は保証しません。`ExperimentRecord.environment`に版を保存します。
-- checkpointは`checkpoints/<experiment_id>/iter_<n>.npz`と `iter_<n>.json` です。`.npz`は`allow_pickle=False`で保存・読込し、Policyの重み、Adamの`m`・`v`・step、工程別baseline、乱数状態（`bit_generator.state`をJSON化）を含みます。sidecar JSONにnpzのSHA-256、`policy_version`、`encoder_version`、`dim`、`config_hash`、`iteration`を保存します。読込時にSHA-256、版、形状を検査し、不一致は`CheckpointMismatchError`にします。
+- checkpointは`checkpoints/<experiment_id>/iter_<n>.npz`と `iter_<n>.json` です。`.npz`は`allow_pickle=False`で保存・読込し、Policyの重み、Adamの`m`・`v`・step、工程別baseline、乱数状態（`bit_generator.state`をJSON化）を含みます。sidecar JSONにnpzのSHA-256、`policy_version`、`encoder_version`、`dim`、`config_hash`、`stroke_head_hash`（ストローク head の名前・出力数・G・K・方向数・長さ段階のSHA-256）、`iteration`を保存します。読込時にSHA-256、版、形状を検査し、不一致は`CheckpointMismatchError`にします。
 - `ExperimentRecord`は、3.5節の項目（`dataset_hash`、extractorの`id`・`version`・`hash`、`prompt_builder_version`、`text_encoder`、palette、brush set、control set、renderer、stage workflowのSHA-256、`reward_profile_id`・`reward_impl_version`・`stage_reward_v2.json`のSHA-256、config、seed、`policy_before`・`policy_after`、各`end_reason`の件数、環境）を`experiment.json`に書きます。`dataset_hash`は`DatasetManifest.compute_hash()`の値で、`iter_samples`の対象splitと一緒に保存します。
 - 学習の途中再開は、checkpointのiterationから、保存した乱数状態で再開します。再開前後で結果が一致することをテストします（T-RESUME）。
 
@@ -597,7 +597,7 @@ PR8の後、実験結果（`learned`/`not_learned`/`inconclusive`）を記録す
 | 項目 | 実装 |
 | --- | --- |
 | `ObservationBuilder.build` | 引数は`(text_condition, controller, engine, budget)`。直近Actionは`ProposalResult`ではなく`controller.attempts()`から作る（拒否Actionの種別は`ProposalResult`に無いため）。`LayerBrief`に`layer_id`を含める（`select_layer`の宛先解決に必要） |
-| `DrawingPolicy` | `accumulate_entropy_grad`、`stroke_sigma`、`params_sha256()`を追加（エントロピー項とガウス幅の減衰、checkpoint照合に必要） |
+| `DrawingPolicy` | `accumulate_entropy_grad`、`params_sha256()`を追加（エントロピー項、checkpoint照合に必要）。連続座標版のガウス幅`stroke_sigma`は離散ストロークへの置換で廃止 |
 | `RewardConfig` | `outline`/`color`/`perceptual`は`progress`の特徴群別の分解で、学習重みの既定は0（二重計上しない）。学習信号は`progress`・`action_cost`・`final_bonus`・`failure_penalty`。`text_match`は未計算（常に0.0、学習重み0） |
 | `RewardBreakdown` | `attempt_index`を追加。`finish`は専用のActionが無く、7番目の`advance_stage`（refine→finish）のstepが`final_bonus`を受ける |
 | 乱数 | 状態を持たない導出（`SeedSequence([master_seed, stream, iteration, ...])`）。再開はcheckpointのiterationだけで一致するため、checkpointへ乱数状態を保存しない |
@@ -606,4 +606,4 @@ PR8の後、実験結果（`learned`/`not_learned`/`inconclusive`）を記録す
 | 目標画像 | `RewardTarget.image_sha256`は正規化前のファイルのハッシュで、保存済みPNGと一致しないため検証しない。非正方形は正方形へ伸ばして縮小する（暫定） |
 | 終了理由（11節） | `Trial.end_reason`は`controller.termination_reason`を写す（`finished`/`action_budget_exhausted`/`attempt_budget_exhausted`） |
 | 学習できるAction | `erase_v2`・`create_layer`・レビュー退出（`review_reason`）はv0のPolicyが出さない |
-| CLI（`__main__.py`） | `python -m image_drawer.training train <dataset> [--config JSON] [--output-dir] [--seed] [--iterations] [--resume iter_N.json] [--stop-after N]` と `evaluate <experiment_dir> --dataset <dataset> [--images 8] [--seeds 5]`。出力先の既定は `reports/training/exp-<設定ハッシュ先頭8桁>`。終了コードは 0=完了（`evaluate`の判定が`not_learned`/`inconclusive`でも0。`verdict`を見る）、1=学習が中断、2=実行できない。`evaluate`はtest splitで学習前・学習後・ランダムを同条件（sigmaは`sigma_end`で統一）で測り、`claim.json`・`evaluation.jsonl`を書いて`experiment.json`の`claim`を更新する。`integrity_ok`は学習前Policyの試行のReplay一致と許可Action検査の結果（target隔離は契約テストで確認） |
+| CLI（`__main__.py`） | `python -m image_drawer.training train <dataset> [--config JSON] [--output-dir] [--seed] [--iterations] [--resume iter_N.json] [--stop-after N]` と `evaluate <experiment_dir> --dataset <dataset> [--images 8] [--seeds 5]`。出力先の既定は `reports/training/exp-<設定ハッシュ先頭8桁>`。終了コードは 0=完了（`evaluate`の判定が`not_learned`/`inconclusive`でも0。`verdict`を見る）、1=学習が中断、2=実行できない。`evaluate`はtest splitで学習前・学習後・ランダムを同条件（温度は設定値で統一）で測り、`claim.json`・`evaluation.jsonl`を書いて`experiment.json`の`claim`を更新する。`integrity_ok`は学習前Policyの試行のReplay一致と許可Action検査の結果（target隔離は契約テストで確認） |

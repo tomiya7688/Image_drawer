@@ -76,7 +76,7 @@ def _sidecar_for(npz: str, experiment_dir: Path) -> Path:
 
 
 # {
-#   責務: [ _load_policy: checkpointを検証付きで読み、評価用の幅(sigma_end)を設定したPolicyを返す ]
+#   責務: [ _load_policy: checkpointを検証付きで読んだPolicyを返す ]
 #   エラー: [ CheckpointMismatchError(ValueError): SHA-256・版・形状・設定の不一致 ]
 # }
 def _load_policy(config: TrainConfig, encoder, sidecar: Path) -> ParametricPolicy:
@@ -84,7 +84,6 @@ def _load_policy(config: TrainConfig, encoder, sidecar: Path) -> ParametricPolic
     load_checkpoint(
         sidecar, policy, AdamState(policy.state_dict()), BaselineTable(), encoder, config
     )
-    policy.stroke_sigma = config.sigma_end
     return policy
 
 

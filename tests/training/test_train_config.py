@@ -23,7 +23,13 @@ def test_train_config_rejects_invalid_values() -> None:
     for kwargs in (
         {"canvas_side": 0},
         {"gamma": float("nan")},
-        {"sigma_start": 0.01, "sigma_end": 0.05},
+        {"softmax_temperature": 0.0},
+        {"softmax_temperature": float("nan")},
+        {"stroke_grid": 0},
+        {"stroke_max_segments": 0},
+        {"stroke_lengths": ()},
+        {"stroke_lengths": (1, 1)},
+        {"stroke_max_segments": 6, "stroke_samples": 6},
         {"learning_rate": 0},
         {"stroke_samples": 1},
     ):
@@ -38,11 +44,15 @@ def test_max_attempts_follows_controller_contract() -> None:
     assert TrainConfig(max_actions=10).max_attempts == 100
 
 
-def test_sigma_decays_linearly() -> None:
-    config = TrainConfig(iterations=11)
-    assert config.sigma_at(0) == pytest.approx(0.15)
-    assert config.sigma_at(10) == pytest.approx(0.05)
-    assert config.sigma_at(5) == pytest.approx(0.10)
+def test_stroke_settings_roundtrip_and_have_no_gaussian_sigma() -> None:
+    config = TrainConfig(stroke_grid=16, stroke_lengths=(1, 4), softmax_temperature=0.7)
+    data = json.loads(json.dumps(config.to_dict()))
+    assert data["stroke_lengths"] == [1, 4]
+    assert TrainConfig.from_dict(data) == config
+    assert not {"sigma_start", "sigma_end"} & set(data)
+    assert config.stroke_shape.grid == 16 and config.stroke_shape.lengths == (1, 4)
+    with pytest.raises(ValueError):
+        TrainConfig.from_dict({"sigma_start": 0.15})
 
 
 def test_reward_config_rejects_unknown_component_and_negative_weight() -> None:

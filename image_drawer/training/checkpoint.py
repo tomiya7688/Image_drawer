@@ -72,6 +72,7 @@ def save_checkpoint(
         "encoder_version": encoder.encoder_version,
         "dim": encoder.dim,
         "config_hash": config.config_hash(),
+        "stroke_head_hash": config.stroke_shape.head_hash(),
         "iteration": iteration,
     }
     # sidecarも一時ファイル経由で置換し、書込み途中の中断で壊れたJSONを残さない。
@@ -88,7 +89,7 @@ def save_checkpoint(
 #   責務: [ load_checkpoint: SHA-256・版・形状を検証して状態を復元する ]
 #   引数: [ sidecar_path: iter_N.json, policy, adam, baselines, encoder, config: 与えたら設定ハッシュも検証 ]
 #   戻り値: [ iteration: 保存時のiteration ]
-#   エラー: [ CheckpointMismatchError: 改ざん・版/次元/形状/設定の不一致・pickle配列 ]
+#   エラー: [ CheckpointMismatchError: 改ざん・版/次元/形状/設定/stroke head構成の不一致・pickle配列 ]
 # }
 def load_checkpoint(
     sidecar_path: Path,
@@ -103,6 +104,16 @@ def load_checkpoint(
         npz_path = sidecar_path.parent / sidecar["npz"]
         if _file_sha256(npz_path) != sidecar["npz_sha256"]:
             raise CheckpointMismatchError(f"SHA-256が一致しません: {npz_path.name}")
+        # ストロークheadの構成(名前・出力数・G・K・方向数・長さ段階)。旧構成は理由つきで拒否する。
+        shape_source = config or getattr(policy, "config", None)
+        if shape_source is not None:
+            expected = shape_source.stroke_shape.head_hash()
+            if sidecar.get("stroke_head_hash") != expected:
+                raise CheckpointMismatchError(
+                    "checkpointのstroke head構成が一致しません: "
+                    f"保存={sidecar.get('stroke_head_hash', '旧構成(連続座標のstroke head)')} "
+                    f"現在={expected}"
+                )
         if sidecar["policy_version"] != policy.policy_version:
             raise CheckpointMismatchError("policy_versionが一致しません")
         if sidecar["encoder_version"] != encoder.encoder_version or sidecar["dim"] != encoder.dim:

@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import math
+from collections.abc import Sequence
 from dataclasses import dataclass
 
 import numpy as np
@@ -11,6 +13,14 @@ from image_drawer.drawing import PALETTE, DrawingAction, default_catalog
 from image_drawer.drawing.stage import default_stage_table
 from image_drawer.training.observation import ACTION_KINDS, Observation
 from image_drawer.training.policy_params import HEAD_SIZES
+from image_drawer.training.stroke_geometry import (
+    GridPoint,
+    StrokeShape,
+    StrokeWalk,
+    replay_pick,
+    start_mask,
+    walk_stroke,
+)
 
 BRUSH_IDS: tuple[str, ...] = tuple(preset.id for preset in default_catalog().presets)
 SIZE_LEVELS = len(default_catalog().size_px)
@@ -28,7 +38,11 @@ assert SIZE_LEVELS == HEAD_SIZES["size"] and OPACITY_LEVELS == HEAD_SIZES["opaci
 #   ]
 #   フィールド: [
 #     kind_index: ACTION_KINDSの添字, layer_index/color_id/brush_index/size_level/opacity_level:
-#     使う種別でだけ設定, stroke_u: strokeの6個の潜在値(sigmoid前)
+#     使う種別でだけ設定
+#     stroke_mode: 0=new/1=continue, stroke_start: newの始点マス添字(gy*G+gx),
+#     stroke_segments: segments headで選んだ線分数(1〜K),
+#     stroke_dirs: 実際に引いた線分の方向(1本目は絶対、2本目以降は直前に対する相対),
+#     stroke_lens: 実際に引いた線分の長さ段階の添字(len(dirs)==len(lens)<=segments)
 #   ]
 # }
 @dataclass(frozen=True)
@@ -39,7 +53,11 @@ class ActionChoice:
     brush_index: int | None = None
     size_level: int | None = None
     opacity_level: int | None = None
-    stroke_u: tuple[float, ...] | None = None
+    stroke_mode: int | None = None
+    stroke_start: int | None = None
+    stroke_segments: int | None = None
+    stroke_dirs: tuple[int, ...] | None = None
+    stroke_lens: tuple[int, ...] | None = None
 
 
 # {
@@ -70,13 +88,20 @@ def layer_mask(observation: Observation) -> NDArray[np.bool_]:
 
 
 # {
-#   責務: [ kind_mask: 選べる種別の真偽(長さ6)。選択可能なレイヤーが無ければselect_layerも不可 ]
+#   責務: [
+#     kind_mask: 選べる種別の真偽(長さ6)。選択可能なレイヤーが無ければselect_layerも、
+#     線分を1本も引けない構成ならstroke_v2も不可
+#   ]
 # }
-def kind_mask(observation: Observation) -> NDArray[np.bool_]:
+def kind_mask(
+    observation: Observation, stroke_shape: StrokeShape | None = None
+) -> NDArray[np.bool_]:
     legal = set(legal_kinds(observation.stage_id))
     mask = np.array([kind in legal for kind in ACTION_KINDS], dtype=bool)
     if not layer_mask(observation).any():
         mask[ACTION_KINDS.index("select_layer")] = False
+    if not start_mask(stroke_shape or StrokeShape()).any():
+        mask[ACTION_KINDS.index("stroke_v2")] = False
     return mask
 
 
@@ -91,49 +116,121 @@ def _require_range(name: str, value: int | None, size: int) -> int:
 
 
 # {
-#   責務: [ build_stroke_samples: 3制御点を等間隔に補間してstroke_v2のsamplesを作る ]
-#   処理: [ 座標はsigmoid(u)で[0,1]へ写し、(canvas_side-1)*256のq8整数へ丸める ]
+#   責務: [ grid_to_q8: 格子点(gx,gy)をマス中心のキャンバス座標(q8の実数)へ写す ]
+#   処理: [ x_q8 = (gx+0.5)/G x (canvas_side-1) x 256 ]
+# }
+def grid_to_q8(point: GridPoint, grid: int, canvas_side: int) -> tuple[float, float]:
+    limit = (canvas_side - 1) * 256
+    return (point[0] + 0.5) / grid * limit, (point[1] + 0.5) / grid * limit
+
+
+# {
+#   責務: [ _round_half_up: 座標を0.5切り上げで整数にする(環境に依存しない丸め) ]
+# }
+def _round_half_up(value: float) -> int:
+    return int(math.floor(value + 0.5))
+
+
+# {
+#   責務: [ _extra_points: 余りの点を長い線分から順に巡回して配る(同じ長さは先の線分から) ]
+#   戻り値: [ counts: 線分ごとに追加する内部点の数 ]
+# }
+def _extra_points(path: Sequence[GridPoint], extra: int) -> list[int]:
+    count = len(path) - 1
+    lengths = [math.dist(path[i], path[i + 1]) for i in range(count)]
+    order = sorted(range(count), key=lambda i: (-lengths[i], i))
+    counts = [0] * count
+    for n in range(extra):
+        counts[order[n % count]] += 1
+    return counts
+
+
+# {
+#   責務: [ build_stroke_samples: 格子点の経路を等間隔に補間してstroke_v2のsamplesを作る ]
+#   処理: [
+#     各点をマス中心のq8座標へ写し、線分ごとに端点間を等間隔に補間する。連続する線分の
+#     共有端点は1点にまとめ、総数をsample_countにそろえる(余りは長い線分から配る)
+#   ]
+#   引数: [ path: 始点と各線分の終点(2点以上), shape, canvas_side, sample_count, pressure_level ]
+#   エラー: [ ValueError: 経路が短い・格子外・sample_countが線分数+1未満・引数の範囲外 ]
 # }
 def build_stroke_samples(
-    stroke_u: tuple[float, ...], canvas_side: int, sample_count: int, pressure_level: int
+    path: Sequence[GridPoint],
+    shape: StrokeShape,
+    canvas_side: int,
+    sample_count: int,
+    pressure_level: int,
 ) -> list[dict[str, int | None]]:
-    if len(stroke_u) != HEAD_SIZES["stroke"] or sample_count < 2:
-        raise ValueError("stroke_uは6個、sample_countは2以上にしてください")
     if canvas_side < 1:
         raise ValueError(f"canvas_sideは1以上にしてください: {canvas_side}")
     if not 0 <= pressure_level <= MAX_PRESSURE_LEVEL:
         raise ValueError(f"pressure_levelは0〜{MAX_PRESSURE_LEVEL}にしてください: {pressure_level}")
-    latent = np.asarray(stroke_u, dtype=np.float64)
-    if not np.isfinite(latent).all():
-        raise ValueError("stroke_uにNaNまたは無限大が含まれています")
-    unit = 1.0 / (1.0 + np.exp(-np.clip(latent, -50.0, 50.0)))
-    points = unit.reshape(3, 2)
+    if len(path) < 2 or len(path) - 1 > shape.max_segments:
+        raise ValueError(f"経路は2点以上、線分数{shape.max_segments}以下にしてください")
+    if any(not (0 <= gx < shape.grid and 0 <= gy < shape.grid) for gx, gy in path):
+        raise ValueError("経路が格子の外にあります")
+    if sample_count < len(path):
+        raise ValueError(f"sample_countは線分数+1({len(path)})以上にしてください: {sample_count}")
     limit = (canvas_side - 1) * 256
-    samples: list[dict[str, int | None]] = []
-    for index in range(sample_count):
-        t = index / (sample_count - 1)
-        # 始点->中間->終点を、それぞれ区間の半分ずつで線形補間する。
-        a, b, local = (
-            (points[0], points[1], 2 * t) if t <= 0.5 else (points[1], points[2], 2 * t - 1)
-        )
-        x, y = a + (b - a) * local
-        samples.append(
-            {
-                "x_q8": int(np.clip(round(float(x) * limit), 0, limit)),
-                "y_q8": int(np.clip(round(float(y) * limit), 0, limit)),
-                "time_us": index * STROKE_POINT_STEP_US,
-                "pressure_level_id": pressure_level,
-                "tilt_x_level_id": None,
-                "tilt_y_level_id": None,
-            }
-        )
-    return samples
+    vertices = [grid_to_q8(point, shape.grid, canvas_side) for point in path]
+    inner = _extra_points(path, sample_count - len(path))
+    points: list[tuple[float, float]] = [vertices[0]]
+    for index, (a, b) in enumerate(zip(vertices, vertices[1:])):
+        steps = inner[index] + 1
+        for n in range(1, steps + 1):
+            t = n / steps
+            points.append((a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t))
+    return [
+        {
+            "x_q8": min(max(_round_half_up(x), 0), limit),
+            "y_q8": min(max(_round_half_up(y), 0), limit),
+            "time_us": index * STROKE_POINT_STEP_US,
+            "pressure_level_id": pressure_level,
+            "tilt_x_level_id": None,
+            "tilt_y_level_id": None,
+        }
+        for index, (x, y) in enumerate(points)
+    ]
+
+
+# {
+#   責務: [ resolve_stroke: ActionChoiceのストローク選択を逐次マスで検証し、経路を再現する ]
+#   エラー: [ ValueError: 欠落・範囲外・マスされた選択・線分数の不一致・continueで直前の終点なし ]
+# }
+def resolve_stroke(
+    choice: ActionChoice, shape: StrokeShape, prev_end: GridPoint | None
+) -> StrokeWalk:
+    if (
+        choice.stroke_mode is None
+        or choice.stroke_segments is None
+        or choice.stroke_dirs is None
+        or choice.stroke_lens is None
+    ):
+        raise ValueError("ストロークの選択が足りません")
+    if len(choice.stroke_dirs) != len(choice.stroke_lens):
+        raise ValueError("stroke_dirsとstroke_lensの長さが違います")
+    if not 1 <= choice.stroke_segments <= shape.max_segments:
+        raise ValueError(f"stroke_segmentsは1〜{shape.max_segments}にしてください")
+    pick = replay_pick(
+        choice.stroke_mode,
+        choice.stroke_start,
+        choice.stroke_segments,
+        tuple(choice.stroke_dirs),
+        tuple(choice.stroke_lens),
+    )
+    walked = walk_stroke(shape, prev_end, pick)
+    if walked.dirs != tuple(choice.stroke_dirs) or walked.lens != tuple(choice.stroke_lens):
+        raise ValueError("線分の選択が逐次マスの結果と一致しません")
+    return walked
 
 
 # {
 #   責務: [ decode_action: 選択結果をactor=modelのDrawingActionへ変換する ]
 #   処理: [ 種別ごとに必要なheadの値を範囲検査し、固定のpayloadを作る ]
-#   引数: [ choice, observation: レイヤーIDの解決に使う, canvas_side, stroke_samples, pressure_level ]
+#   引数: [
+#     choice, observation: レイヤーIDの解決に使う, canvas_side, stroke_samples, pressure_level,
+#     stroke_shape: ストローク構成(既定は標準構成), stroke_prev_end: 直前ストロークの終点(continue用)
+#   ]
 #   戻り値: [ action: seq・time_ms・工程注釈は空(Controllerが補う) ]
 #   エラー: [ ValueError: 範囲外の添字、存在しないレイヤー ]
 # }
@@ -143,6 +240,8 @@ def decode_action(
     canvas_side: int,
     stroke_samples: int,
     pressure_level: int,
+    stroke_shape: StrokeShape | None = None,
+    stroke_prev_end: GridPoint | None = None,
 ) -> DrawingAction:
     if canvas_side < 1:
         raise ValueError(f"canvas_sideは1以上にしてください: {canvas_side}")
@@ -165,8 +264,10 @@ def decode_action(
         opacity = _require_range("opacity_level", choice.opacity_level, OPACITY_LEVELS)
         return DrawingAction(kind, {"size_level_id": size, "opacity_level_id": opacity})
     if kind == "stroke_v2":
-        if choice.stroke_u is None:
-            raise ValueError("stroke_uがありません")
-        samples = build_stroke_samples(choice.stroke_u, canvas_side, stroke_samples, pressure_level)
+        shape = stroke_shape or StrokeShape()
+        walked = resolve_stroke(choice, shape, stroke_prev_end)
+        samples = build_stroke_samples(
+            walked.path, shape, canvas_side, stroke_samples, pressure_level
+        )
         return DrawingAction(kind, {"samples": samples})
     return DrawingAction("advance_stage", {})
