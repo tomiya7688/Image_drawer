@@ -18,6 +18,7 @@ from .registry import (
     TrainingPreprocessingResult,
 )
 from .tagger_http import HTTPTagProvider
+from .vision_tagger import VisionTaggerProvider
 from .tagging import (
     PreparedTags,
     ScoredTag,
@@ -48,6 +49,7 @@ __all__ = [
     "TaggingPipeline",
     "TrainingPreprocessingResult",
     "VisionResponse",
+    "VisionTaggerProvider",
     "normalize_prompt",
     "parse_scene",
 ]
