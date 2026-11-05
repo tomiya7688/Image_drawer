@@ -31,6 +31,7 @@ image-drawer-part-bank = "image_drawer.part_bank.cli:main"
 image-drawer-preprocess = "image_drawer.prompting.cli:main"
 image-drawer-dataset = "image_drawer.dataset.cli:main"
 image-drawer-evaluate = "image_drawer.generalization.cli:main"
+image-drawer-draw = "image_drawer.inference.cli:main"
 
 [tool.setuptools.package-data]
 "image_drawer.drawing" = ["data/*.json"]
