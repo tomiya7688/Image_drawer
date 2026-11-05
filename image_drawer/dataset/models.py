@@ -72,6 +72,9 @@ class QualityIssue(SerializableModel):
 #     prompt_builder_version: PromptBuilderのversion
 #     cache_key: 画像と抽出器の組み合わせから決まる再利用の鍵
 #     quality_issues: 品質警告
+#     caption_variants: 短文・標準文・詳細文("short"/"standard"/"detailed")。無ければ空(任意の拡張)
+#     extraction_trace: 選ばれたモデル・試行・検証・送信の記録。キーは "caption" と "tags"。
+#       APIキー・画像・応答本文は含めない。無ければ空(任意の拡張)
 #   ]
 # }
 @dataclass(slots=True)
@@ -92,6 +95,8 @@ class TrainingImage(SerializableModel):
     prompt_builder_version: str
     cache_key: str
     quality_issues: list[QualityIssue] = field(default_factory=list)
+    caption_variants: dict[str, str] = field(default_factory=dict)
+    extraction_trace: dict[str, Any] = field(default_factory=dict)
 
 
 # {

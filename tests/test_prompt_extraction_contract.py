@@ -60,7 +60,8 @@ def test_pipeline_is_internal_and_no_user_caption_file_required():
     assert d["external_auxiliary_files_required"] is False
     assert d["prompt_extraction"]["profile_id"] == c["profile_id"]
     assert d["prompt_extraction"]["no_user_extra_files"] is True
-    assert d["prompt_extraction"]["pipeline"] == "image_drawer.prompting.ImageTrainingPreprocessor"
+    assert d["prompt_extraction"]["pipeline"] == "image_drawer.dataset.register_images"
+    assert d["prompt_extraction"]["extractor_adapter"] == "image_drawer.dataset.prompting_adapters"
     assert d["prompt_extraction"]["caption_and_tag_run_independently"] is True
     assert d["prompt_extraction"]["tag_pipeline"] == "image_drawer.prompting.TaggingPipeline"
 

@@ -4,7 +4,16 @@ from __future__ import annotations
 
 from typing import Any
 
-from .models import MAX_LAYER_AREA, MAX_LAYERS, LAYER_ROLES_Z_ORDER, DrawingState, Layer
+from .models import (
+    FINISH_STAGE_ID,
+    LAYER_ROLES_Z_ORDER,
+    MAX_LAYER_AREA,
+    MAX_LAYERS,
+    REVIEW_REASONS,
+    STAGE_IDS,
+    DrawingState,
+    Layer,
+)
 from .palette import palette_rgb
 from .pixels import PixelBuffer
 from .validation import DrawingError, require_exact_keys, require_identifier
@@ -69,11 +78,59 @@ def handle_set_phase(state: DrawingState, payload: Any) -> None:
 
 
 # {
-#   責務: [ handle_finish: エピソードを終了する。payloadは空 ]
+#   責務: [ handle_finish: エピソードを終了する。payloadは空。v2で工程設定済みなら工程を"finish"にする ]
+#   引数: [ state: 状態, payload: 空の辞書, is_v2: v2 profileか ]
 # }
-def handle_finish(state: DrawingState, payload: Any) -> None:
+def handle_finish(state: DrawingState, payload: Any, is_v2: bool = False) -> None:
     require_exact_keys(payload, set(), "finish.payload")
     state.finished = True
+    if is_v2 and state.stage_id is not None:
+        state.stage_id = FINISH_STAGE_ID
+
+
+# {
+#   責務: [ handle_enter_stage: 工程マーカー。現在の工程を設定する（画素は変えない、v2のみ） ]
+#   エラー: [ DrawingError: 未知のstage_id ]
+# }
+def handle_enter_stage(state: DrawingState, payload: Any) -> None:
+    data = require_exact_keys(payload, {"stage_id"}, "enter_stage.payload")
+    if data["stage_id"] not in STAGE_IDS:
+        raise DrawingError(f"unknown stage_id: {data['stage_id']!r}")
+    state.stage_id = data["stage_id"]
+
+
+# {
+#   責務: [ handle_exit_stage: 工程マーカー。現在の工程と一致することだけを確認する（状態は変えない） ]
+#   エラー: [ DrawingError: 未入場、または現在の工程と不一致 ]
+# }
+def handle_exit_stage(state: DrawingState, payload: Any) -> None:
+    data = require_exact_keys(payload, {"stage_id"}, "exit_stage.payload")
+    if state.stage_id is None or data["stage_id"] != state.stage_id:
+        raise DrawingError(f"exit_stage must name the current stage {state.stage_id!r}")
+
+
+# {
+#   責務: [ handle_advance_stage: 工程移行の提案マーカー。形式と工程設定済みだけを確認する（状態は変えない） ]
+#   処理: [ payloadは{}または{review_reason: 許可コード}。移行先は含められない ]
+#   エラー: [ DrawingError: 未入場、キー不一致、未知のreview_reason ]
+# }
+def handle_advance_stage(state: DrawingState, payload: Any) -> None:
+    if state.stage_id is None or state.stage_id == FINISH_STAGE_ID:
+        raise DrawingError("advance_stage requires an entered, unfinished stage")
+    if isinstance(payload, dict) and payload:
+        data = require_exact_keys(payload, {"review_reason"}, "advance_stage.payload")
+        if data["review_reason"] not in REVIEW_REASONS:
+            raise DrawingError(f"unknown review_reason: {data['review_reason']!r}")
+    else:
+        require_exact_keys(payload, set(), "advance_stage.payload")
+
+
+# {
+#   責務: [ handle_clear_active_layer: 選択中レイヤーを未選択にする（画素は変えない、v2のみ） ]
+# }
+def handle_clear_active_layer(state: DrawingState, payload: Any) -> None:
+    require_exact_keys(payload, set(), "clear_active_layer.payload")
+    state.active_layer_id = None
 
 
 # {
@@ -117,7 +174,11 @@ def charge_budget(state: DrawingState, points: int, area: int) -> None:
 __all__ = [
     "PHASES",
     "charge_budget",
+    "handle_advance_stage",
+    "handle_clear_active_layer",
     "handle_create_layer",
+    "handle_enter_stage",
+    "handle_exit_stage",
     "handle_finish",
     "handle_select_color",
     "handle_select_layer",

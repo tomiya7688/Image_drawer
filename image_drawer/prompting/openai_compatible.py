@@ -5,14 +5,17 @@ from __future__ import annotations
 import base64
 import hashlib
 import json
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from urllib.error import HTTPError, URLError
 from urllib.parse import urlsplit
 from urllib.request import Request
 
+from image_drawer.prompting._egress_policy import check_provider_endpoint
 from image_drawer.prompting._net import urlopen
 
 from .core import PromptExtractionError, VisionResponse
+
+MAX_RESPONSE_BYTES = 1024 * 1024  # 応答のサイズ上限(1MiB)
 
 
 @dataclass(frozen=True)
@@ -25,10 +28,14 @@ class OpenAICompatibleVisionProvider:
     provider_id: str
     model_id: str
     endpoint: str
-    api_key: str = ""
+    api_key: str = field(default="", repr=False)  # reprや例外に鍵を出さない
     timeout_seconds: int = 120
     json_mode: bool = False
     model_revision: str = ""
+    data_egress: str = (
+        "local"  # 画像を外部へ送る宣言("external")。localhost宛の転送プロキシも宣言する
+    )
+    allowed_hosts: tuple[str, ...] = ()
 
     def __post_init__(self) -> None:
         parsed = urlsplit(self.endpoint)
@@ -42,6 +49,7 @@ class OpenAICompatibleVisionProvider:
             raise ValueError("localhost以外のVLM接続はHTTPSを使用してください")
         if not parsed.path.endswith("/chat/completions"):
             raise ValueError("OpenAI互換の/chat/completionsを指定してください")
+        check_provider_endpoint(self.endpoint, self.data_egress, tuple(self.allowed_hosts))
         if not self.provider_id.strip() or not self.model_id.strip():
             raise ValueError("モデルIDと接続先識別子を指定してください")
         if not 1 <= self.timeout_seconds <= 3600:
@@ -92,7 +100,7 @@ class OpenAICompatibleVisionProvider:
         )
         try:
             with urlopen(request, timeout=self.timeout_seconds) as response:
-                raw = response.read(2_000_001)
+                raw = response.read(MAX_RESPONSE_BYTES + 1)
         except HTTPError as exc:
             code, message = "", ""
             try:
@@ -116,7 +124,7 @@ class OpenAICompatibleVisionProvider:
             raise PromptExtractionError(kind, f"VLM HTTP {exc.code}") from exc
         except (URLError, OSError, TimeoutError) as exc:
             raise PromptExtractionError("unavailable", "VLMの接続に失敗") from exc
-        if len(raw) > 2_000_000:
+        if len(raw) > MAX_RESPONSE_BYTES:
             raise PromptExtractionError("invalid_format", "VLMの応答が長すぎます")
         try:
             body = json.loads(raw)

@@ -4,6 +4,8 @@
 
 # 画像だけで学習前の文章とタグを生成する
 
+> **Datasetへの登録は[画像だけのDatasetを登録する](image_dataset.md)の「外部モデルを使う抽出器の設定」を参照してください。** この文書の`image-drawer-preprocess`は、設定とモデルの動作を1枚で確認する診断用で、Datasetを更新しません。外部ホストへ画像を送る設定の三重の許可も、上の文書にあります。
+
 **学習用に用意するのは画像ファイルだけです。** TXT、タグ、説明文、制作履歴、補助メタデータは画像ごとに必要ありません。
 
 画像は **①文章を作るCaptioner** と **②タグを作るTagger** にそれぞれ渡します。2つの処理は独立しており、一方の出力をもう一方の結果として扱いません。
@@ -68,7 +70,7 @@ meta: absurdres(0.93)
 
 ## 独自の前処理も登録できる
 
-開発者は[レジストリ](../../image_drawer/prompting/registry.py)の\`register_caption()\`、\`register_tagger()\`、\`register_verifier()\`、\`register_normalizer()\`、\`register_tag_formatter()\`、\`register_prompt_formatter()\`を使って独自のモデルや処理を追加できます。
+開発者は[レジストリ](../../image_drawer/prompting/registry.py)の\`register_caption()\`、\`register_tagger()\`、\`register_verifier()\`、\`register_normalizer()\`、\`register_tag_formatter()\`を使って（\`register_prompt_formatter()\`は廃止予定で、診断用の\`training_prompt\`だけで使われます）独自のモデルや処理を追加できます。
 
 新しいAPI形式は\`register_adapter()\`で信頼できるPythonコードのFactoryを追加できます。設定JSONから勝手にコードをimport/evalしません。
 

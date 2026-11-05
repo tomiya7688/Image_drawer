@@ -171,7 +171,7 @@ Tagger応答は**PixAI風のフラットなタグ辞書、カテゴリ付きJSON
 - \`register_verifier\`：画像とCaptionを比較するモデル
 - \`register_normalizer\`：カテゴリ分類・confidence正規化の処理
 - \`register_tag_formatter\`：タグの整形・必要カテゴリの出力
-- \`register_prompt_formatter\`：Caption/タグを使う学習条件生成の独自処理
+- \`register_prompt_formatter\`：**廃止予定**。診断用の\`training_prompt(seed)\`だけで使う。Datasetの経路では使われず、設定JSONの\`prompt_formatter\`はエラー（[統合設計](design_data_pipeline_integration.md)の5節）
 - \`register_adapter\`：追加したい独自API・モデル形式の接続処理
 
 **登録数も優先順位も固定しない。** 同じモデルを重複登録して無限に回ることは防ぎ、CaptionとTaggerは別の配列に登録する。ユーザーは接続先・model ID・優先順位・カテゴリルール・信頼度・整形設定をアプリ設定として記録する。追加の学習素材ファイルを要求しない。

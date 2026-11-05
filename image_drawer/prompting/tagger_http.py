@@ -5,14 +5,17 @@ from __future__ import annotations
 import base64
 import hashlib
 import json
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from urllib.error import HTTPError, URLError
 from urllib.parse import urlsplit
 from urllib.request import Request
 
+from image_drawer.prompting._egress_policy import check_provider_endpoint
 from image_drawer.prompting._net import urlopen
 
 from .core import PromptExtractionError
+
+MAX_RESPONSE_BYTES = 1024 * 1024  # 応答のサイズ上限(1MiB)
 
 
 @dataclass(frozen=True)
@@ -26,6 +29,9 @@ class HTTPTagProvider:
     character_threshold: float = 0.85
     timeout_seconds: int = 120
     backend: str = "tagger_service_http"
+    api_key: str = field(default="", repr=False)  # reprや例外に鍵を出さない
+    data_egress: str = "local"  # 画像を外部へ送る宣言("external")
+    allowed_hosts: tuple[str, ...] = ()
 
     def __post_init__(self) -> None:
         parsed = urlsplit(self.endpoint)
@@ -39,6 +45,7 @@ class HTTPTagProvider:
             raise ValueError("localhost以外のTaggerはHTTPSが必要")
         if parsed.username or parsed.password or parsed.query or parsed.fragment:
             raise ValueError("Tagger URLに認証情報・クエリを入れない")
+        check_provider_endpoint(self.endpoint, self.data_egress, tuple(self.allowed_hosts))
         if self.backend not in {"tagger_service_http", "pixai_http", "custom_http"}:
             raise ValueError("未対応のTagger backend")
         if not self.provider_id or not self.model_id:
@@ -71,15 +78,18 @@ class HTTPTagProvider:
         }
         if self.backend == "pixai_http":
             payload["character_threshold"] = self.character_threshold
+        headers = {"Content-Type": "application/json", "Accept": "application/json"}
+        if self.api_key:
+            headers["Authorization"] = "Bearer " + self.api_key
         request = Request(
             self.endpoint,
             data=json.dumps(payload).encode("utf-8"),
-            headers={"Content-Type": "application/json", "Accept": "application/json"},
+            headers=headers,
             method="POST",
         )
         try:
             with urlopen(request, timeout=self.timeout_seconds) as response:
-                raw = response.read(1024 * 1024 + 1)
+                raw = response.read(MAX_RESPONSE_BYTES + 1)
         except HTTPError as exc:
             code = exc.code
             body = exc.read(4096)
@@ -90,7 +100,7 @@ class HTTPTagProvider:
             raise PromptExtractionError(kind, f"Tagger HTTP {code}") from exc
         except (URLError, TimeoutError, OSError) as exc:
             raise PromptExtractionError("unavailable", "Taggerが応答しない") from exc
-        if len(raw) > 1024 * 1024:
+        if len(raw) > MAX_RESPONSE_BYTES:
             raise PromptExtractionError("invalid_format", "Tagger JSONが上限1MiBを超えた")
         try:
             return json.loads(raw)

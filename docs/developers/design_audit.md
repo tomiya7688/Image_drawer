@@ -8,7 +8,7 @@
 
 ## 1. 結論
 
-- **描画の主経路は未実装**です。`DrawingEngine`、`StageController`、Episode v2とそのReplayer、Policy、Trainer、画像Dataset登録、タグ・prompt抽出器は、コードに存在しません。
+- **描画の主経路は未実装**です。Policy、Trainer、画像Dataset登録、タグ・prompt抽出器は、コードに存在しません。
 - Part Bank、`COMPOSE`、`SELECT`は動作しますが、**補助機能**です。これらが動くことは「AIが絵を描いて学習できる」ことを意味しません。
 - Runtime、DSL、Artifact、Trajectory、CIは**再利用できます**。ただし、1回の描画が数百のActionを持つため、Trajectoryに保存する単位を決める必要があります（5節）。
 
@@ -36,7 +36,7 @@
 | 固定256色、色とブラシは独立（[ブラシv2](brush_presets_v2.md)） | 文書とJSON、静的テストのみ。**コードは未実装**（S1a） |
 | ブラシプリセット12種、サイズ19段階・不透明度11段階・筆圧11段階（[段階表](brush_control_levels_v2.md)） | 同上 |
 | 7工程の固定順（[固定工程](fixed_drawing_workflow_v2.md)、[Controller契約](stage_controller_contract_v2.md)） | 文書とJSONの静的テストのみ。**Controllerは未実装**（S1b） |
-| `DrawingState`・`DrawingAction`・`DrawingEpisode`（[v1](drawing_process_v1.md)） | 文書とgolden fixtureのみ。テスト内のオラクルが再生する。**製品のReplayerは未実装**（S1c） |
+| `DrawingState`・`DrawingAction`・`DrawingEpisode`（[v1](drawing_process_v1.md)） | golden fixtureをテスト内のオラクルと、製品の`replay()`（S1c、マージ前）の両方が再生する |
 | 画像のみのDataset、抽出器の切替（[画像のみ学習](image_only_learning_v1.md)） | **未実装**（S2） |
 | 自己描画と報酬による更新（[Policy](drawing_policy_accuracy_v1.md)、[Reward](stage_reward_v2.md)） | 数値は未freeze。**Trainerは未実装**（S3） |
 | 文章だけを入力とするtxt2img推論（S4 / #71） | **未実装**（S4） |

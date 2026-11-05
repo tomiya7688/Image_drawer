@@ -6,6 +6,7 @@ import hashlib
 import json
 import random
 import re
+import unicodedata
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Protocol
@@ -29,6 +30,7 @@ class VisionResponse:
 class VisionProvider(Protocol):
     provider_id: str
     model_id: str
+    config_fingerprint: str  # 秘密を含まず、結果に影響する設定を表す(Datasetのcache_keyに使う)
 
     def describe(self, image: bytes, mime_type: str, instruction: str) -> VisionResponse:
         """画像を使った文章生成。API・ローカルQwen共通の入口。"""
@@ -135,6 +137,8 @@ def _text(obj: object, name: str, optional: bool = False) -> str:
     if not isinstance(obj, str):
         raise PromptExtractionError("invalid_format", f"{name}は文字列が必要")
     value = re.sub(r"\s+", " ", obj).strip()
+    if any(unicodedata.category(char) == "Cc" for char in value):
+        raise PromptExtractionError("invalid_format", f"{name}に制御文字が含まれる")
     if len(value) > 1500:
         raise PromptExtractionError("invalid_format", f"{name}が長すぎる")
     if not value and not optional:
@@ -376,5 +380,9 @@ class ImagePromptPipeline:
                 attempts.append(ExtractionAttempt(model.provider_id, model.model_id, "unavailable"))
                 if not self.fallback_on_unavailable:
                     break
+            except Exception:  # noqa: BLE001 - 想定外の例外でも次のモデルへ進む。文面は残さない
+                attempts.append(
+                    ExtractionAttempt(model.provider_id, model.model_id, "unexpected_error")
+                )
         cause = ",".join(f"{a.provider_id}:{a.status}" for a in attempts)
         raise PromptExtractionError("all_models_failed", cause)

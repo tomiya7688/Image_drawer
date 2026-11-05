@@ -58,6 +58,7 @@ class TagExtractionResult:
 class TagProvider(Protocol):
     provider_id: str
     model_id: str
+    config_fingerprint: str  # 秘密を含まず、結果に影響する設定を表す(Datasetのcache_keyに使う)
 
     def tag(self, image: bytes, mime_type: str) -> object:
         """Tagger独立の推論入口。VLM captionとは別に必ず実行する。"""
@@ -397,7 +398,7 @@ def _category(value: object, *, strict: bool = True) -> str:
     return category
 
 
-def _display_label(label: str) -> str:
+def display_label(label: str) -> str:
     """booru等の語区切りは空白化するが、^_^やo_oなどの顔文字は保持。"""
     if re.fullmatch(r"[A-Za-z]_[A-Za-z]", label) or not any(c.isalnum() for c in label):
         return label
@@ -431,10 +432,12 @@ class TagFormatter:
         positive: list[str] = []
         seen: set[str] = set()
         for tag in tags.tags:
-            display = _display_label(tag.label)
+            display = display_label(tag.label)
             if self.exclude_quality_fillers and display.casefold() in _QUALITY_FILLERS:
                 continue
             grouped.setdefault(tag.category, []).append(display)
+            if tag.category == "rating" and not self.include_rating:
+                continue
             if tag.category == "copyright" and not self.include_copyright:
                 continue
             if tag.category == "style" and not self.include_style:
@@ -445,8 +448,13 @@ class TagFormatter:
                 seen.add(display.casefold())
                 positive.append(display)
         if self.include_rating and tags.rating:
-            grouped["rating"] = [tags.rating]
-            positive.append(tags.rating)
+            # 同じ語が既にpromptへ入っている場合は重複して追加しない。
+            rating_group = grouped.setdefault("rating", [])
+            if tags.rating not in rating_group:
+                rating_group.append(tags.rating)
+            if tags.rating.casefold() not in seen:
+                seen.add(tags.rating.casefold())
+                positive.append(tags.rating)
         return PreparedTags(
             normalized=tags,
             positive_tags=tuple(positive),
@@ -515,6 +523,10 @@ class TaggingPipeline:
             except (TimeoutError, OSError):
                 attempts.append(
                     ExtractionAttempt(provider.provider_id, provider.model_id, "unavailable")
+                )
+            except Exception:  # noqa: BLE001 - 想定外の例外でも次のTaggerへ進む。文面は残さない
+                attempts.append(
+                    ExtractionAttempt(provider.provider_id, provider.model_id, "unexpected_error")
                 )
         report = ",".join(f"{a.provider_id}:{a.status}" for a in attempts)
         raise PromptExtractionError("all_taggers_failed", report)

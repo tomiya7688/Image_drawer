@@ -36,6 +36,33 @@ image-drawer-dataset register <画像のディレクトリ> --dataset <保存先
 
 文章を作れなかった画像（学習用の文章が空）は、登録は残りますが、学習の対象から外れます。`manifest.json` の `quality_issues` に理由が残ります。文章やタグを手で用意する必要はありません。
 
+## 外部モデルを使う抽出器の設定
+
+高精度なモデルで説明文とタグを作るには、[設定例](preprocessor_settings.example.json)を元にした設定JSONを `--extractor-settings` で渡します。設定にはモデルの接続先、説明文とタグの試行順（`caption_chain`、`tag_chain`）、検証モデルなどを書きます。モデルの導入と起動は各自の環境で行います。
+
+```bash
+image-drawer-dataset register <画像のディレクトリ> --dataset <保存先> --extractor-settings my-settings.json
+```
+
+`--tagger`と`--captioner`を指定しなければ、設定の抽出器（`prompting:caption:<profile_id>`、`prompting:tags:<profile_id>`）が使われます。説明文は短文・標準文・詳細文が作られ、学習用の文は標準文です。タグは文へ追記されず、別に保存されます（rating・作品名・画風・metaは文に使われません）。学習時に文の長さを変える場合は、`iter_samples`の`variant_seed`を指定します（短文40%・標準文40%・詳細文20%）。選ばれたモデル、失敗の記録、検証の結果は`manifest.json`の`extraction_trace`に残ります。通信が失敗した画像は登録され、`quality_issues`に`extractor_failed`が記録されます。この結果はキャッシュされず、次の登録で再試行されます。
+
+### 既定では画像は外部へ送られません
+
+`localhost`、`127.0.0.1`、`::1`以外のホストへ画像を送る場合は、次の**三つがすべて**必要です。どれかが欠けると、画像を送らずに停止します。
+
+1. **Datasetの設定**: `<保存先>/dataset_config.json` に `{"external_upload": "allowed"}` を書く（手で作成します。無い場合は禁止です）。
+2. **プロバイダの設定**: 設定JSONの各プロバイダに `"data_egress": "external"` と `"allowed_hosts": ["<ホスト名>"]` を書く。`api_key_env`（環境変数の名前）も必要で、環境変数が未設定または空なら匿名では送信せず停止します。`"auth": "none"`はlocalhostのプロバイダだけに指定できます。
+3. **実行時の許可**: `register` に `--allow-external-upload` を付ける。設定ファイルだけでは送信しません。
+
+`localhost`宛でも、別のホストへ転送するプロキシの場合は `"data_egress": "external"` を宣言してください。転送の有無は検出できないため、設定した人の責任です。
+
+送信前に`--dry-run`を付けると、送信先のホスト名、モデルID、送る枚数、総バイト数を表示するだけで、何も送らず何も書き込みません。送信のたびに、日時・送信先・モデルID・画像のSHA-256・バイト数・状態が`<保存先>/egress.jsonl`へ追記されます（画像、応答本文、APIキーは記録されません）。
+
+- 送られるもの: 向きと色空間をそろえた**メタデータなしのPNG**（8MiB以下。超える場合は縮小せず失敗にします）と、定型の指示文だけです。ファイル名、元のパス、画像ID、Dataset名、EXIFは送られません。
+- 外部のホストは`https`のみです。リダイレクトは追従せず、失敗として扱います。内部ネットワークのアドレス（`10.x.x.x`、`192.168.x.x`、`169.254.x.x`、`*.internal`など）は指定できません。応答は1MiBまでで、HTTPエラーの本文は保存しません。
+- APIキーは環境変数名でだけ指定します。設定JSONへの直書きはエラーです。
+- 外部のモデルを使うかどうかは、画像の公開範囲・権利・プライバシーに関わる判断です。利用料金の管理は行いません。
+
 ## 内容を確認する
 
 ```bash
@@ -46,4 +73,4 @@ image-drawer-dataset show --dataset <保存先>
 
 ## 制限
 
-- 高性能なタグ付けモデルは組み込まれていません。必要な場合は、同じ抽出器の契約でPythonから登録してください([開発者向け文書](../developers/image_dataset.md))。
+- 高性能なタグ付けモデルは組み込まれていません。上の「外部モデルを使う抽出器の設定」で接続するか、同じ抽出器の契約でPythonから登録してください([開発者向け文書](../developers/image_dataset.md))。

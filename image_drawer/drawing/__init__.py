@@ -3,7 +3,7 @@
 from .catalog import BrushCatalog, BrushPreset, default_catalog, load_catalog
 from .engine import RENDERER_V1, RENDERER_V2, Engine, RenderedImage
 from .episode import DrawingEpisode, loads_strict
-from .models import DrawingAction, DrawingState, Layer
+from .models import DrawingAction, DrawingState, EventGroup, Layer
 from .palette import PALETTE, PALETTE_ID, palette_rgb
 from .validation import DrawingError
 
@@ -18,6 +18,7 @@ __all__ = [
     "DrawingEpisode",
     "DrawingError",
     "DrawingState",
+    "EventGroup",
     "Engine",
     "Layer",
     "RenderedImage",
