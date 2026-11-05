@@ -20,6 +20,7 @@ from .registry import (
     TrainingPreprocessingResult,
 )
 from .tagger_http import HTTPTagProvider
+from .text_encoder_registry import TextEncoderRegistry
 from .text_condition import (
     EncodedText,
     HashedNgramTextEncoder,
@@ -62,6 +63,7 @@ __all__ = [
     "TagNormalizer",
     "TagSet",
     "TextConditionEncoder",
+    "TextEncoderRegistry",
     "TextEncodingError",
     "SentenceTransformerEncoder",
     "TaggingPipeline",
