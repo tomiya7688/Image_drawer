@@ -74,9 +74,13 @@ def save_checkpoint(
         "config_hash": config.config_hash(),
         "iteration": iteration,
     }
-    (directory / f"iter_{iteration}.json").write_text(
+    # sidecarも一時ファイル経由で置換し、書込み途中の中断で壊れたJSONを残さない。
+    sidecar_path = directory / f"iter_{iteration}.json"
+    temporary_sidecar = directory / f"iter_{iteration}.tmp.json"
+    temporary_sidecar.write_text(
         json.dumps(sidecar, ensure_ascii=False, sort_keys=True, indent=2), encoding="utf-8"
     )
+    os.replace(temporary_sidecar, sidecar_path)
     return CheckpointRef(str(npz_path), digest, policy.policy_version)
 
 
@@ -109,19 +113,30 @@ def load_checkpoint(
             weights = {k[2:]: data[k] for k in data.files if k.startswith("p/")}
             first = {k[2:]: data[k] for k in data.files if k.startswith("m/")}
             second = {k[2:]: data[k] for k in data.files if k.startswith("v/")}
-            step = int(data["adam_step"][0])
+            if data["adam_step"].size != 1:
+                raise CheckpointMismatchError("adam_stepの形状が不正です")
+            step = int(data["adam_step"].reshape(-1)[0])
             stages = [str(s) for s in data["baseline_stages"]]
             values = [float(v) for v in data["baseline_values"]]
     except CheckpointMismatchError:
         raise
-    except (OSError, ValueError, KeyError, json.JSONDecodeError) as error:
+    except (OSError, ValueError, KeyError, IndexError, json.JSONDecodeError) as error:
         raise CheckpointMismatchError(f"checkpointを読めません: {error}") from error
+    # 状態を書き換える前に、全ての配列を検証する(失敗時にpolicy/Adam/baselineを混在させない)。
+    current = policy.state_dict()
+    if len(stages) != len(values):
+        raise CheckpointMismatchError("baseline_stagesとbaseline_valuesの長さが一致しません")
+    if set(weights) != set(current) or set(first) != set(weights) or set(second) != set(weights):
+        raise CheckpointMismatchError("重みまたはAdam状態のhead名が一致しません")
+    for name, array in weights.items():
+        if array.shape != current[name].shape or first[name].shape != array.shape:
+            raise CheckpointMismatchError(f"{name}の形状が一致しません")
+        if second[name].shape != array.shape:
+            raise CheckpointMismatchError(f"{name}のAdam 2次モーメントの形状が一致しません")
     try:
         policy.load_state_dict(weights)
     except ValueError as error:
         raise CheckpointMismatchError(str(error)) from error
-    if set(first) != set(weights) or any(first[k].shape != weights[k].shape for k in weights):
-        raise CheckpointMismatchError("Adam状態の形状が重みと一致しません")
     adam.m, adam.v, adam.step_count = first, second, step
     baselines.values = dict(zip(stages, values))
     return int(sidecar["iteration"])

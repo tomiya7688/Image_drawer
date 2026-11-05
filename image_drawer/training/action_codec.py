@@ -16,6 +16,7 @@ BRUSH_IDS: tuple[str, ...] = tuple(preset.id for preset in default_catalog().pre
 SIZE_LEVELS = len(default_catalog().size_px)
 OPACITY_LEVELS = len(default_catalog().opacity_percent)
 MAX_LAYERS = HEAD_SIZES["layer"]
+MAX_PRESSURE_LEVEL = 10  # pressure_level_idの上限(Engineの契約)
 STROKE_POINT_STEP_US = 10_000  # サンプル間の時間。time_usは0から非減少にする契約。
 assert len(PALETTE) == HEAD_SIZES["color"] and len(BRUSH_IDS) == HEAD_SIZES["brush"]
 assert SIZE_LEVELS == HEAD_SIZES["size"] and OPACITY_LEVELS == HEAD_SIZES["opacity"]
@@ -98,7 +99,14 @@ def build_stroke_samples(
 ) -> list[dict[str, int | None]]:
     if len(stroke_u) != HEAD_SIZES["stroke"] or sample_count < 2:
         raise ValueError("stroke_uは6個、sample_countは2以上にしてください")
-    unit = 1.0 / (1.0 + np.exp(-np.clip(np.asarray(stroke_u, dtype=np.float64), -50.0, 50.0)))
+    if canvas_side < 1:
+        raise ValueError(f"canvas_sideは1以上にしてください: {canvas_side}")
+    if not 0 <= pressure_level <= MAX_PRESSURE_LEVEL:
+        raise ValueError(f"pressure_levelは0〜{MAX_PRESSURE_LEVEL}にしてください: {pressure_level}")
+    latent = np.asarray(stroke_u, dtype=np.float64)
+    if not np.isfinite(latent).all():
+        raise ValueError("stroke_uにNaNまたは無限大が含まれています")
+    unit = 1.0 / (1.0 + np.exp(-np.clip(latent, -50.0, 50.0)))
     points = unit.reshape(3, 2)
     limit = (canvas_side - 1) * 256
     samples: list[dict[str, int | None]] = []
@@ -136,14 +144,19 @@ def decode_action(
     stroke_samples: int,
     pressure_level: int,
 ) -> DrawingAction:
+    if canvas_side < 1:
+        raise ValueError(f"canvas_sideは1以上にしてください: {canvas_side}")
     kind = ACTION_KINDS[_require_range("kind_index", choice.kind_index, len(ACTION_KINDS))]
     if kind == "select_layer":
         index = _require_range("layer_index", choice.layer_index, MAX_LAYERS)
-        if index >= len(observation.layer_summary):
-            raise ValueError(f"layer_indexに対応するレイヤーがありません: {index}")
+        # Policyがマスクで除外した(不可視・書込不可の)レイヤーは変換でも拒否する。
+        if index >= len(observation.layer_summary) or not layer_mask(observation)[index]:
+            raise ValueError(f"layer_indexに対応する選択可能なレイヤーがありません: {index}")
         return DrawingAction(kind, {"layer_id": observation.layer_summary[index].layer_id})
     if kind == "select_color":
-        return DrawingAction(kind, {"color_id": _require_range("color_id", choice.color_id, 256)})
+        return DrawingAction(
+            kind, {"color_id": _require_range("color_id", choice.color_id, len(PALETTE))}
+        )
     if kind == "select_brush":
         index = _require_range("brush_index", choice.brush_index, len(BRUSH_IDS))
         return DrawingAction(kind, {"brush_id": BRUSH_IDS[index]})

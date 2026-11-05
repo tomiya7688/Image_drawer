@@ -142,10 +142,12 @@ def run_evaluation(
 # }
 def _swap_metrics(
     evaluator: RewardEvaluator, features, own: Trial, swapped: Trial, side: int
-) -> tuple[float, float]:
+) -> tuple[float | None, float | None]:
     from image_drawer.training.reward_features import composite_over_white
 
-    assert own.final_composite is not None and swapped.final_composite is not None
+    # 描画が成立せず合成が無い試行は、測定できない欠損として扱う。
+    if own.final_composite is None or swapped.final_composite is None:
+        return None, None
     own_rgb = composite_over_white(own.final_composite, side)
     other_rgb = composite_over_white(swapped.final_composite, side)
     quality = (
@@ -186,6 +188,8 @@ def paired_bootstrap_ci(
 #   責務: [ _rate: 条件を満たす記録の割合(分母は全記録) ]
 # }
 def _rate(records: Sequence[EvalRecord], field: str) -> float:
+    if not records:
+        return 0.0
     return sum(bool(getattr(r, field)) for r in records) / len(records)
 
 
@@ -261,11 +265,16 @@ class ClaimGate:
     @staticmethod
     def _insufficiency_notes(*tables: Sequence[EvalRecord]) -> list[str]:
         notes = []
+        if not tables or any(len(table) == 0 for table in tables):
+            return ["測定表が空です"]
         image_sets = [frozenset(r.image_id for r in table) for table in tables]
         if len(set(image_sets)) != 1:
             notes.append("測定表の画像集合が一致しない")
         if len(image_sets[0]) < MIN_IMAGES:
             notes.append(f"画像数が{MIN_IMAGES}未満: {len(image_sets[0])}")
+        seed_sets = [frozenset((r.image_id, r.seed) for r in table) for table in tables]
+        if len(set(seed_sets)) != 1:
+            notes.append("測定表の(画像, seed)の集合が一致しない")
         for index, table in enumerate(tables):
             counts: dict[str, set[int]] = defaultdict(set)
             for record in table:

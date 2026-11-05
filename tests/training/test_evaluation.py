@@ -204,3 +204,27 @@ def test_small_training_improves_heldout_quality_vs_untrained(tmp_path: Path) ->
     write_record(final, tmp_path / "out")
     # 閾値は事前登録済み。ここでは判定をそのまま保存し、改善は主張しない。
     assert claim.verdict in {"learned", "not_learned", "inconclusive"}
+
+
+def test_swap_metrics_treats_missing_composite_as_missing_value() -> None:
+    import dataclasses as dc
+
+    from image_drawer.training.evaluation import _swap_metrics
+    from training_helpers import run_scripted
+
+    trial = run_scripted(complete_script())
+    broken = dc.replace(trial, final_composite=None)
+    config = small_config()
+    evaluator = RewardEvaluator(config.reward, config.canvas_side)
+    assert _swap_metrics(evaluator, None, broken, trial, 16) == (None, None)
+    assert _swap_metrics(evaluator, None, trial, broken, 16) == (None, None)
+
+
+def test_claim_gate_handles_empty_tables_and_mismatched_seed_sets() -> None:
+    empty = ClaimGate().evaluate([], [], [], EVIDENCE, True)
+    assert empty.verdict == "inconclusive" and empty.notes
+    before, after, baseline = synthetic_good()
+    shifted = [EvalRecord(**{**r.__dict__, "seed": r.seed + 100}) for r in after]
+    report = ClaimGate().evaluate(before, shifted, baseline, EVIDENCE, True)
+    assert report.verdict == "inconclusive"
+    assert any("seed" in note for note in report.notes)

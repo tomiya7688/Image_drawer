@@ -271,3 +271,60 @@ def test_reward_is_computed_only_after_trial_ends(dataset_dir: Path, tmp_path: P
     expected = sorted(set(observed))
     assert expected == list(range(len(expected)))
     assert trainer.evaluator.calls == 2
+
+
+def _saved(tmp_path: Path, config: TrainConfig):
+    trainer = make_trainer(config, tmp_path)
+    trainer.save_checkpoint(1)
+    return trainer, tmp_path / "checkpoints"
+
+
+def _rewrite_npz(directory: Path, mutate) -> Path:
+    import hashlib
+
+    npz, sidecar = directory / "iter_1.npz", directory / "iter_1.json"
+    with np.load(npz, allow_pickle=False) as data:
+        arrays = {key: data[key] for key in data.files}
+    mutate(arrays)
+    np.savez(npz, **arrays)
+    meta = json.loads(sidecar.read_text(encoding="utf-8"))
+    meta["npz_sha256"] = hashlib.sha256(npz.read_bytes()).hexdigest()
+    sidecar.write_text(json.dumps(meta), encoding="utf-8")
+    return sidecar
+
+
+@pytest.mark.parametrize(
+    "mutate",
+    [
+        lambda a: a.pop("v/stroke"),
+        lambda a: a.__setitem__("v/kind", a["v/kind"][:, :-1]),
+        lambda a: a.__setitem__("adam_step", np.array([], dtype=np.int64)),
+        lambda a: a.__setitem__("baseline_values", np.array([1.0, 2.0])),
+    ],
+)
+def test_checkpoint_load_is_atomic_and_validates_all_arrays(tmp_path: Path, mutate) -> None:
+    config = make_config()
+    trainer, directory = _saved(tmp_path / "src", config)
+    sidecar = _rewrite_npz(directory, mutate)
+    target = make_trainer(config, tmp_path / "dst", policy=ParametricPolicy(
+        config, ENCODER_DIM, np.random.default_rng(77)))  # fmt: skip
+    policy_hash, adam_step = target.policy.params_sha256(), target.adam.step_count
+    with pytest.raises(CheckpointMismatchError):
+        load_checkpoint(sidecar, target.policy, target.adam, target.baselines, target.text_encoder)
+    # 失敗しても、policy・Adam・baselineのどれも書き換わらない。
+    assert target.policy.params_sha256() == policy_hash
+    assert target.adam.step_count == adam_step and target.baselines.values == {}
+    assert policy_hash != trainer.policy.params_sha256()
+
+
+def test_checkpoint_sidecar_is_written_atomically(tmp_path: Path, monkeypatch) -> None:
+    import os
+
+    config = make_config()
+    trainer = make_trainer(config, tmp_path)
+    replaced: list[str] = []
+    real = os.replace
+    monkeypatch.setattr(os, "replace", lambda a, b: (replaced.append(Path(b).name), real(a, b))[1])
+    trainer.save_checkpoint(2)
+    assert "iter_2.json" in replaced and "iter_2.npz" in replaced
+    assert not list((tmp_path / "checkpoints").glob("*.tmp*"))

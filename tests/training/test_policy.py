@@ -254,3 +254,33 @@ def test_policy_state_dict_roundtrip_and_rejects_bad_shapes() -> None:
     with pytest.raises(ValueError):
         other.load_state_dict(broken)
     assert isinstance(DrawingAction("advance_stage", {}), DrawingAction)
+
+
+def test_action_codec_rejects_non_finite_and_invalid_arguments() -> None:
+    observation, _c, _e = make_observation()
+    for bad in (float("nan"), float("inf"), float("-inf")):
+        with pytest.raises(ValueError):
+            codec.build_stroke_samples((bad, 0.0, 0.0, 0.0, 0.0, 0.0), 16, 6, 5)
+        with pytest.raises(ValueError):
+            codec.decode_action(codec.ActionChoice(4, stroke_u=(bad,) * 6), observation, 16, 6, 5)
+    for side in (0, -1):
+        with pytest.raises(ValueError):
+            codec.build_stroke_samples((0.0,) * 6, side, 6, 5)
+        with pytest.raises(ValueError):
+            codec.decode_action(codec.ActionChoice(5), observation, side, 6, 5)
+    with pytest.raises(ValueError):
+        codec.build_stroke_samples((0.0,) * 6, 16, 6, 11)
+    assert codec.decode_action(codec.ActionChoice(1, color_id=len(codec.PALETTE) - 1),
+                               observation, 16, 6, 5).payload["color_id"] == 255  # fmt: skip
+    with pytest.raises(ValueError):
+        codec.decode_action(
+            codec.ActionChoice(1, color_id=len(codec.PALETTE)), observation, 16, 6, 5
+        )
+
+
+def test_action_codec_rejects_masked_layer_selection() -> None:
+    observation, _c, _e = make_observation()
+    hidden = dataclasses.replace(observation.layer_summary[0], visible=False)
+    masked = dataclasses.replace(observation, layer_summary=(hidden,))
+    with pytest.raises(ValueError):
+        codec.decode_action(codec.ActionChoice(0, layer_index=0), masked, 16, 6, 5)
