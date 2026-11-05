@@ -72,5 +72,29 @@
     "include_rating": false,
     "include_meta": false,
     "exclude_quality_fillers": true
+  },
+  "text_encoder": {
+    "description_ja": "学習時と生成時は同じモデル・改訂・次元に固定する。CUDA OOMなどでGPUモデルをreleaseし同一モデルのCPUへフォールバック。別モデルの特徴空間は自動で混ぜない。",
+    "providers": [
+      {
+        "id": "text-encoder-gpu",
+        "adapter": "sentence_transformer",
+        "model_id": "sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2",
+        "model_revision": "main",
+        "device": "cuda",
+        "dimension": 384
+      },
+      {
+        "id": "text-encoder-cpu-fallback",
+        "adapter": "sentence_transformer",
+        "model_id": "sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2",
+        "model_revision": "main",
+        "device": "cpu",
+        "dimension": 384
+      }
+    ],
+    "fallback_policy": "same_model_same_revision_same_dimension_only",
+    "release_after_encode": true,
+    "note": "本番の再現実験ではmodel_revisionを実際のcommit SHAに固定して学習・推論で共有する"
   }
 }
