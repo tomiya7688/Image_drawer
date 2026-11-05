@@ -289,6 +289,7 @@ def main(argv: list[str] | None = None) -> int:
         return checker.summarize(started)
     inspect_python_tools(checker, paths)
     checker.run("context", [sys.executable, "scripts/check_agent_context.py"])
+    checker.run("design-coverage", [sys.executable, "scripts/check_design_coverage.py"])
     inspect_triage(checker)
     # 固有の一時パスを使い、他のpytest実行の所有権や既存ファイルに依存しない。
     temporary_root = ROOT / ".tmp"
