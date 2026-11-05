@@ -1,75 +1,82 @@
-> **対象読者：** 学習前処理を自分の環境で使いたい利用者
-> **目的：** 画像だけを登録し、任意モデルによるCaption生成・タグ抽出・分類を設定する
-> **状態：** 登録・CLI基盤を追加。実モデルの導入・GUI設定画面は別途実装する
+> **対象読者：** 画像だけを登録してCaptionとタグを生成したい利用者
+> **目的：** 画像説明モデル・Tagger・分類・整形を自由に登録する
+> **状態：** 前処理レジストリと単一画像CLIを実装。実GPU/Trainer連携・GUI設定は未確認
 
-# 画像だけで学習前の文章とタグを生成する
+# 画像学習の前処理設定
 
-**学習用に用意するのは画像ファイルだけです。** TXT、タグ、説明文、制作履歴、補助メタデータは画像ごとに必要ありません。
+学習素材として指定するのは**画像だけ**です。Caption（自然言語の画像説明）と
+Tagger（カテゴリ別のタグ抽出）は同じ画像から**独立して両方実行**します。
+タグ、TXT、補助説明、手描きの制作履歴を追加で用意する必要はありません。
 
-画像は **①文章を作るCaptioner** と **②タグを作るTagger** にそれぞれ渡します。2つの処理は独立しており、一方の出力をもう一方の結果として扱いません。
+## 標準は8GB VRAM・32GB RAM向け
 
-## モデルを登録する
+- **通常設定：** [preprocessor_settings.example.json](preprocessor_settings.example.json)
+- **Windowsでのセットアップ・起動：** [8GB環境の手順](preprocessing_local8g.md)
+- **高設定（大型8Bモデル向け）：** [preprocessor_settings.high.example.json](preprocessor_settings.high.example.json)
 
-[設定例JSON](preprocessor_settings.example.json)をコピーし、使用したいモデル名と接続先を記入します。設定JSONは**アプリの設定**であり、学習画像ごとの追加素材ではありません。
+通常設定は次の順番です。
 
-- \`providers\`：Captioner・Tagger・Verifierを好きな名前で登録（最大256件）
-- \`caption_chain\`：精度が高いモデルから、拒否が少なく一定の画像説明品質があるモデルへ、**任意の段数で**並べる。Qwenである必要はない
-- \`tag_chain\`：Taggerの試行順。タグ側も複数モデルへフォールバックできる
-- \`tag_normalizer\`：信頼度閾値・タグ分類・ユーザー定義カテゴリ
-- \`tag_formatter\`：タグの重複除去・カテゴリ別整形・画風/作品名/rating/metaの扱い
+| 処理 | モデル |
+| --- | --- |
+| Caption 第1段 | Qwen3-VL-4B-Instruct **Q4_K_M**（構造化Caption） |
+| Caption 第2段 | JoyCaption Beta One **Q3_K_M**（低拒否率の代替） |
+| Caption 第3段 | Felldude Qwen3-VL-4B Uncensored **Q4_K_M**（追加の低拒否率候補） |
+| Tagger 第1段 | Qwen3-VL-4B Q4_K_Mで**Captionとは別に画像を推論** |
+| Tagger 第2段 | Felldude 4B Q4_K_Mで再度タグ専用推論 |
 
-文章側はOpenAI互換Vision APIとJoyCaption専用Adapter、タグ側はTagger Service HTTP/PixAI系HTTPの接続方式を提供します。外部モデルの導入と起動はユーザーの環境に応じて行います。
+5つの処理を指定していますが、**読み込むモデル重みは3種類だけ**です。
+単一のllama.cppルーターが必要なモデルだけを読み込み、同時ロードは1モデルに
+制限します。別の大型Taggerを常時VRAMに載せる必要はありません。
+VRAM 8GB/32GB RAM実機での性能と対応率の実測は未実施です。
 
-### 標準img2txtフォールバックの決定（2026-11-05）
+以前の`Qwen3-VL-8B → 非量子化JoyCaption Beta One → Felldude 8B V2`
+は**高設定用に分離**しました。通常設定では選択しません。
 
-**JoyCaption Beta One**（`fancyfeast/llama-joycaption-beta-one-hf-llava`）を標準フォールバックに採用しました。開発元がSFW/NSFW、写真・イラスト・アニメを画像説明の対象に明示し、Diffusion学習用キャプションへ特化しているためです。設定例の順序は`Qwen/Qwen3-VL-8B-Instruct`（構造化Captionの初段）→`JoyCaption Beta One`（低制限の代替）です。**この二つ以外にも登録・追加・並べ替えが可能**で、Qwenの利用も必須ではありません。
+## 画像1枚から結果を出す
 
-JoyCaptionは一般的なJSON指示への追従が安定しないため、`adapter: "joycaption"`がモデルに自然文を要求し、学習用の短文・標準文・詳細文へ変換します。元の文章にない対象や個数・位置関係を推測で補完しません。Taggerは引き続き独立実行します。
+[8GB環境のセットアップ](preprocessing_local8g.md)後に、リポジトリのルートで実行します。
 
-JoyCaptionのモデルサービスを起動する例（GPU・vLLMの準備が必要）：
-
-```bash
-vllm serve fancyfeast/llama-joycaption-beta-one-hf-llava --host 127.0.0.1 --port 8001 --max-model-len 4096
+```powershell
+image-drawer-preprocess --settings docs/users/preprocessor_settings.example.json --image E:\images\sample.png
 ```
 
-モデル作者の案内では、bf16モデル本体はVRAM約17GB、24GB以上のGPUが目安です。量子化で削減できますが、提供するAPIの互換性を別途確認してください。初段のQwenとTaggerも**それぞれ別に起動**する必要があります。モデルを自動ダウンロード・同梱する仕組みは未実装です。
+PNG/JPEG/WebPを自動判定します。JSONに短文・標準文・詳細文、Captionの採用モデルと
+各モデルの拒否理由、独立Taggerのモデル・カテゴリ・confidence・整形結果を表示します。
 
-**注意点：** 作者はJoyCaptionが複数対象・左右・OCRを取り違えることや、NSFWの一部で拒否する場合があることを明記しています。独立した比較ベンチマークは未実施で、拒否率や正確性の実測値を保証しません。配布コードのApache 2.0とモデルの基盤であるLlama 3.1の重みの利用条件は別途確認し、外部重みをImage_drawerへ同梱しません。
+## ユーザー定義のモデルと前処理
 
-- [JoyCaption公式リポジトリ](https://github.com/fpgaminer/joycaption)
-- [公式モデル配布](https://huggingface.co/fancyfeast/llama-joycaption-beta-one-hf-llava)
+設定JSONで次の処理を登録・変更できます。
 
-## 画像を処理する
+- `providers`：Caption・Tagger・Verifierを自由に登録します。通常の例は同じ
+  `http://127.0.0.1:8080/v1/chat/completions`へ接続します。
+- `caption_chain`と`tag_chain`：それぞれの優先順位です。
+  **Qwen固定でも3段固定でもありません**。失敗したときは次に進みます。
+- `adapter`：構造化Captionの`openai_compatible`、自然文の
+  `joycaption`/`prose_caption`、タグ専用の`vision_tagger`、
+  別サービスの`tagger_http`を使用できます。
+- `tag_normalizer`：confidence閾値、カテゴリの上書き、独自カテゴリ。
+- `tag_formatter`：重複排除とタグの出力設定。既定では
+  rating/copyright/style/metaを学習用の肯定タグへ暗黙に連結しません。
 
-\`\`\`bash
-image-drawer-preprocess --settings path/to/my-settings.json --image path/to/picture.png
-\`\`\`
+ComfyUI Support Tools互換のTagger HTTPも引き続き登録できます。
+タグの元スコアと分類元を保存し、モデルが間違える可能性も考慮します。
+学習に使う文章とTaggerの結果が矛盾しても無条件で連結しません。
 
-画像はPNG/JPEG/WebPを中身から自動判定し、結果をJSONで表示します。生成された短文・標準文・詳細文、整形済みタグと種類、各Tagのconfidence、利用したモデルとfallback履歴を確認できます。
+Pythonからは`PreprocessorRegistry`の`register_caption()`、
+`register_tagger()`、`register_verifier()`、`register_normalizer()`、
+`register_tag_formatter()`、`register_prompt_formatter()`、
+`register_adapter()`で独自処理を登録できます。
+JSONから任意のPythonコードをimport・実行しません。
 
-例の\`REPLACE_WITH_...\`は実際のモデルではありません。使用するモデルサービスを起動して接続先を設定してください。現時点では単一画像を試すCLIであり、学習用Dataset/Trainerへの接続は別作業です。
+## 限界
 
-## タグを種類別に整理する
+- どのモデルもNSFWを含むあらゆる画像を拒否しないとは保証できません。
+  全モデル失敗なら、ダミー教師Captionを作らず失敗を記録します。
+- 元画像の内容を理解したことと、人間の自然なプロンプトに忠実に描けることは
+  別の検証項目です。
+- 実モデルによるGPU推論とSFW/成人NSFWごとの拒否率・精度ベンチマーク、
+  Dataset・TrainerとのEnd-to-End連携、GUI設定画面は未完成です。
+- モデルの重みはImage_drawer本体に含めません。モデルごとの
+  ライセンスと配布条件は各配布元で確認してください。
 
-例えばTaggerが以下を出した場合：
-
-\`\`\`text
-general: red_dress(0.94), standing(0.90), smile(0.91)
-character: example_character(0.92)
-copyright: example_series(0.91)
-rating: general(0.80)
-style: watercolor(0.93)
-meta: absurdres(0.93)
-\`\`\`
-
-システムは服・ポーズ・表情・キャラクター・作品名・rating・画風・meta（画像解像度などの付帯情報）を分類します。信頼度と元の表記は残し、学習用に使うタグ列だけを整形します。**既定ではrating・作品名・画風・metaを肯定タグ列へ勝手に混ぜません。** `tag_formatter.include_meta`を`true`にした場合だけmetaを肯定タグ列へ含めます。
-
-\`tag_normalizer.category_overrides\`で分類を上書きでき、\`extra_categories\`で独自カテゴリを作れます。Captionerが作る自然文とは別の結果として管理します。
-
-## 独自の前処理も登録できる
-
-開発者は[レジストリ](../../image_drawer/prompting/registry.py)の\`register_caption()\`、\`register_tagger()\`、\`register_verifier()\`、\`register_normalizer()\`、\`register_tag_formatter()\`、\`register_prompt_formatter()\`を使って独自のモデルや処理を追加できます。
-
-新しいAPI形式は\`register_adapter()\`で信頼できるPythonコードのFactoryを追加できます。設定JSONから勝手にコードをimport/evalしません。
-
-詳細設計：[Caption・Tagの独立実行と任意N段フォールバック](../developers/prompt_extraction_v1.md)。
+開発者向け正本：[画像Caption・Tagger抽出とN段ルーティング](../developers/prompt_extraction_v1.md)。

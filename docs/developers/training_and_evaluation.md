@@ -68,7 +68,17 @@ Rewardを使ってPolicyの学習パラメータを更新
 
 固定工程を守っただけで高精度ではない。画像だけを一括変換して出力しても、実際のActionがないため不合格。
 
-## 5. 画像データの分割と再現性
+## 5. 画像枚数とテスト段階
+
+**必要枚数を実装者の推測で決めない。** 実験規模とseed・分割・受け入れ条件の正本は[学習用画像数と段階的テスト計画](training_scale_test_v1.md)、機械可読な契約は[training_scale_test_v1.json](training_scale_test_v1.json)を使う。
+
+- **10〜100枚**：配線・Action・Reward・Policy更新の最小動作確認。品質改善の一般化は主張しない。
+- **まず1,000枚**：3 seed、train/val/testの独立グループで未見画像・未見文章の評価を行う。
+- **10,000枚 → 50,000枚 → 100,000枚以上**：限定領域の学習から拡張する**実験規模案**。必要枚数や成功の保証ではなく、各段階の改善とコストを比較して判断する。
+- Captionは標準で**Qwen3-VL-4B Q4 → JoyCaption Q3 → Felldude 4B Q4**と試す。NSFWを含む合法な成人画像の評価をSFWと別に集計し、拒否率・品質誤り・代替成功率を分母付きで残す。
+- GPUでの実モデル/Trainer評価は別途実施する。モック契約テスト成功を画質改善や無拒否の証拠にしない。
+
+## 6. 画像データの分割と再現性
 
 元画像の内容ハッシュ・近重複グループを使い、train/validation/testを**抽出器の調整より先に固定**する。Tag/Caption抽出器・PromptBuilder・画像の正規化・palette/brush/段階表/StageWorkflow/Renderer/Reward/Policyのバージョンとseedを保存する。
 
@@ -76,7 +86,7 @@ Policyは**目標画像を観測しない**。train/validation/testの間で作�
 
 各試行について生成Action・途中画像・報酬と更新前後checkpointを保存し、失敗例を消さない。完成画像の再生一致と「画質が良い」は別の条件。
 
-## 6. 出来ていることと未実装
+## 7. 出来ていることと未実装
 
 現状は**設計の段階**。TagExtractor/CaptionExtractor、画像だけのTrial Trainer、固定工程Controller、高精度12ブラシのRenderer、絵を描いて上達するPolicyが実装完了・高品質に収束したという意味ではない。
 

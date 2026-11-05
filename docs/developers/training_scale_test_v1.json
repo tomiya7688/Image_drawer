@@ -1,0 +1,179 @@
+{
+  "schema_version": "idraw-training-scale-test/v1",
+  "status": "実験計画の暫定値。必要枚数や学習成功を実測した値ではない",
+  "external_training_input": [
+    "image"
+  ],
+  "initial_recommended_image_count": 1000,
+  "split_policy": {
+    "ratio": {
+      "train": 80,
+      "validation": 10,
+      "test": 10
+    },
+    "unit": "近重複・同一作品グループ単位",
+    "split_before_extractor_selection": true,
+    "holdout_is_never_used_for_tuning": true,
+    "target_is_evaluator_only": true,
+    "counts_are_targets_not_guarantees_when_groups_are_uneven": true
+  },
+  "stages": [
+    {
+      "id": "smoke",
+      "min_images": 10,
+      "target_images": 100,
+      "max_images": 100,
+      "reference_split": {
+        "train": 80,
+        "validation": 10,
+        "test": 10
+      },
+      "seeds": [
+        11
+      ],
+      "goal": "画像登録、Action、Replay、Reward、Policy更新を配線検証",
+      "graduation": "単純図形の学習更新と再現が可能。画質の一般化成功とは主張しない"
+    },
+    {
+      "id": "pilot",
+      "min_images": 1000,
+      "target_images": 1000,
+      "max_images": 1000,
+      "reference_split": {
+        "train": 800,
+        "validation": 100,
+        "test": 100
+      },
+      "seeds": [
+        11,
+        23,
+        37
+      ],
+      "goal": "単一対象・少数色・配置変更の未見評価",
+      "graduation": "固定評価条件で未学習baselineに対する改善と信頼区間を報告"
+    },
+    {
+      "id": "limited_illustration",
+      "min_images": 10000,
+      "target_images": 10000,
+      "max_images": 10000,
+      "reference_split": {
+        "train": 8000,
+        "validation": 1000,
+        "test": 1000
+      },
+      "seeds": [
+        11,
+        23,
+        37
+      ],
+      "goal": "人物・衣服・背景・構図の限定領域に拡張",
+      "graduation": "pilotとの差と計算量、未見画像/文章追従・失敗率を比較"
+    },
+    {
+      "id": "scaling",
+      "min_images": 50000,
+      "target_images": 50000,
+      "max_images": 50000,
+      "reference_split": {
+        "train": 40000,
+        "validation": 5000,
+        "test": 5000
+      },
+      "seeds": [
+        11,
+        23,
+        37
+      ],
+      "goal": "学習曲線・過学習・追加画像の限界を測定",
+      "graduation": "同予算baselineと性能曲線を比較し、追加画像の効果があるときだけ続行"
+    },
+    {
+      "id": "research_large",
+      "min_images": 100000,
+      "target_images": 100000,
+      "max_images": null,
+      "reference_split": {
+        "train": 80000,
+        "validation": 10000,
+        "test": 10000
+      },
+      "seeds": [
+        11,
+        23,
+        37
+      ],
+      "goal": "多様な画風・複数対象・レイアウトを研究",
+      "graduation": "汎用性を主張する前に独立した人間評価と難度別未見prompt評価を実施"
+    }
+  ],
+  "minimum_report_fields": [
+    "registered_image_count",
+    "usable_image_count",
+    "split_group_count",
+    "train_image_count",
+    "validation_image_count",
+    "test_image_count",
+    "duplicate_excluded_count",
+    "caption_failed_count",
+    "tagger_failed_count",
+    "caption_fallback_selected_model_counts",
+    "caption_failure_reason_counts",
+    "nsfw_adult_caption_refusal_rate",
+    "sfw_caption_refusal_rate",
+    "policy_seed",
+    "policy_checkpoint_before",
+    "policy_checkpoint_after",
+    "rollouts_per_image",
+    "total_rollout_count",
+    "reward_before",
+    "reward_after",
+    "unseen_image_quality",
+    "unseen_prompt_following",
+    "invalid_action_rate",
+    "stage_compliance_rate",
+    "compute_hours",
+    "comparison_baseline",
+    "failure_examples",
+    "confidence_interval_95"
+  ],
+  "caption_benchmark": {
+    "min_images_per_stratum": 100,
+    "strata": [
+      "sfw",
+      "lawful_adult_nsfw"
+    ],
+    "per_model_refusal_denominator": "当該モデルへ実際に入力した画像の総数",
+    "pipeline_completion_denominator": "前処理を試行した画像の総数",
+    "required_metrics": [
+      "refusal_count",
+      "filtered_count",
+      "empty_count",
+      "format_failure_count",
+      "unavailable_count",
+      "fallback_selection_count",
+      "all_failed_count",
+      "caption_factual_error",
+      "caption_coverage"
+    ],
+    "dataset_content": "使用権限が確認された合法な成人画像またはテスト用の合成評価画像だけを限定環境で利用する",
+    "if_stratum_unavailable": "評価不可と記録し、成功率や拒否率を推定しない",
+    "real_model_inference_required_for_quality_claim": true
+  },
+  "learning_acceptance": {
+    "pre_and_post_checkpoints_required": true,
+    "real_actions_and_replay_required": true,
+    "evaluator_target_hidden_from_policy": true,
+    "seeds_compared_under_equal_budget": true,
+    "validation_and_test_group_isolation_required": true,
+    "unseen_prompt_contrast_required": true,
+    "record_failures_in_denominator": true,
+    "no_dummy_caption_on_all_models_failed": true,
+    "no_quality_claim_from_ci_only": true
+  },
+  "sources": [
+    "https://learning-to-paint.github.io/",
+    "https://openaccess.thecvf.com/content/ICCV2021/html/Liu_Paint_Transformer_Feed_Forward_Neural_Painting_With_Stroke_Prediction_ICCV_2021_paper.html",
+    "https://openaccess.thecvf.com/content/CVPR2021/html/Singh_Combining_Semantic_Guidance_and_Deep_Reinforcement_Learning_for_Generating_Human_CVPR_2021_paper.html"
+  ]
+}

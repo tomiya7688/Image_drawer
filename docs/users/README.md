@@ -5,7 +5,7 @@
 
 ## 画像から自動でタグ・プロンプトを生成する
 
-[前処理モデルを自由に登録する方法](preprocessing.md)／[設定例JSON](preprocessor_settings.example.json)。画像以外の学習素材は必要ありません。
+[8GB VRAM・32GB RAM向けの起動手順](preprocessing_local8g.md)／[通常設定JSON](preprocessor_settings.example.json)／[高設定JSON](preprocessor_settings.high.example.json)／[前処理モデルを自由に登録する方法](preprocessing.md)。画像以外の学習素材は必要ありません。
 
 ## まず読む
 

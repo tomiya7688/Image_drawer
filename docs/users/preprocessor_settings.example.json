@@ -1,46 +1,74 @@
 {
   "schema_version": "idraw-preprocessor-registry/v1",
-  "description_ja": "標準構成: Qwen3-VL-8Bで構造化Caption抽出、拒否時は低制限のJoyCaption Beta Oneへ切替。Taggerは別に実行。推論サービスは各自起動してください。",
+  "description_ja": "通常設定: VRAM 8GB/メインメモリ32GB。llama.cppルーターが必要なVLMだけを読み込み、画像からCaptionとタグを別々に抽出。高設定はpreprocessor_settings.high.example.json。",
+  "hardware_profile": {
+    "id": "local-8g-32g",
+    "target_vram_gb": 8,
+    "target_ram_gb": 32,
+    "backend": "llama.cpp router (--models-dir、量子化GGUFとmmprojを1組ずつ登録)",
+    "max_loaded_models": 1,
+    "context_tokens": 4096,
+    "parallel_requests": 1,
+    "note": "GPUのVRAMを実測していないため8GBで必ず動くとは保証しない。タグは別推論だがQwen/Felldudeの既存モデル重みを共有。",
+    "model_dir_setup": "python scripts/setup_local_8g_models.py",
+    "model_ids_source": "ローカル配置の各サブディレクトリ名（llama.cpp /modelsで確認する）"
+  },
   "providers": [
     {
       "id": "accurate-vlm",
       "kind": "caption",
       "adapter": "openai_compatible",
-      "model_id": "Qwen/Qwen3-VL-8B-Instruct",
-      "endpoint": "http://127.0.0.1:8000/v1/chat/completions",
-      "json_mode": true
+      "model_id": "qwen3vl4b-q4",
+      "endpoint": "http://127.0.0.1:8080/v1/chat/completions",
+      "json_mode": true,
+      "timeout_seconds": 300,
+      "model_revision": "Qwen/Qwen3-VL-4B-Instruct-GGUF:Q4_K_M"
     },
     {
       "id": "joycaption-fallback",
       "kind": "caption",
       "adapter": "joycaption",
-      "model_id": "fancyfeast/llama-joycaption-beta-one-hf-llava",
-      "endpoint": "http://127.0.0.1:8001/v1/chat/completions",
-      "json_mode": false
+      "model_id": "joycaption-beta-one-q3",
+      "endpoint": "http://127.0.0.1:8080/v1/chat/completions",
+      "json_mode": false,
+      "timeout_seconds": 300,
+      "model_revision": "mradermacher/Q3_K_M + concedo/mmproj-f16"
+    },
+    {
+      "id": "nsfw-caption-last",
+      "kind": "caption",
+      "adapter": "prose_caption",
+      "model_id": "qwen3vl4b-uncensored-q4",
+      "endpoint": "http://127.0.0.1:8080/v1/chat/completions",
+      "json_mode": false,
+      "timeout_seconds": 300,
+      "model_revision": "mradermacher/Qwen3-VL-4B-Instruct-Uncensored-GGUF:Q4_K_M"
     },
     {
       "id": "content-tagger",
       "kind": "tagger",
-      "adapter": "tagger_http",
-      "backend": "tagger_service_http",
-      "model_id": "REPLACE_WITH_TAGGER_MODEL",
-      "endpoint": "http://127.0.0.1:7861/tagger/v1/interrogate",
-      "threshold": 0.35
+      "adapter": "vision_tagger",
+      "model_id": "qwen3vl4b-q4",
+      "endpoint": "http://127.0.0.1:8080/v1/chat/completions",
+      "json_mode": true,
+      "timeout_seconds": 300,
+      "model_revision": "Qwen/Qwen3-VL-4B-Instruct-GGUF:Q4_K_M"
     },
     {
       "id": "backup-tagger",
       "kind": "tagger",
-      "adapter": "tagger_http",
-      "backend": "pixai_http",
-      "model_id": "REPLACE_WITH_PIXAI_TAGGER_MODEL",
-      "endpoint": "http://127.0.0.1:7862/pixai/v1/interrogate",
-      "threshold": 0.35,
-      "character_threshold": 0.85
+      "adapter": "vision_tagger",
+      "model_id": "qwen3vl4b-uncensored-q4",
+      "endpoint": "http://127.0.0.1:8080/v1/chat/completions",
+      "json_mode": true,
+      "timeout_seconds": 300,
+      "model_revision": "mradermacher/Qwen3-VL-4B-Instruct-Uncensored-GGUF:Q4_K_M"
     }
   ],
   "caption_chain": [
     "accurate-vlm",
-    "joycaption-fallback"
+    "joycaption-fallback",
+    "nsfw-caption-last"
   ],
   "tag_chain": [
     "content-tagger",

@@ -5,8 +5,10 @@ from __future__ import annotations
 import argparse
 import json
 from dataclasses import asdict
+from pathlib import Path
 
 from .core import PromptExtractionError
+from .dataset_pipeline import preprocess_dataset
 from .registry import PreprocessorRegistry
 
 
@@ -15,11 +17,21 @@ def main(argv: list[str] | None = None) -> int:
         description="設定済みCaption/Taggerを使い、画像だけから学習前プロンプトと分類タグを生成"
     )
     parser.add_argument("--settings", required=True, help="一度用意するアプリ設定JSON")
-    parser.add_argument("--image", required=True, help="登録したい画像ファイル")
+    source = parser.add_mutually_exclusive_group(required=True)
+    source.add_argument("--image", help="画像ファイル1枚の動作確認")
+    source.add_argument("--dataset", help="登録済みDatasetをタグ→Caption→Promptの順に処理")
     parser.add_argument("--seed", type=int, default=0, help="学習プロンプトの長さを再現するseed")
     args = parser.parse_args(argv)
     try:
         registry = PreprocessorRegistry.from_settings_file(args.settings)
+        if args.dataset:
+            report = preprocess_dataset(
+                Path(args.dataset),
+                registry.build(),
+                seed=args.seed,
+            )
+            print(json.dumps(asdict(report), ensure_ascii=False, indent=2))
+            return 1 if report.failures else 0
         result = registry.build().preprocess_file(args.image)
     except (ValueError, OSError, PromptExtractionError) as exc:
         parser.exit(1, f"前処理に失敗しました: {exc}\n")

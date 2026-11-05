@@ -30,7 +30,17 @@ def test_priority_fallback_and_failure_are_declared():
         "fancyfeast/llama-joycaption-beta-one-hf-llava"
     )
     assert routing["default_img2txt_fallback"]["adapter"] == "joycaption"
+    nsfw_fallback = routing["additional_nsfw_fallback"]
+    assert nsfw_fallback["model_id"] == "Felldude/Qwen3-VL-4B-Instruct-Uncensored"
+    assert nsfw_fallback["adapter"] == "prose_caption"
+    assert len(routing["standard_caption_chain"]) == 3
+    assert routing["standard_caption_chain"][-1] == nsfw_fallback["model_id"]
     assert "joycaption" in c["user_registration"]["adapters"]
+    assert "prose_caption" in c["user_registration"]["adapters"]
+    assert "vision_tagger" in c["user_registration"]["adapters"]
+    assert routing["profiles"]["default_profile"] == "local8g"
+    assert routing["profiles"]["local8g"]["target_vram_gb"] == 8
+    assert routing["profiles"]["local8g"]["target_ram_gb"] == 32
     for kind in ("refused", "empty", "invalid_format", "unverified_facts"):
         assert kind in routing["primary_failure_triggers"]
     assert (

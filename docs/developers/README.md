@@ -9,7 +9,7 @@
 
 **固定制作工程を実装する場合**：[7工程の説明](fixed_drawing_workflow_v2.md) → [StageControllerの詳細契約](stage_controller_contract_v2.md) → [各工程の画像評価](stage_reward_v2.md) の順に読みます。
 
-**学習前のCaption/Taggerの実装者**：[CaptionとTagの独立生成・分類/整形・自由登録とN段モデル切替](prompt_extraction_v1.md) → [画像学習仕様](image_only_learning_v1.md) → [ユーザー登録レジストリ](../../image_drawer/prompting/registry.py) の順に読みます。
+**学習前のCaption/Taggerの実装者**：[CaptionとTagの独立生成・分類/整形・自由登録とN段モデル切替](prompt_extraction_v1.md) → [8GB VRAM向けのモデル起動・mmproj・逐次ロード](../users/preprocessing_local8g.md) → [画像学習仕様](image_only_learning_v1.md) → [ユーザー登録レジストリ](../../image_drawer/prompting/registry.py) の順に読みます。
 
 **特にブラシを実装する場合**：[サイズ・不透明度・筆圧の段階表とパターン](brush_control_levels_v2.md) → [12種のブラシと高精度操作](brush_presets_v2.md) の順に読みます。
 
@@ -46,6 +46,7 @@
 - [Workflow DSL](workflow_dsl.md)
 - [GUI実装仕様](gui.md)
 - [学習と評価](training_and_evaluation.md)
+- [画像数・分割・seed・Caption拒否率のテスト計画](training_scale_test_v1.md)（[機械可読契約](training_scale_test_v1.json)）
 - [評価結果の保存形式](score_sets.md)
 - [MVP範囲](mvp.md)
 
