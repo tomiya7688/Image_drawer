@@ -19,6 +19,7 @@ IMPLEMENTED = [
     "design_stage_controller.md",
     "design_episode_replay.md",
     "design_data_pipeline_integration.md",
+    "design_inference_gui.md",
 ]
 REF = re.compile(r"`(test_\w+)`|\b(test_\w+)\b")
 DEF = re.compile(r"^\s*(?:async\s+)?def\s+(test_\w+)", re.M)

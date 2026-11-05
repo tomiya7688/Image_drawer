@@ -33,13 +33,22 @@ image-drawer --input hello
 
 現在はM0のsmoke / plumbing確認用entrypointです。完成したWorkflow実行CLIではありません。
 
+### 文章だけから描く（image-drawer-draw）
+
+```bash
+image-drawer-draw --prompt "赤いリンゴ" --policy random-legal-v1 --out-dir out/apple
+```
+
+登録されているPolicyは未学習のテスト用で、絵の品質は評価されていません。詳しくは [文章だけから描く](draw.md)。
+
 ### GUI
 
 ```bash
-image-drawer-gui --check
+image-drawer-gui --check   # headlessの起動確認
+image-drawer-gui           # Replay・生成・Datasetの画面（tkinterが必要）
 ```
 
-現在はGUI workbenchの本実装前です。
+画面の操作・見た目は自動テストでは確認していません。
 
 ## 今後
 
