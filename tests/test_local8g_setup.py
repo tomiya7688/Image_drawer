@@ -58,5 +58,8 @@ def test_check_succeeds_with_projector_for_all_three_models(tmp_path, capsys):
     assert setup.main(["--models-dir", str(tmp_path), "--check"]) == 0
     output = capsys.readouterr().out
     assert "--models-max 1" in output
-    assert "--models-memory-margin 1024" in output
+    assert "--models-memory-margin 2048" in output
+    assert "--fit on --fit-target 2048" in output
+    assert "--gpu-layers auto" in output
+    assert "--no-mmproj-offload" in output
     assert "--port 8080" in output
