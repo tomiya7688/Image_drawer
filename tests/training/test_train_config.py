@@ -47,11 +47,12 @@ def test_sigma_decays_linearly() -> None:
 
 def test_reward_config_rejects_unknown_component_and_negative_weight() -> None:
     weights = dict(RewardConfig().training_weights)
-    assert weights["shape"] == 0 and weights["text_match"] == 0
+    assert all(weights[n] == 0 for n in ("shape", "outline", "color", "perceptual", "text_match"))
+    assert weights["progress"] == 1
     with pytest.raises(ValueError):
         RewardConfig(training_weights={**weights, "target_diff": 1.0})
     with pytest.raises(ValueError):
-        RewardConfig(training_weights={**weights, "outline": -1.0})
+        RewardConfig(training_weights={**weights, "progress": -1.0})
 
 
 def test_curriculum_stops_early_stages_and_ends_with_all_stages() -> None:
