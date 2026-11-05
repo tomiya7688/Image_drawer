@@ -75,6 +75,21 @@ def test_trainer_updates_parameters(dataset_dir: Path, tmp_path: Path) -> None:
     assert mean_log_prob(trainer.policy, recorded) != logp_before
 
 
+def test_default_update_moves_logits_only_slightly(dataset_dir: Path, tmp_path: Path) -> None:
+    # Adamの初回は全パラメータを約lr動かすため、連続特徴の多い方策ではlogitが
+    # lr x (特徴のL1ノルム)だけ動く。lr=0.01では約1.8動いて方策が1回で崩れた(entropy 6.85->1.96)。
+    config = make_config(canvas_side=32, summary_side=8, max_actions=96)
+    trainer = make_trainer(config, tmp_path)
+    samples = list(iter_samples(dataset_dir, "train"))[:2]
+    rollout = trainer.collect_rollout(0, samples)
+    features = [s.sample.features for t in rollout.trials for s in t.steps][:100]
+    before = np.array([trainer.policy._logits("kind", f) for f in features])
+    stats = trainer.update_policy(rollout)
+    after = np.array([trainer.policy._logits("kind", f) for f in features])
+    assert not stats.skipped
+    assert np.abs(after - before).max() < 0.5
+
+
 def test_trainer_skips_update_when_advantage_std_is_zero() -> None:
     config = make_config()
     policy = ParametricPolicy(config, ENCODER_DIM, np.random.default_rng(0))

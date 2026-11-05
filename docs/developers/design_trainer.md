@@ -342,7 +342,8 @@ Actor-critic、PPO、画像encoderを使うPolicyは、v0で比較する価値�
 2. 各trialが終わってから`RewardEvaluator.evaluate_trial`で採点します。
 3. 各stepの収益を`G_t = Σ_{u≥t} γ^{u−t} r_u`（`γ=0.99`）とします。`r_u`は受理Actionでも拒否attemptでも、そのstepの`RewardBreakdown.total`です。
 4. 工程ごとのbaseline `b_s`（指数移動平均、係数0.1）を引き、`A_t = G_t − b_{stage(t)}`とします。batch全体で`A`を平均0・標準偏差1に正規化します。標準偏差が0のbatchは更新しません（ログに記録）。
-5. 勾配は`∇θ = (1/N) Σ_t A_t ∇logπ(a_t|x_t) + β ∇H`（エントロピー係数`β=0.01`）。要素ごとの勾配をノルム5.0でクリップし、Adam（学習率0.01、`β₁=0.9`、`β₂=0.999`）で更新します。
+5. 勾配は`∇θ = (1/N) Σ_t A_t ∇logπ(a_t|x_t) + β ∇H`（エントロピー係数`β=0.01`）。要素ごとの勾配をノルム5.0でクリップし、Adam（学習率0.001、`β₁=0.9`、`β₂=0.999`）で更新します。
+   学習率の根拠（実測）: 特徴ベクトルは連続値が約190成分（L1ノルム約185）あり、Adamの初回は全パラメータを約±lr動かすため、1回の更新でlogitは最大約`lr×185`変わります。学習率0.01では種別logitが約1.8動き、1回の更新でentropyが6.85から1.96へ落ち、「strokeを描かずに受理されないadvance_stageを繰り返す」方策へ崩れてreturnが+0.12から-1.25へ下がりました（合成画像100枚・seed1の実測）。0.001では1回の更新が約0.18に収まり、同条件の6 iterationでentropyは6.1〜8.0、returnは+0.12〜+0.19を保ちました。テスト`test_default_update_moves_logits_only_slightly`が1回の更新幅の上限を守ります。
 6. `trial.sample`にある特徴ベクトルと選択結果から対数確率の勾配を計算します。Policyは再実行しません。
 
 `outline`、`color`などの成分は`RewardBreakdown`に別々に保存し、更新に使う`total`は`config.reward.training_weights`で合成します。重みはexperiment configに固定し、理由なく途中で変えません。

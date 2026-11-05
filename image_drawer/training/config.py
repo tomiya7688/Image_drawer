@@ -170,7 +170,8 @@ class TrainConfig:
     baseline_ema: float = 0.1
     entropy_coef: float = 0.01
     grad_clip_norm: float = 5.0
-    learning_rate: float = 0.01
+    # 0.01ではAdam初回で種別logitが約1.8動き方策が崩れた(design_trainer.md 4.3節)。
+    learning_rate: float = 0.001
     adam_beta1: float = 0.9
     adam_beta2: float = 0.999
     softmax_temperature: float = 1.0
