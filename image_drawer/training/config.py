@@ -7,6 +7,8 @@ import json
 from dataclasses import asdict, dataclass, field
 from typing import Any, Mapping
 
+from image_drawer.training.stroke_geometry import DEFAULT_LENGTHS, StrokeShape
+
 # 固定の7工程。Policyが飛び先を選べない順序（固定工程表）。
 STAGE_IDS: tuple[str, ...] = (
     "rough",
@@ -171,9 +173,11 @@ class TrainConfig:
     learning_rate: float = 0.01
     adam_beta1: float = 0.9
     adam_beta2: float = 0.999
-    sigma_start: float = 0.15
-    sigma_end: float = 0.05
-    stroke_samples: int = 6
+    softmax_temperature: float = 1.0
+    stroke_samples: int = 12
+    stroke_grid: int = 32
+    stroke_max_segments: int = 4
+    stroke_lengths: tuple[int, ...] = DEFAULT_LENGTHS
     tail_length: int = 8
     summary_side: int = 8
     reward: RewardConfig = field(default_factory=RewardConfig)
@@ -189,14 +193,23 @@ class TrainConfig:
         for name in (
             "canvas_side", "max_actions", "batch_images", "seeds_per_image",
             "iterations", "checkpoint_every", "stroke_samples", "tail_length", "summary_side",
+            "stroke_grid", "stroke_max_segments",
         ):  # fmt: skip
             if not isinstance(getattr(self, name), int) or getattr(self, name) < 1:
                 raise ValueError(f"{name}は1以上の整数にしてください")
         if self.stroke_samples < 2:
             raise ValueError("stroke_samplesは2以上にしてください")
+        # 型・範囲の検証はStrokeShapeが行う(整数でない値は上のループで拒否済み)。
+        object.__setattr__(self, "stroke_lengths", tuple(self.stroke_lengths))
+        shape = StrokeShape(self.stroke_grid, self.stroke_max_segments, self.stroke_lengths)
+        if shape.max_segments + 1 > self.stroke_samples:
+            raise ValueError(
+                f"stroke_max_segments+1({shape.max_segments + 1})は"
+                f"stroke_samples({self.stroke_samples})以下にしてください"
+            )
         for name in (
             "gamma", "baseline_ema", "entropy_coef", "grad_clip_norm", "learning_rate",
-            "adam_beta1", "adam_beta2", "sigma_start", "sigma_end",
+            "adam_beta1", "adam_beta2", "softmax_temperature",
         ):  # fmt: skip
             _require_finite(name, getattr(self, name))
         if not 0 < self.gamma <= 1 or not 0 < self.baseline_ema <= 1:
@@ -205,8 +218,8 @@ class TrainConfig:
             raise ValueError("adamのbetaは[0,1)にしてください")
         if self.entropy_coef < 0 or self.grad_clip_norm <= 0 or self.learning_rate <= 0:
             raise ValueError("entropy_coefは0以上、grad_clip_normとlearning_rateは正にしてください")
-        if not 0 < self.sigma_end <= self.sigma_start:
-            raise ValueError("sigmaは 0 < sigma_end <= sigma_start にしてください")
+        if self.softmax_temperature <= 0:
+            raise ValueError("softmax_temperatureは正にしてください")
 
     # {
     #   責務: [max_attempts: attempt上限を契約どおり max(100, 5*max_actions) で返す]
@@ -217,15 +230,11 @@ class TrainConfig:
         return max(100, 5 * self.max_actions)
 
     # {
-    #   責務: [sigma_at: iterationに応じたストロークのガウス幅を直線減衰で返す]
-    #   引数: [iteration: 0始まりのiteration番号]
-    #   戻り値: [sigma: sigma_startからsigma_endの間の値]
+    #   責務: [stroke_shape: ストローク表現の構成(格子・最大線分数・長さ段階)を返す]
     # }
-    def sigma_at(self, iteration: int) -> float:
-        if self.iterations <= 1:
-            return self.sigma_end
-        ratio = min(max(iteration / (self.iterations - 1), 0.0), 1.0)
-        return self.sigma_start + (self.sigma_end - self.sigma_start) * ratio
+    @property
+    def stroke_shape(self) -> StrokeShape:
+        return StrokeShape(self.stroke_grid, self.stroke_max_segments, self.stroke_lengths)
 
     # {
     #   責務: [to_dict: 全項目をJSON互換の辞書にする]
@@ -233,6 +242,7 @@ class TrainConfig:
     # }
     def to_dict(self) -> dict[str, Any]:
         data = asdict(self)
+        data["stroke_lengths"] = list(self.stroke_lengths)
         data["curriculum"]["stage_counts"] = list(self.curriculum.stage_counts)
         data["curriculum"]["iterations_per_stage"] = list(self.curriculum.iterations_per_stage)
         data["reward"]["training_weights"] = dict(self.reward.training_weights)
@@ -249,6 +259,8 @@ class TrainConfig:
         values = dict(data)
         reward = RewardConfig(**dict(values.pop("reward", {})))
         curriculum_raw = dict(values.pop("curriculum", {}))
+        if "stroke_lengths" in values:
+            values["stroke_lengths"] = tuple(values["stroke_lengths"])
         for key in ("stage_counts", "iterations_per_stage"):
             if key in curriculum_raw:
                 curriculum_raw[key] = tuple(curriculum_raw[key])

@@ -30,7 +30,6 @@ CONFIG = TrainConfig(canvas_side=16, max_actions=80)
 # }
 class PaintPolicy:
     policy_version = "test-paint-v1"
-    stroke_sigma = 0.1
 
     def act(self, observation, rng) -> PolicyDecision:
         tool, tail = observation.tool_state, observation.action_tail
@@ -60,7 +59,7 @@ class PaintPolicy:
             }  # fmt: skip
             action = DrawingAction("stroke_v2", {"samples": [sample]})
         empty = np.zeros(1, dtype=bool)
-        dummy = PolicySample(np.zeros(1), observation.stage_id, empty, empty, ActionChoice(0), 1.0)
+        dummy = PolicySample(np.zeros(1), observation.stage_id, empty, empty, ActionChoice(0))
         return PolicyDecision(action, dummy)
 
     def params_sha256(self) -> str:

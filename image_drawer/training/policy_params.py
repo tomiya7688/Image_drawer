@@ -8,8 +8,9 @@ from collections.abc import Mapping
 import numpy as np
 from numpy.typing import NDArray
 
-# 各headの出力数(設計書4.2節)。kind=6種別、color=256色、brush=12、size=19段階、
-# opacity=11段階、layer=最大16、stroke=3制御点x2座標=6。
+# 固定headの出力数(設計書4.2節)。kind=6種別、color=256色、brush=12、size=19段階、
+# opacity=11段階、layer=最大16。ストロークのheadは構成(G・K・長さ段階)に依存するため
+# StrokeShape.head_sizes()が返す(design_stroke_action.md)。
 HEAD_SIZES: dict[str, int] = {
     "kind": 6,
     "color": 256,
@@ -17,7 +18,6 @@ HEAD_SIZES: dict[str, int] = {
     "size": 19,
     "opacity": 11,
     "layer": 16,
-    "stroke": 6,
 }
 ADAM_EPSILON = 1e-8
 
@@ -26,13 +26,19 @@ Params = dict[str, NDArray[np.float64]]
 
 # {
 #   責務: [ init_params: 各headの重み(出力数 x 特徴次元)を小さな正規乱数で初期化する ]
-#   引数: [ feature_dim: 特徴次元D, rng: 初期化専用の乱数, scale: 標準偏差 ]
+#   引数: [
+#     feature_dim: 特徴次元D, rng: 初期化専用の乱数, sizes: head名->出力数(固定head+ストロークhead),
+#     scale: 標準偏差
+#   ]
 #   戻り値: [ params: head名->float64の2次元配列 ]
 # }
-def init_params(feature_dim: int, rng: np.random.Generator, scale: float = 0.01) -> Params:
-    return {
-        name: rng.normal(0.0, scale, size=(size, feature_dim)) for name, size in HEAD_SIZES.items()
-    }
+def init_params(
+    feature_dim: int,
+    rng: np.random.Generator,
+    sizes: Mapping[str, int],
+    scale: float = 0.01,
+) -> Params:
+    return {name: rng.normal(0.0, scale, size=(size, feature_dim)) for name, size in sizes.items()}
 
 
 # {

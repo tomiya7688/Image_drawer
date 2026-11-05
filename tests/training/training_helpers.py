@@ -36,7 +36,6 @@ def dummy_sample(stage_id: str = "rough") -> PolicySample:
         np.ones(6, dtype=bool),
         np.ones(16, dtype=bool),
         codec.ActionChoice(5),
-        0.1,
     )
 
 
@@ -45,7 +44,6 @@ def dummy_sample(stage_id: str = "rough") -> PolicySample:
 # }
 class ScriptedPolicy:
     policy_version = "scripted-test"
-    stroke_sigma = 0.1
 
     def __init__(self, actions: Sequence[DrawingAction], raise_at: int | None = None) -> None:
         self.actions = list(actions)
@@ -85,22 +83,23 @@ class ScriptedPolicy:
 
 
 # {
-#   責務: [ stroke: 2点(x0,y0)->(x1,y1)を[0,1]で指定するstroke_v2。中間点は線上 ]
+#   責務: [ stroke: 2点(x0,y0)->(x1,y1)を[0,1]で指定するstroke_v2(台本用。q8座標を直接作る) ]
 # }
 def stroke(x0: float, y0: float, x1: float, y1: float, side: int = 16) -> DrawingAction:
-    def logit(p: float) -> float:
-        p = min(max(p, 1e-4), 1 - 1e-4)
-        return float(np.log(p / (1 - p)))
-
-    mid = ((x0 + x1) / 2, (y0 + y1) / 2)
-    values = (x0, y0, *mid, x1, y1)
-    return codec.decode_action(
-        codec.ActionChoice(4, stroke_u=tuple(logit(v) for v in values)),
-        _FakeObservation, side, 6, 5,
-    )  # fmt: skip
-
-
-_FakeObservation = None  # stroke以外ではobservationを使わない。
+    limit = (side - 1) * 256
+    count = 6
+    samples = [
+        {
+            "x_q8": round((x0 + (x1 - x0) * i / (count - 1)) * limit),
+            "y_q8": round((y0 + (y1 - y0) * i / (count - 1)) * limit),
+            "time_us": i * codec.STROKE_POINT_STEP_US,
+            "pressure_level_id": 5,
+            "tilt_x_level_id": None,
+            "tilt_y_level_id": None,
+        }
+        for i in range(count)
+    ]
+    return DrawingAction("stroke_v2", {"samples": samples})
 
 
 # {

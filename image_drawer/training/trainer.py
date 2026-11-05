@@ -89,7 +89,7 @@ class Trainer:
     # {
     #   責務: [ collect_rollout: batchの各画像にK個のseedでtrialを実行し、終了後に採点する ]
     #   処理: [
-    #     1: ガウス幅とカリキュラムの打切り工程をiterationから決める
+    #     1: カリキュラムの打切り工程をiterationから決める
     #     2: 各trialをRolloutRunnerで実行する(目標は渡さない)
     #     3: 整合検査の後、RewardEvaluatorで採点する(trial終了後にだけ)
     #   ]
@@ -99,7 +99,6 @@ class Trainer:
     def collect_rollout(
         self, iteration: int, samples: Sequence[tuple[PolicyInput, RewardTarget]]
     ) -> TrainingRollout:
-        self.policy.stroke_sigma = self.config.sigma_at(iteration)
         stop = self.config.curriculum.stop_after_stage(iteration)
         trials, rewards = [], []
         for sample_index, (policy_input, target) in enumerate(samples):
@@ -229,6 +228,14 @@ class Trainer:
     ) -> dict[str, object]:
         qualities = [r.final_quality for r in rollout.rewards if r.final_quality is not None]
         trials = rollout.trials
+        # 受理されたストロークの線分数(直線率の記録。design_stroke_action.md 6節4)。
+        strokes = [
+            step.sample.choice
+            for trial in trials
+            for step in trial.steps
+            if step.accepted and step.sample.choice.stroke_dirs is not None
+        ]
+        single = sum(len(choice.stroke_dirs) == 1 for choice in strokes)
         return {
             "iteration": iteration,
             "trials": len(trials),
@@ -241,7 +248,11 @@ class Trainer:
             "param_delta_norm": stats.param_delta_norm,
             "advantage_std": stats.advantage_std,
             "mean_entropy": stats.mean_entropy,
-            "sigma": self.config.sigma_at(iteration),
+            "stroke_count": len(strokes),
+            "stroke_single_segment_rate": single / len(strokes) if strokes else None,
+            "stroke_truncated_count": sum(
+                choice.stroke_segments - len(choice.stroke_dirs) for choice in strokes
+            ),
             "policy_sha256": rollout.trials[0].policy_sha256,
         }
 

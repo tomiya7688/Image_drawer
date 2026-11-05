@@ -29,6 +29,7 @@ POLICY_SIDE_MODULES = (
     "action_codec.py",
     "text_encoder.py",
     "policy_params.py",
+    "stroke_geometry.py",
     "policy_features.py",
     "image_ops.py",
 )
@@ -155,10 +156,17 @@ def _samples(policy: ParametricPolicy) -> list[PolicySample]:
         codec.ActionChoice(1, color_id=17),
         codec.ActionChoice(2, brush_index=3),
         codec.ActionChoice(3, size_level=4, opacity_level=7),
-        codec.ActionChoice(4, stroke_u=(0.1, -0.3, 0.7, 0.2, -0.5, 0.4)),
+        codec.ActionChoice(
+            4,
+            stroke_mode=0,
+            stroke_start=5 * 32 + 7,
+            stroke_segments=3,
+            stroke_dirs=(3, 0, 14),
+            stroke_lens=(2, 1, 4),
+        ),  # fmt: skip
         codec.ActionChoice(5),
     ]
-    return [PolicySample(features, "rough", kinds, layers, c, 0.15) for c in choices]
+    return [PolicySample(features, "rough", kinds, layers, c) for c in choices]
 
 
 def test_policy_gradient_matches_finite_difference() -> None:
@@ -194,7 +202,11 @@ def test_policy_gradient_matches_finite_difference() -> None:
 def test_action_codec_roundtrips_through_engine() -> None:
     observation, controller, engine = make_observation(side=16)
     config = TrainConfig(canvas_side=16, summary_side=4, max_actions=24)
-    stroke = lambda u: codec.ActionChoice(4, stroke_u=u)  # noqa: E731
+    # 始点マス(0,0)・(31,31)・中央から、端いっぱいまで進む選択を含める。
+    stroke = lambda cell, dirs, lens: codec.ActionChoice(  # noqa: E731
+        4, stroke_mode=0, stroke_start=cell, stroke_segments=len(dirs),
+        stroke_dirs=dirs, stroke_lens=lens,
+    )  # fmt: skip
     choices = [
         codec.ActionChoice(0, layer_index=0),
         codec.ActionChoice(1, color_id=255),
@@ -202,23 +214,25 @@ def test_action_codec_roundtrips_through_engine() -> None:
         codec.ActionChoice(2, brush_index=0),
         codec.ActionChoice(3, size_level=18, opacity_level=10),
         codec.ActionChoice(3, size_level=0, opacity_level=0),
-        # 座標0(sigmoid極小)と座標1(極大)の端を含める。
-        stroke((-60.0,) * 6),
-        stroke((60.0,) * 6),
-        stroke((-60.0, 60.0, 0.0, 0.0, 60.0, -60.0)),
+        stroke(0, (0,), (5,)),
+        stroke(31 * 32 + 31, (8,), (5,)),
+        stroke(16 * 32 + 16, (1, 0, 15, 0), (2, 3, 1, 2)),
         codec.ActionChoice(5),
     ]
     for choice in choices:
-        action = codec.decode_action(choice, observation, 16, config.stroke_samples, 5)
+        action = codec.decode_action(
+            choice, observation, 16, config.stroke_samples, 5, config.stroke_shape
+        )
         result = controller.propose(action)
         if action.type == "stroke_v2":
             assert result.accepted, result.reason
         if action.type in ("select_layer", "select_color", "set_brush_params"):
             assert result.accepted, result.reason
-    samples = codec.build_stroke_samples((-60.0,) * 6, 16, 6, 5)
-    assert samples[0]["x_q8"] == 0 and samples[0]["time_us"] == 0
-    samples = codec.build_stroke_samples((60.0,) * 6, 16, 6, 5)
-    assert samples[-1]["x_q8"] == 15 * 256 and samples[-1]["y_q8"] == 15 * 256
+    shape = config.stroke_shape
+    samples = codec.build_stroke_samples([(0, 0), (13, 0)], shape, 16, 12, 5)
+    assert samples[0]["time_us"] == 0 and 0 < samples[0]["x_q8"] < 15 * 256 // shape.grid
+    samples = codec.build_stroke_samples([(31, 31), (18, 31)], shape, 16, 12, 5)
+    assert samples[0]["x_q8"] == samples[0]["y_q8"] <= 15 * 256
     assert engine.state.history  # 実Engineに受理されたイベントが記録される
 
 
@@ -258,18 +272,17 @@ def test_policy_state_dict_roundtrip_and_rejects_bad_shapes() -> None:
 
 def test_action_codec_rejects_non_finite_and_invalid_arguments() -> None:
     observation, _c, _e = make_observation()
-    for bad in (float("nan"), float("inf"), float("-inf")):
-        with pytest.raises(ValueError):
-            codec.build_stroke_samples((bad, 0.0, 0.0, 0.0, 0.0, 0.0), 16, 6, 5)
-        with pytest.raises(ValueError):
-            codec.decode_action(codec.ActionChoice(4, stroke_u=(bad,) * 6), observation, 16, 6, 5)
+    shape, path = codec.StrokeShape(), [(0, 0), (5, 0)]
     for side in (0, -1):
         with pytest.raises(ValueError):
-            codec.build_stroke_samples((0.0,) * 6, side, 6, 5)
+            codec.build_stroke_samples(path, shape, side, 6, 5)
         with pytest.raises(ValueError):
             codec.decode_action(codec.ActionChoice(5), observation, side, 6, 5)
     with pytest.raises(ValueError):
-        codec.build_stroke_samples((0.0,) * 6, 16, 6, 11)
+        codec.build_stroke_samples(path, shape, 16, 6, 11)
+    for bad_path in ([(0, 0)], [(0, 0), (32, 0)], [(0, 0)] * 6):
+        with pytest.raises(ValueError):
+            codec.build_stroke_samples(bad_path, shape, 16, 12, 5)
     assert codec.decode_action(codec.ActionChoice(1, color_id=len(codec.PALETTE) - 1),
                                observation, 16, 6, 5).payload["color_id"] == 255  # fmt: skip
     with pytest.raises(ValueError):

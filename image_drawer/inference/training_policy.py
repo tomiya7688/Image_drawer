@@ -91,7 +91,7 @@ def register_random_legal(registry: PolicyRegistry, config: TrainConfig | None =
 
 # {
 #   責務: [ register_checkpoint: checkpoint(sidecar JSON)を検証して学習済みPolicyとして登録する ]
-#   処理: [ ガウス幅は学習終了時のsigma_endに固定する。学習済みと呼ぶだけで品質は評価しない ]
+#   処理: [ 学習済みと呼ぶだけで品質は評価しない ]
 #   エラー: [ PolicyError: checkpointの不一致・読めない ]
 # }
 def register_checkpoint(
@@ -105,7 +105,6 @@ def register_checkpoint(
         )
     except CheckpointMismatchError as error:
         raise PolicyError(f"checkpointを使えません: {error}") from error
-    policy.stroke_sigma = config.sigma_end
     digest = json.loads(sidecar_path.read_text(encoding="utf-8"))["npz_sha256"]
     registry.register(
         loaded_from_training(

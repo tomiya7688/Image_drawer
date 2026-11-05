@@ -296,7 +296,7 @@ def _rewrite_npz(directory: Path, mutate) -> Path:
 @pytest.mark.parametrize(
     "mutate",
     [
-        lambda a: a.pop("v/stroke"),
+        lambda a: a.pop("v/stroke_start"),
         lambda a: a.__setitem__("v/kind", a["v/kind"][:, :-1]),
         lambda a: a.__setitem__("adam_step", np.array([], dtype=np.int64)),
         lambda a: a.__setitem__("baseline_values", np.array([1.0, 2.0])),

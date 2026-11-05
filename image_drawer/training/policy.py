@@ -1,4 +1,4 @@
-"""DrawingPolicy(線形softmax+ガウスの各head)。入力はObservationと乱数だけ。"""
+"""DrawingPolicy(線形softmaxの各head、ストロークは離散)。入力はObservationと乱数だけ。"""
 
 from __future__ import annotations
 
@@ -16,6 +16,7 @@ from image_drawer.training.action_codec import (
     decode_action,
     kind_mask,
     layer_mask,
+    resolve_stroke,
 )
 from image_drawer.training.config import TrainConfig
 from image_drawer.training.observation import ACTION_KINDS, Observation
@@ -29,14 +30,17 @@ from image_drawer.training.policy_params import (
     masked_softmax,
     params_sha256,
 )
+from image_drawer.training.stroke_geometry import GridPoint, StrokeShape, StrokeWalk, walk_stroke
 
-POLICY_VERSION = "parametric-softmax-gauss-v1"
+POLICY_VERSION = "parametric-softmax-stroke-v2"
 PRESSURE_LEVEL = 5  # 筆圧は固定(中央のlevel)。設計書4.2節。
-_LOG_SQRT_2PI = 0.5 * math.log(2.0 * math.pi)
 
 
 # {
-#   責務: [ PolicySample: 勾配計算に必要な特徴量・マスク・選択結果・ガウス幅 ]
+#   責務: [
+#     PolicySample: 勾配計算に必要な特徴量・マスク・選択結果・直前ストロークの終点
+#   ]
+#   フィールド: [ stroke_prev_end: 選択時点の直前ストロークの終点(continueとマスの再計算用) ]
 # }
 @dataclass(frozen=True)
 class PolicySample:
@@ -45,7 +49,7 @@ class PolicySample:
     kind_mask: NDArray[np.bool_]
     layer_mask: NDArray[np.bool_]
     choice: ActionChoice
-    sigma: float
+    stroke_prev_end: GridPoint | None = None
 
 
 # {
@@ -64,7 +68,6 @@ class PolicyDecision:
 # }
 class DrawingPolicy(Protocol):
     policy_version: str
-    stroke_sigma: float
 
     def act(self, observation: Observation, rng: np.random.Generator) -> PolicyDecision: ...
 
@@ -88,10 +91,53 @@ class DrawingPolicy(Protocol):
 
 
 # {
-#   責務: [ categorical_terms: 選んだ種別が使うカテゴリ分布(head名, 選択, マスク)の列を返す ]
+#   責務: [
+#     StrokeTracker: 直前に受理されたストロークの終点を覚える(continue用)。観測のaction_tailだけで同期する
+#   ]
+#   処理: [ action_tailが空なら新しいtrialとして忘れる。提案したストロークは次の観測で受理を確認する ]
+# }
+class StrokeTracker:
+    def __init__(self) -> None:
+        self.last_end: GridPoint | None = None
+        self.pending_end: GridPoint | None = None
+
+    # {
+    #   責務: [ previous_end: 観測に合わせて状態を更新し、選択時点の直前ストロークの終点を返す ]
+    # }
+    def previous_end(self, observation: Observation) -> GridPoint | None:
+        tail = observation.action_tail
+        if not tail:
+            self.last_end = None
+        elif self.pending_end is not None and tail[-1].kind == "stroke_v2" and tail[-1].accepted:
+            self.last_end = self.pending_end
+        self.pending_end = None
+        return self.last_end
+
+    def propose(self, end: GridPoint) -> None:
+        self.pending_end = end
+
+
+# {
+#   責務: [ stroke_fields: StrokeWalkをActionChoiceのストローク欄にする ]
+# }
+def stroke_fields(walked: StrokeWalk) -> dict[str, object]:
+    return {
+        "stroke_mode": walked.mode,
+        "stroke_start": walked.start_cell,
+        "stroke_segments": walked.requested,
+        "stroke_dirs": walked.dirs,
+        "stroke_lens": walked.lens,
+    }
+
+
+# {
+#   責務: [
+#     categorical_terms: 選んだ種別が使うカテゴリ分布(head名, 選択, マスク)の列を返す。
+#     ストロークは使う線分のhead・使うstartだけ(逐次マスはwalk_strokeで再現する)
+#   ]
 # }
 def categorical_terms(
-    sample: PolicySample,
+    sample: PolicySample, shape: StrokeShape
 ) -> list[tuple[str, int, NDArray[np.bool_] | None]]:
     choice = sample.choice
     terms: list[tuple[str, int, NDArray[np.bool_] | None]] = [
@@ -107,14 +153,24 @@ def categorical_terms(
     elif kind == "set_brush_params":
         terms.append(("size", int(choice.size_level), None))
         terms.append(("opacity", int(choice.opacity_level), None))
+    elif kind == "stroke_v2":
+        terms.extend(resolve_stroke(choice, shape, sample.stroke_prev_end).terms)
     return terms
 
 
 # {
+#   責務: [ all_head_sizes: 固定headとストロークheadを合わせた出力数 ]
+# }
+def all_head_sizes(shape: StrokeShape) -> dict[str, int]:
+    return {**HEAD_SIZES, **shape.head_sizes()}
+
+
+# {
 #   責務: [
-#     ParametricPolicy: 線形softmaxとガウスのheadを持つPolicy。DrawingPolicyを実装する(継承しない)
+#     ParametricPolicy: 線形softmaxのheadを持つPolicy(ストロークは始点マス+方向x長さの離散)。
+#     DrawingPolicyを実装する(継承しない)
 #   ]
-#   フィールド: [ config, params: head名->重み, stroke_sigma: 現在のガウス幅 ]
+#   フィールド: [ config, params: head名->重み, 温度はconfig.softmax_temperature ]
 # }
 class ParametricPolicy:
     policy_version = POLICY_VERSION
@@ -123,8 +179,10 @@ class ParametricPolicy:
         self.config = config
         self.text_dim = text_dim
         self.feature_dim = feature_dim(text_dim, config.summary_side)
-        self.params: Params = init_params(self.feature_dim, rng)
-        self.stroke_sigma = config.sigma_start
+        self.params: Params = init_params(
+            self.feature_dim, rng, all_head_sizes(config.stroke_shape)
+        )
+        self.tracker = StrokeTracker()
 
     # {
     #   責務: [ _logits: headの出力(重み x 特徴) ]
@@ -133,16 +191,25 @@ class ParametricPolicy:
         return self.params[name] @ features
 
     # {
+    #   責務: [ _probabilities: 温度付きのマスク付きsoftmax(logits / T) ]
+    # }
+    def _probabilities(
+        self, name: str, features: NDArray[np.float64], mask: NDArray[np.bool_] | None
+    ) -> NDArray[np.float64]:
+        return masked_softmax(self._logits(name, features) / self.config.softmax_temperature, mask)
+
+    # {
     #   責務: [ act: 観測から種別とパラメータをサンプルし、actor=modelのActionにする ]
     #   処理: [ 1: 特徴化 2: 種別をマスク付きsoftmaxでサンプル 3: 種別が使うheadだけサンプル 4: 変換 ]
     # }
     def act(self, observation: Observation, rng: np.random.Generator) -> PolicyDecision:
         features = build_features(observation)
-        kinds, layers = kind_mask(observation), layer_mask(observation)
-        sigma = self.stroke_sigma
+        shape = self.config.stroke_shape
+        kinds, layers = kind_mask(observation, shape), layer_mask(observation)
+        prev_end = self.tracker.previous_end(observation)
 
         def draw(name: str, mask: NDArray[np.bool_] | None = None) -> int:
-            probabilities = masked_softmax(self._logits(name, features), mask)
+            probabilities = self._probabilities(name, features, mask)
             return int(rng.choice(len(probabilities), p=probabilities))
 
         kind_index = draw("kind", kinds)
@@ -158,52 +225,58 @@ class ParametricPolicy:
             fields["size_level"] = draw("size")
             fields["opacity_level"] = draw("opacity")
         elif kind == "stroke_v2":
-            mean = self._logits("stroke", features)
-            latent = mean + sigma * rng.standard_normal(HEAD_SIZES["stroke"])
-            fields["stroke_u"] = tuple(float(value) for value in latent)
+            walked = walk_stroke(shape, prev_end, draw)
+            fields = stroke_fields(walked)
+            self.tracker.propose(walked.path[-1])
         choice = ActionChoice(kind_index, **fields)  # type: ignore[arg-type]
-        sample = PolicySample(features, observation.stage_id, kinds, layers, choice, sigma)
+        sample = PolicySample(features, observation.stage_id, kinds, layers, choice, prev_end)
         action = decode_action(
-            choice, observation, self.config.canvas_side, self.config.stroke_samples, PRESSURE_LEVEL
+            choice,
+            observation,
+            self.config.canvas_side,
+            self.config.stroke_samples,
+            PRESSURE_LEVEL,
+            shape,
+            prev_end,
         )
         return PolicyDecision(action, sample)
 
     # {
     #   責務: [ accumulate_log_prob_grad: weight x grad log pi を足し、log piを返す ]
-    #   処理: [ 各カテゴリは onehot - p、ガウスは (u-mu)/sigma^2 を特徴との外積でgradsへ足す ]
+    #   処理: [ 各カテゴリは (onehot - p) / T を特徴との外積でgradsへ足す。使わないheadは0 ]
     # }
     def accumulate_log_prob_grad(
         self, sample: PolicySample, weight: float, grads: PolicyGrads
     ) -> float:
         total = 0.0
-        for name, index, mask in categorical_terms(sample):
-            probabilities = masked_softmax(self._logits(name, sample.features), mask)
+        temperature = self.config.softmax_temperature
+        for name, index, mask in categorical_terms(sample, self.config.stroke_shape):
+            probabilities = self._probabilities(name, sample.features, mask)
             total += math.log(probabilities[index])
             output_grad = -probabilities
             output_grad[index] += 1.0
-            grads.add(name, weight * output_grad, sample.features)
-        if sample.choice.stroke_u is not None:
-            mean = self._logits("stroke", sample.features)
-            residual = np.asarray(sample.choice.stroke_u) - mean
-            sigma = sample.sigma
-            total += float((-0.5 * (residual / sigma) ** 2 - math.log(sigma) - _LOG_SQRT_2PI).sum())
-            grads.add("stroke", weight * residual / sigma**2, sample.features)
+            grads.add(name, weight * output_grad / temperature, sample.features)
         return total
 
     # {
     #   責務: [ accumulate_entropy_grad: 選んだ種別のカテゴリ分布のエントロピー勾配をweight倍で足す ]
-    #   戻り値: [ entropy: カテゴリ分布のエントロピーの合計(ガウス幅は固定のため0寄与) ]
+    #   戻り値: [ entropy: 使ったカテゴリ分布のエントロピーの合計 ]
     # }
     def accumulate_entropy_grad(
         self, sample: PolicySample, weight: float, grads: PolicyGrads
     ) -> float:
         total = 0.0
-        for name, _index, mask in categorical_terms(sample):
-            probabilities = masked_softmax(self._logits(name, sample.features), mask)
+        temperature = self.config.softmax_temperature
+        for name, _index, mask in categorical_terms(sample, self.config.stroke_shape):
+            probabilities = self._probabilities(name, sample.features, mask)
             entropy = categorical_entropy(probabilities)
             total += entropy
             safe = np.where(probabilities > 0, probabilities, 1.0)
-            grads.add(name, -weight * probabilities * (np.log(safe) + entropy), sample.features)
+            grads.add(
+                name,
+                -weight * probabilities * (np.log(safe) + entropy) / temperature,
+                sample.features,
+            )
         return total
 
     def new_grads(self) -> PolicyGrads:
@@ -236,19 +309,32 @@ class ParametricPolicy:
 #   責務: [
 #     RandomLegalPolicy: 工程別の候補Actionから一様に選ぶベースライン(学習しない)
 #   ]
-#   処理: [ 種別・色・ブラシ・段階・レイヤーは一様、ストロークの座標は[0,1]の一様乱数 ]
+#   処理: [ 種別・色・ブラシ・段階・レイヤーは一様、ストロークは逐次マスで許可された選択肢から一様 ]
 # }
 class RandomLegalPolicy:
-    policy_version = "random-legal-v1"
+    policy_version = "random-legal-v2"
 
     def __init__(self, config: TrainConfig) -> None:
         self.config = config
-        self.stroke_sigma = config.sigma_start
+        self.tracker = StrokeTracker()
 
     def act(self, observation: Observation, rng: np.random.Generator) -> PolicyDecision:
-        kinds, layers = kind_mask(observation), layer_mask(observation)
+        shape = self.config.stroke_shape
+        kinds, layers = kind_mask(observation, shape), layer_mask(observation)
+        prev_end = self.tracker.previous_end(observation)
         kind_index = int(rng.choice(np.flatnonzero(kinds)))
         kind = ACTION_KINDS[kind_index]
+
+        def uniform(name: str, mask: NDArray[np.bool_] | None) -> int:
+            if mask is None:  # segments head(マスなし)
+                return int(rng.integers(shape.max_segments))
+            return int(rng.choice(np.flatnonzero(mask)))
+
+        def stroke() -> dict[str, object]:
+            walked = walk_stroke(shape, prev_end, uniform)
+            self.tracker.propose(walked.path[-1])
+            return stroke_fields(walked)
+
         pick: dict[str, Callable[[], dict[str, object]]] = {
             "select_layer": lambda: {"layer_index": int(rng.choice(np.flatnonzero(layers)))},
             "select_color": lambda: {"color_id": int(rng.integers(HEAD_SIZES["color"]))},
@@ -257,20 +343,20 @@ class RandomLegalPolicy:
                 "size_level": int(rng.integers(HEAD_SIZES["size"])),
                 "opacity_level": int(rng.integers(HEAD_SIZES["opacity"])),
             },
-            # sigmoidの逆関数で一様座標を潜在値にする(端の0/1は避ける)。
-            "stroke_v2": lambda: {
-                "stroke_u": tuple(
-                    float(math.log(p / (1 - p)))
-                    for p in rng.uniform(1e-6, 1 - 1e-6, HEAD_SIZES["stroke"])
-                )
-            },
+            "stroke_v2": stroke,
         }
         fields = pick.get(kind, lambda: {})()
         choice = ActionChoice(kind_index, **fields)  # type: ignore[arg-type]
         features = build_features(observation)
-        sample = PolicySample(features, observation.stage_id, kinds, layers, choice, 1.0)
+        sample = PolicySample(features, observation.stage_id, kinds, layers, choice, prev_end)
         action = decode_action(
-            choice, observation, self.config.canvas_side, self.config.stroke_samples, PRESSURE_LEVEL
+            choice,
+            observation,
+            self.config.canvas_side,
+            self.config.stroke_samples,
+            PRESSURE_LEVEL,
+            shape,
+            prev_end,
         )
         return PolicyDecision(action, sample)
 

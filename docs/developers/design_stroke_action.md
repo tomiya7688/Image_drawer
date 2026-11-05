@@ -2,7 +2,7 @@
 >
 > **目的:** 学習初期の絵が「うようよ」になる原因を除き、直線を描けるストローク表現に置き換える。
 >
-> **状態:** 2026-11-05。設計のみ。コードは未実装。[design_trainer.md](design_trainer.md) 4.2節の `stroke` head の記述を置き換える。
+> **状態:** 2026-11-05。実装手順1〜3（離散head・Policy・設定とcheckpoint互換）を実装済み。手順4（直線率の記録）は`metrics.jsonl`に1線分ストロークの割合などを追加した範囲まで。**実測・学習の成功・絵の品質は未確認**です。[design_trainer.md](design_trainer.md) 4.2節の `stroke` head の記述を置き換える。
 
 # ストローク表現の設計（直線を描ける離散Action）
 
@@ -103,3 +103,15 @@ Engine の `stroke_v2{samples}` は変えません。変えるのは、Policy �
 - 既定の G=32・K=4・方向 16・長さ 6 段階は **見積り**で、実測していない。
 - 学習が収束するか、絵が実際にまとまるかは未確認。
 - 筆圧の変化・消しゴム（`erase_v2`）は対象外のまま（design_trainer.md 10節）。
+
+## 8. 実装メモ（設計との対応と補足）
+
+- 実装は`image_drawer/training/stroke_geometry.py`（格子・方向・長さ・逐次マスの`walk_stroke`）、`action_codec.py`（`build_stroke_samples`、`resolve_stroke`）、`policy.py`（head、勾配）、`config.py`（`stroke_grid`・`stroke_max_segments`・`stroke_lengths`・`softmax_temperature`・`stroke_samples`既定12）。受け入れテストは`tests/training/test_stroke_action.py`。
+- サンプル・対数確率・Action変換は同じ`walk_stroke`を通る。ActionChoiceは選択だけを持ち、マスは直前ストロークの終点（`PolicySample.stroke_prev_end`）から再計算する。
+- `dir`・`len`は線分ごとに別head（`stroke_dir_0..K-1`、`stroke_len_0..K-1`）。出力数の合計は4節の見積りと同じ。
+- 温度は全headのlogitsに掛け（`logits / T`）、対数確率・エントロピーの勾配に`1/T`を掛ける。既定1.0では従来のsoftmaxと同じ。評価時も設定値の温度で統一する（ガウスの`sigma_end`固定は廃止）。
+- 直前ストロークの終点は、Policyが観測の`action_tail`（先頭が空なら新しいtrial、末尾が受理された`stroke_v2`なら提案した終点を確定）だけで追う。Observationの契約は変えていない。
+- 方向反転（相対方向8）は常に有効なため、1本目が引ければ2本目以降が全候補無効になる構成は実際には起きない。切り詰めの処理はあるが、テストでは`valid_moves`を差し替えて確認している。線分を1本も引けない構成（G=1など）では`kind`マスで`stroke_v2`を選べない。
+- 手順4のうち、`metrics.jsonl`に`stroke_count`・`stroke_single_segment_rate`・`stroke_truncated_count`を追加した。折れ線の平均曲がり角と`training/evaluation`の記録への追加は未実装（別PR）。
+- checkpointのsidecar JSONに`stroke_head_hash`を保存し、旧checkpoint（キーなし）と構成違いは`ValueError`（`CheckpointMismatchError`）で拒否する。`policy_version`は`parametric-softmax-stroke-v2`、`RandomLegalPolicy`は`random-legal-v2`（登録ID`random-legal-v1`は変えていない）。
+- 実測（パラメータ数・メモリ・学習の収束・絵の品質）は未実施で、見積りのまま。
