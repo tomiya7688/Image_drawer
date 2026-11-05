@@ -83,7 +83,7 @@ S2 Dataset ←→ #78 抽出（統合）─────────────�
 | 工程Controller・Episode v2・Replay（S1b・S1c） | S1bはPR #84、S1cはブランチ `claude/68-episode-replay` で実装済み（マージ前）。S4の永続化・クラッシュ注入は未実装 |
 | Dataset登録（S2） | 実装済み（PR #74）。基本の抽出器は画素の統計だけ |
 | 抽出パイプライン（#78） | 実装中（PR #78）。実モデルでの精度は未検証。S2との統合は設計済み（PR #81）で、コードは未実装 |
-| 学習（S3） | 設計済み（PR #80）。**コードは未実装** |
+| 学習（S3） | 設計済み（PR #80）。`image_drawer/training/`に Policy・Reward・Trainer・ClaimGate を実装中（ブランチ claude/70-trainer）。CLIと実測は未実装で、学習の成功は未確認 |
 | 推論・GUI（S4）・汎化評価（S5） | 設計済み（PR #81）。**コードは未実装** |
 | 旧M6〜M14（GUI・実験ランナー・探索など） | 保留（Issue #62）。S4・S5・S3に再定義 |
 

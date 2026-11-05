@@ -52,6 +52,8 @@ class ScriptedPolicy:
         self.calls = 0
 
     def act(self, observation: Observation, rng: np.random.Generator) -> PolicyDecision:
+        if not observation.action_tail:
+            self.calls = 0  # 新しいtrialの開始
         index = self.calls
         self.calls += 1
         if self.raise_at is not None and index >= self.raise_at:
