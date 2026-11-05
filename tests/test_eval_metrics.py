@@ -1,5 +1,9 @@
 """汎化評価の工程・stroke・拒否・コスト指標を確認する(設計 6.2〜6.5節)。"""
 
+import subprocess
+import sys
+
+import numpy as np
 import pytest
 from stage_helpers import (
     accept_all,
@@ -13,6 +17,15 @@ from stage_helpers import (
     setup_actions,
 )
 
+from image_drawer.generalization.metrics_quality import (
+    blank_image,
+    component_scores,
+    heldout_scores,
+    nearest_train_hit_rate,
+    probe_hit,
+    prompt_shuffle_delta,
+    reward_gain_without_heldout_gain,
+)
 from image_drawer.generalization.metrics_process import (
     GenerationCost,
     ProcessSample,
@@ -102,3 +115,81 @@ def test_cost_fields_use_null_when_memory_is_unavailable():
     assert summary["peak_memory_mb"] == {"median": None, "p90": None}
     assert summary["accepted_actions"] == {"median": 15.0, "p90": 20.0}
     assert summarize_costs([])["attempts"] == {"median": None, "p90": None}
+
+
+RED = np.full((16, 16, 3), [0.85, 0.1, 0.1])
+BLUE = np.full((16, 16, 3), [0.1, 0.1, 0.85])
+TARGETS = {"a": RED, "b": BLUE, "c": RED, "d": BLUE}
+PROMPTS = {"a": "赤", "b": "青", "c": "赤", "d": "青"}
+SHUFFLE = {"a": "b", "b": "a", "c": "d", "d": "c"}
+
+
+# {
+#   責務: [ closeness: 画像が目標へ近いほど1に近い試験用の得点 ]
+# }
+def closeness(image_id: str, image) -> float:
+    return float(1.0 - np.abs(image - TARGETS[image_id]).mean())
+
+
+def test_prompt_shuffle_delta_is_positive_for_prompt_dependent_toy_policy():
+    def generate(_image_id: str, prompt: str):
+        return RED if prompt == "赤" else BLUE
+
+    delta = prompt_shuffle_delta(list(TARGETS), SHUFFLE, PROMPTS, generate, closeness)
+    assert delta > 0.3
+
+
+def test_prompt_shuffle_delta_is_near_zero_for_prompt_ignoring_policy():
+    delta = prompt_shuffle_delta(
+        list(TARGETS), SHUFFLE, PROMPTS, lambda _i, _p: np.full((16, 16, 3), 0.5), closeness
+    )
+    assert delta == pytest.approx(0.0, abs=1e-9)
+    with pytest.raises(ValueError):
+        prompt_shuffle_delta(["a"], {"a": "a"}, PROMPTS, lambda _i, _p: RED, closeness)
+
+
+def test_nearest_train_hit_rate_flags_copied_train_target():
+    def distance(first, second) -> float:
+        return float(np.abs(first - second).mean())
+
+    train = [RED, BLUE]
+    other = np.full((16, 16, 3), 0.5)
+    assert nearest_train_hit_rate([RED.copy()], train, distance, tau=0.01) == 1.0
+    assert nearest_train_hit_rate([other], train, distance, tau=0.01) == 0.0
+    assert nearest_train_hit_rate([RED, other], train, distance, tau=0.01) == 0.5
+
+
+def test_quality_metrics_report_each_reward_component_separately():
+    names = ["rgb_128", "edge_128", "rgb_hist_16"]
+    scores = component_scores(RED, RED, names)
+    assert set(scores) == set(names) and "total" not in scores
+    worse = component_scores(blank_image(16), RED, names)
+    assert all(0.0 <= worse[n] <= scores[n] + 1e-9 for n in names)
+    # 独立指標は別名で返し、同一画像では1になる。
+    held = heldout_scores(RED, RED)
+    assert held["heldout_ssim64"] == pytest.approx(1.0)
+    assert heldout_scores(blank_image(16), RED)["heldout_ssim64"] < 0.9
+    from image_drawer.drawing.palette import PALETTE
+
+    color_id = 100
+    swatch = np.full((16, 16, 3), PALETTE[color_id], dtype=np.float64) / 255.0
+    assert probe_hit(swatch, color_id) is True
+    assert probe_hit(swatch, (color_id + 1) % 256) is False
+    assert probe_hit(blank_image(16), color_id) is False
+
+
+def test_reward_gain_without_heldout_gain_warning_is_raised():
+    assert reward_gain_without_heldout_gain({"rgb": 0.1}, {"heldout_ssim64": -0.2}) is True
+    assert reward_gain_without_heldout_gain({"rgb": 0.1}, {"heldout_ssim64": 0.05}) is False
+    assert reward_gain_without_heldout_gain({"rgb": -0.1}, {"heldout_ssim64": -0.2}) is False
+
+
+def test_metrics_never_load_target_inside_policy_process_boundary():
+    # Policy側の経路(rollout・policy・observation)を読み込んでも、評価の指標モジュールは読み込まれない。
+    code = (
+        "import sys; import image_drawer.training.rollout, image_drawer.training.policy, "
+        "image_drawer.training.observation; "
+        "bad=[m for m in sys.modules if m.startswith('image_drawer.generalization')]; "
+        "print(bad); sys.exit(1 if bad else 0)"
+    )
+    assert subprocess.run([sys.executable, "-c", code], capture_output=True).returncode == 0

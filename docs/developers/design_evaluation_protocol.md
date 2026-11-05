@@ -411,6 +411,18 @@ gain(i) = (1/K) Σ_k [ metric(after, i, k) − metric(before, i, k) ]
 | 5 | [Controller契約](stage_controller_contract_v2.md)は、Controllerが規則違反のActionを受理しないとする | 「受理済みActionの遵守率」を成果にせず、提案レベルの率と独立した`StageAuditor`で測る | 構造上100%になる値は、モデルの能力を示さない |
 | 6 | [Policy精度仕様](drawing_policy_accuracy_v1.md)の5節は未見のprompt（赤／青、一つ／二つ、左／右）の検査を求める | 構成的な未見promptを`prompt_probes_v1.json`の評価資産として定義し、`probe_hit_rate`と人間評価で測る | 評価の入力をユーザーに求めない |
 
+### 11.1 未決事項E1の決定（S5-5）
+
+独立指標`heldout_*`は次のとおり決めます。`metrics_v1`として凍結します。
+
+| 指標 | 扱い | 内容 |
+| --- | --- | --- |
+| `heldout_ssim64` | 必須 | 64×64の輝度で、8×8の重ならないブロックのSSIMを平均した値。学習のRewardと解像度・特徴が異なる。追加の依存はない（NumPyとPillow） |
+| `heldout_openclip_image` | 任意 | OpenCLIPの画像間コサイン類似度。`openclip` extraと重みがある場合だけ測る |
+| `heldout_openclip_text` | 任意 | 画像と文章のCLIP一致度。同上 |
+
+任意の指標を測れない場合、報告書の`unverified`に書き、測ったことにしません。G5の「`heldout_*`の少なくとも1つが改善」は、測定した指標について判定します。`nearest_train_hit_rate`の距離にも`heldout_ssim64`の差（1−SSIM）を使います。
+
 ## 12. 再現コマンド（実装後の仕様）
 
 以下は設計案です。実装前には実行できません。実行ディレクトリはリポジトリのルート、`python -m pip install -e ".[dev]"`済みを前提とします。
@@ -561,7 +573,7 @@ S5-1、S5-2、S5-3はS3のPolicyやTrainerを待たずに進められます。S5
 
 | ID | 内容 | 決める場所 |
 | --- | --- | --- |
-| E1 | 独立指標`heldout_*`の最終的な採用（SSIM、OpenCLIP画像間、画像と文章のCLIP）と依存の入れ方（extra） | S5-5 |
+| E1 | 決定済み（11.1節）。`heldout_ssim64`を必須、OpenCLIP系を任意とする | S5-5 |
 | E2 | 暫定値の根拠（test 100グループ、seed 3/5個、人間評価N_h=100など）。検出力の計算で見直す | 最初の実験の前 |
 | E3 | Rewardの成分名・範囲・画像の正規化（S3が未freeze） | S3 |
 | E4 | 色・個数・位置のprobeのうち、個数と位置の自動判定手段 | S5-5。判定できない間は人間評価のみで測る |
