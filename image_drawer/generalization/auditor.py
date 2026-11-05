@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import copy
 import math
+from collections import Counter
 from dataclasses import dataclass, field
 
 from image_drawer.drawing import DrawingEpisode, DrawingError, Engine
@@ -114,20 +115,23 @@ def _check_stage_events(events: list[DrawingAction], violations: list[AuditViola
         if event.type in ("enter_stage", "exit_stage")
     ]
     if seen != expected:
-        # 欠落と順序違反を区別し、原因を特定しやすくする。
-        if sorted(seen, key=str) == sorted(expected, key=str):
+        # 欠落・重複(余分)・順序違反を区別し、原因を特定しやすくする。
+        missing = list((Counter(expected) - Counter(seen)).elements())
+        extra = list((Counter(seen) - Counter(expected)).elements())
+        if missing or extra:
+            violations.append(
+                AuditViolation(
+                    "stage_event_missing",
+                    None,
+                    f"missing stage events: {missing}; extra or duplicated stage events: {extra}",
+                )
+            )
+        else:
             violations.append(
                 AuditViolation("stage_order", None, f"stage events are out of order: {seen}")
             )
-        else:
-            missing = [item for item in expected if item not in seen]
-            violations.append(
-                AuditViolation(
-                    "stage_event_missing", None, f"missing or duplicated stage events: {missing}"
-                )
-            )
     finishes = [event for event in events if event.type == "finish"]
-    if len(finishes) != 1 or events[-1].type != "finish":
+    if len(finishes) != 1 or not events or events[-1].type != "finish":
         violations.append(
             AuditViolation(
                 "finish", None, f"finish must appear exactly once and last (found {len(finishes)})"

@@ -145,3 +145,17 @@ def test_auditor_and_controller_agree_on_generated_episodes():
         assert result.passed, result.violations
     # Controllerが受理した結果と、監査器の判定が食い違った件数は0。
     assert audit_episode(review_episode).review_only_stages == ["base_color", "shading"]
+
+
+def test_auditor_reports_empty_episode_as_finish_violation():
+    episode = complete_episode()
+    episode.events.clear()
+    assert "finish" in codes(episode)
+
+
+def test_auditor_reports_duplicated_stage_event_with_extra_detail():
+    episode = complete_episode()
+    episode.events.insert(len(episode.events) - 1, find_event(episode, "enter_stage", "shading"))
+    violations = audit_episode(episode).violations
+    detail = next(v.detail for v in violations if v.code == "stage_event_missing")
+    assert "extra" in detail and "shading" in detail

@@ -170,6 +170,24 @@ def _group_ids_hash(group_ids: set[str]) -> str:
 
 # {
 #   責務: [
+#     _probe_pattern: probeの置換対象の検索パターンを作る
+#   ]
+#   処理: [
+#     英数字だけの語は、前後が英数字・下線でない位置だけに一致させる(catがcertificateに一致しない)。
+#     日本語など語の境界が空白で決まらない文字列は、大文字小文字を区別する完全一致の部分文字列とする
+#   ]
+# }
+def _probe_pattern(original: str) -> re.Pattern[str]:
+    if not original:
+        raise ValueError("probe original must not be empty")
+    escaped = re.escape(original)
+    if re.fullmatch(r"[A-Za-z0-9_]+", original):
+        return re.compile(rf"(?<![A-Za-z0-9_]){escaped}(?![A-Za-z0-9_])")
+    return re.compile(escaped)
+
+
+# {
+#   責務: [
 #     build_probes: probeテンプレートから、1属性だけ入れ替えたpromptを作る
 #   ]
 #   処理: [
@@ -196,7 +214,8 @@ def build_probes(items: list[EvalItem], templates: list[dict[str, str]]) -> list
             raise ValueError(f"probe base item not found: {template['base_image_id']}")
         original, replacement = template["original"], template["replacement"]
         # 宣言した属性以外を動かさないため、置換対象が一意でなければ拒否する。
-        if original == replacement or base.prompt.count(original) != 1:
+        pattern = _probe_pattern(original)
+        if original == replacement or len(pattern.findall(base.prompt)) != 1:
             raise ValueError(f"probe {template['probe_id']}: original must appear exactly once")
         probes.append(
             EvalProbe(
@@ -205,7 +224,7 @@ def build_probes(items: list[EvalItem], templates: list[dict[str, str]]) -> list
                 attribute=template["attribute"],
                 original=original,
                 replacement=replacement,
-                prompt=base.prompt.replace(original, replacement),
+                prompt=pattern.sub(lambda _match: replacement, base.prompt, count=1),
             )
         )
     return probes
