@@ -42,6 +42,7 @@ def git_repository(tmp_path: Path) -> Path:
         subprocess.run(command, cwd=tmp_path, check=True, capture_output=True)
     (tmp_path / "scripts").mkdir()
     (tmp_path / "scripts/check_agent_context.py").write_text("raise SystemExit(0)\n")
+    (tmp_path / "scripts/check_design_coverage.py").write_text("raise SystemExit(0)\n")
     (tmp_path / "test_example.py").write_text("def test_example():\n    assert True\n")
     (tmp_path / "sample.py").write_text("value = 1\n")
     subprocess.run(["git", "add", "."], cwd=tmp_path, check=True)
