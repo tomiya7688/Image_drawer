@@ -11,6 +11,7 @@
 
 - [はじめに](getting_started.md)
 - [画像だけのDatasetを登録する](image_dataset.md)
+- [汎化評価を実行して報告書を作る](evaluation.md)
 - [文章だけから描く（image-drawer-draw）](draw.md)
 - [配布物の真正性を確認する](verify_release.md)
 

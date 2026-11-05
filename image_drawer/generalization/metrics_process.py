@@ -200,7 +200,7 @@ def compute_process_metrics(samples: Sequence[ProcessSample]) -> ProcessMetrics:
 #     accepted_actions, attempts, system_events: 件数
 #     renderer_points_used, renderer_area_used: EngineのDrawingState.points_used/area_used
 #     wall_policy_seconds, wall_engine_seconds, wall_total_seconds: 実時間
-#     peak_memory_mb: 取得できなければNone(推定値を入れない)
+#     renderer_points_used など取得できない値はNone。peak_memory_mb: 取得できなければNone(推定値を入れない)
 #   ]
 # }
 @dataclass(frozen=True, slots=True)
@@ -208,10 +208,10 @@ class GenerationCost:
     accepted_actions: int
     attempts: int
     system_events: int
-    renderer_points_used: int
-    renderer_area_used: int
-    wall_policy_seconds: float
-    wall_engine_seconds: float
+    renderer_points_used: int | None
+    renderer_area_used: int | None
+    wall_policy_seconds: float | None
+    wall_engine_seconds: float | None
     wall_total_seconds: float
     peak_memory_mb: float | None = None
 

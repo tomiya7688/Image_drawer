@@ -19,8 +19,11 @@ IMPLEMENTED = [
     "design_stage_controller.md",
     "design_episode_replay.md",
     "design_data_pipeline_integration.md",
+    "design_evaluation_protocol.md",
     "design_inference_gui.md",
 ]
+# テスト名ではなく、設計書がデータ名・ファイル名・部分集合のIDとして使う語
+NOT_TEST_NAMES = {"test_xxx", "test_ledger", "test_run", "test_unseen_image", "test_unseen_prompt"}
 REF = re.compile(r"`(test_\w+)`|\b(test_\w+)\b")
 DEF = re.compile(r"^\s*(?:async\s+)?def\s+(test_\w+)", re.M)
 
@@ -37,7 +40,7 @@ def referenced(doc: Path) -> set[str]:
     out = set()
     for a, b in REF.findall(text):
         name = a or b
-        if name.endswith("_") or name in {"test_xxx"}:
+        if name.endswith("_") or name in NOT_TEST_NAMES:
             continue
         out.add(name)
     return out

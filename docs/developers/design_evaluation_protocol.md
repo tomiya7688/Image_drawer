@@ -2,7 +2,7 @@
 >
 > **目的:** Issue #72（S5）の実装設計を定める。同じ条件で学習前後を再現し、未見画像・未見promptで改善を確認する手順と、「高精度」と公表してよい条件・してはいけない条件を、検証できる形で決める。
 >
-> **状態:** 設計書。この文書の`image-drawer-evaluate`、指標、報告書、ゲートは**まだ実装されていない**。Policy、Trainer、Reward、Controllerも未実装のため、現時点では学習の効果を測定した結果は存在しない。文書が揃ったこと、CIが通ることは、モデルが絵を描けること、学習で上達したことを意味しない。
+> **状態:** 設計書。`image-drawer-evaluate`、指標、報告書、ゲートは`image_drawer/generalization/`に実装済みです（`useful_stroke_rate`、対照指標の実行配線、OpenCLIP系の独立指標を除く）。実checkpointでの評価は未実測です。Policy、Trainer、Reward、Controllerも未実装のため、現時点では学習の効果を測定した結果は存在しない。文書が揃ったこと、CIが通ることは、モデルが絵を描けること、学習で上達したことを意味しない。
 
 # 汎化評価プロトコルの実装設計（S5）
 
@@ -415,6 +415,18 @@ gain(i) = (1/K) Σ_k [ metric(after, i, k) − metric(before, i, k) ]
 | 5 | [Controller契約](stage_controller_contract_v2.md)は、Controllerが規則違反のActionを受理しないとする | 「受理済みActionの遵守率」を成果にせず、提案レベルの率と独立した`StageAuditor`で測る | 構造上100%になる値は、モデルの能力を示さない |
 | 6 | [Policy精度仕様](drawing_policy_accuracy_v1.md)の5節は未見のprompt（赤／青、一つ／二つ、左／右）の検査を求める | 構成的な未見promptを`prompt_probes_v1.json`の評価資産として定義し、`probe_hit_rate`と人間評価で測る | 評価の入力をユーザーに求めない |
 
+### 11.1 未決事項E1の決定（S5-5）
+
+独立指標`heldout_*`は次のとおり決めます。`metrics_v1`として凍結します。
+
+| 指標 | 扱い | 内容 |
+| --- | --- | --- |
+| `heldout_ssim64` | 必須 | 64×64の輝度で、8×8の重ならないブロックのSSIMを平均した値。学習のRewardと解像度・特徴が異なる。追加の依存はない（NumPyとPillow） |
+| `heldout_openclip_image` | 任意 | OpenCLIPの画像間コサイン類似度。`openclip` extraと重みがある場合だけ測る |
+| `heldout_openclip_text` | 任意 | 画像と文章のCLIP一致度。同上 |
+
+任意の指標を測れない場合、報告書の`unverified`に書き、測ったことにしません。G5の「`heldout_*`の少なくとも1つが改善」は、測定した指標について判定します。`nearest_train_hit_rate`の距離にも`heldout_ssim64`の差（1−SSIM）を使います。
+
 ## 12. 再現コマンド（実装後の仕様）
 
 以下は設計案です。実装前には実行できません。実行ディレクトリはリポジトリのルート、`python -m pip install -e ".[dev]"`済みを前提とします。
@@ -545,7 +557,7 @@ image-drawer-evaluate human-collect --pack reports/eval/human_pack --responses r
 
 ## 14. 実装手順（PRの分割）
 
-1PRは1つの目的で、変更は500行以下を目安にします。パッケージは`image_drawer/generalization/`とし、既存の`image_drawer/evaluation/`（Workflowの候補選択用）と混ぜません。
+1PRは1つの目的で、変更は500行以下を目安にします。パッケージは`image_drawer/generalization/`とし、既存の`image_drawer/evaluation/`（Workflowの候補選択用）と混ぜません。実装済みのPRは S5-1〜S5-8 です（S5-9は本書の再現手順と[ユーザー向け手順](../users/evaluation.md)）。
 
 | PR | 目的 | 主な内容 | 前提 |
 | --- | --- | --- | --- |
@@ -565,7 +577,7 @@ S5-1、S5-2、S5-3はS3のPolicyやTrainerを待たずに進められます。S5
 
 | ID | 内容 | 決める場所 |
 | --- | --- | --- |
-| E1 | 独立指標`heldout_*`の最終的な採用（SSIM、OpenCLIP画像間、画像と文章のCLIP）と依存の入れ方（extra） | S5-5 |
+| E1 | 決定済み（11.1節）。`heldout_ssim64`を必須、OpenCLIP系を任意とする | S5-5 |
 | E2 | 暫定値の根拠（test 100グループ、seed 3/5個、人間評価N_h=100など）。検出力の計算で見直す | 最初の実験の前 |
 | E3 | Rewardの成分名・範囲・画像の正規化（S3が未freeze） | S3 |
 | E4 | 色・個数・位置のprobeのうち、個数と位置の自動判定手段 | S5-5。判定できない間は人間評価のみで測る |
