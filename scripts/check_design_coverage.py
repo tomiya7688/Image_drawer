@@ -12,7 +12,7 @@ import re
 import sys
 from pathlib import Path
 
-ROOT = Path(__file__).resolve().parents[1]
+ROOT = Path.cwd()  # リポジトリ直下で実行する（worktreeごとのtestsを照合するため）
 DOCS = ROOT / "docs" / "developers"
 # 実装済みとして照合を強制する設計書。実装PRで追加する。
 IMPLEMENTED = [
