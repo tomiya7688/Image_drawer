@@ -2,7 +2,8 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from collections.abc import Sequence
+from dataclasses import dataclass, replace
 from typing import Any
 
 from . import handlers as common
@@ -24,6 +25,12 @@ from .validation import DrawingError, require_int
 RENDERER_V1 = "raster-v1"
 RENDERER_V2 = "brush-raster-v2"
 PROFILES = (RENDERER_V1, RENDERER_V2)
+MAX_GROUP_ACTIONS = 64
+PAINTING_ACTION_TYPES = ("stroke", "stroke_v2", "erase", "erase_v2")
+GROUP_SCALAR_FIELDS = (
+    "active_layer_id", "selected_color_id", "selected_brush_id", "size_level_id",
+    "opacity_level_id", "phase", "stage_id", "finished",
+)  # fmt: skip
 
 
 # {
@@ -100,6 +107,53 @@ class Engine:
         return applied
 
     # {
+    #   責務: [ apply_group: 1〜64件のActionを全件成功か全件不変で適用する（画素を変えるActionは不可） ]
+    #   処理: [
+    #     1: 件数と種別（stroke/erase系は不可）を確認
+    #     2: レイヤー一覧・可視性・選択状態・工程・終了状態・履歴長を保存
+    #     3: 順にapplyし、1件でも失敗したら保存した状態へ戻して再送出
+    #   ]
+    #   引数: [ actions: 適用するDrawingAction列 ]
+    #   戻り値: [ applied: seq・time_msを確定したActionの列 ]
+    #   エラー: [ DrawingError: 件数・種別違反、またはいずれかのActionの失敗（状態は不変） ]
+    # }
+    def apply_group(self, actions: Sequence[DrawingAction]) -> list[DrawingAction]:
+        if not 1 <= len(actions) <= MAX_GROUP_ACTIONS:
+            raise DrawingError(f"group must contain 1..{MAX_GROUP_ACTIONS} actions")
+        if any(action.type in PAINTING_ACTION_TYPES for action in actions):
+            raise DrawingError("painting actions cannot be part of a group")
+        snapshot = self._snapshot_group_state()
+        try:
+            return [self.apply(action) for action in actions]
+        except Exception:
+            self._restore_group_state(snapshot)
+            raise
+
+    # {
+    #   責務: [ _snapshot_group_state: 画素以外の可変状態を保存する（グループは画素を変えないため複製不要） ]
+    # }
+    def _snapshot_group_state(self) -> dict[str, Any]:
+        state = self.state
+        return {
+            "layers": list(state.layers),
+            "visible": [layer.visible for layer in state.layers],
+            "history_length": len(state.history),
+            "scalars": {name: getattr(state, name) for name in GROUP_SCALAR_FIELDS},
+        }
+
+    # {
+    #   責務: [ _restore_group_state: _snapshot_group_stateの内容へ状態を戻す ]
+    # }
+    def _restore_group_state(self, snapshot: dict[str, Any]) -> None:
+        state = self.state
+        state.layers[:] = snapshot["layers"]
+        for layer, visible in zip(state.layers, snapshot["visible"]):
+            layer.visible = visible
+        del state.history[snapshot["history_length"] :]
+        for name, value in snapshot["scalars"].items():
+            setattr(state, name, value)
+
+    # {
     #   責務: [ apply_event: Episodeのevent辞書を読み込んで適用する ]
     # }
     def apply_event(self, event: Any) -> DrawingAction:
@@ -143,7 +197,7 @@ class Engine:
             raise DrawingError(f"unknown actor: {action.actor!r}")
         if type(action.type) is not str or not isinstance(action.payload, dict):
             raise DrawingError("action type must be a string and payload an object")
-        return DrawingAction(action.type, action.payload, action.actor, seq, time_ms)
+        return replace(action, seq=seq, time_ms=time_ms)
 
     # {
     #   責務: [ _dispatch: 種別を今のprofileで許されるハンドラへ振り分ける ]
@@ -155,7 +209,7 @@ class Engine:
         shared = {
             "select_layer": lambda: common.handle_select_layer(state, payload),
             "select_color": lambda: common.handle_select_color(state, payload),
-            "finish": lambda: common.handle_finish(state, payload),
+            "finish": lambda: common.handle_finish(state, payload, is_v2),
             "create_layer": lambda: common.handle_create_layer(state, payload, is_v2),
         }
         v1_only = {
@@ -170,6 +224,10 @@ class Engine:
             "stroke_v2": lambda: strokes.handle_stroke_v2(state, payload, catalog, False),
             "erase_v2": lambda: strokes.handle_stroke_v2(state, payload, catalog, True),
             "set_layer_visibility": lambda: common.handle_set_layer_visibility(state, payload),
+            "enter_stage": lambda: common.handle_enter_stage(state, payload),
+            "exit_stage": lambda: common.handle_exit_stage(state, payload),
+            "advance_stage": lambda: common.handle_advance_stage(state, payload),
+            "clear_active_layer": lambda: common.handle_clear_active_layer(state, payload),
         }
         table = {**shared, **(v2_only if is_v2 else v1_only)}
         handler = table.get(action_type)

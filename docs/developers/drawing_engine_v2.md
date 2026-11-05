@@ -18,7 +18,7 @@
 
 v1のAction（`create_layer`/`select_layer`/`set_phase`/`select_color`/`select_brush`/`stroke`/`erase`/`finish`）は`drawing_process_v1.md`のとおりに処理し、`tests/fixtures/drawing_process_v1`の全goldenと画素一致します。
 
-v2のAction: `create_layer{layer_id,name,role}`、`select_layer`、`select_color`、`select_brush`、`set_brush_params{size_level_id,opacity_level_id}`、`stroke_v2{samples}`、`erase_v2{samples}`、`set_layer_visibility{layer_id,visible}`、`finish`。v1とv2で受理する種別は混ぜません（例: v2は`set_phase`と`stroke`を拒否します）。
+v2のAction: `create_layer{layer_id,name,role}`、`select_layer`、`select_color`、`select_brush`、`set_brush_params{size_level_id,opacity_level_id}`、`stroke_v2{samples}`、`erase_v2{samples}`、`set_layer_visibility{layer_id,visible}`、`finish`。v1とv2で受理する種別は混ぜません（例: v2は`set_phase`と`stroke`を拒否します）。S1bで、v2に工程マーカー`enter_stage{stage_id}`・`exit_stage{stage_id}`・`advance_stage{}`または`{review_reason}`・`clear_active_layer{}`と、`Engine.apply_group`（1〜64件を全件成功か全件不変で適用。画素を変えるActionは不可）を追加しました。マーカーは画素を変えず、工程の順序は判定しません（順序の強制は`image_drawer/drawing/stage/`のStageController）。v2の`finish`は工程設定済みなら`stage_id`を`finish`にします。`DrawingAction`の`stage_id`・`group`は注釈で、`to_dict`には含めません。
 
 ## 2. v2の数値カーネル（本書で決めた式）
 

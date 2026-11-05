@@ -1,6 +1,6 @@
 > **対象読者：** 固定工程を実装する人・契約テストを書く人
 > **目的：** [初見向けの7工程表](fixed_drawing_workflow_v2.md)を、実装差のない状態遷移・レイヤー・失敗処理に落とす。
-> **状態：** v2設計案。実際のStageControllerは**未実装**。画像を用いた自己描画学習も未実装。
+> **状態：** v2設計案。StageControllerはS1b（Issue #67）で`image_drawer/drawing/stage/`に実装済み（マージ前）。Episode v2の保存・Replayerは未実装。画像を用いた自己描画学習も未実装。
 
 # 工程Controllerの動作契約 v2
 
@@ -130,8 +130,8 @@ Controllerが自動発行したイベントは`actor=system`、AI自身の描画
 
 ## 8. 実装前に揃えるもの
 
-- **現在できたもの**：機械可読な[Stage JSON](drawing_stage_workflow_v2.json)、この契約、[独立した静的契約テスト](../../tests/test_drawing_stage_workflow_design.py)。
-- **まだ必要なもの**：Episode v2 JSON Schema（systemイベント・グループの原子性・stage_id・layer.role・表示フラグ）、v2 StageController/Action validator、v2 Rendererの決定的な筆跡Golden、StyleIntentのversion付き判定、Action予算の実装と回復試験、Policy/Reward/学習器の実体。
+- **現在できたもの**：実装済みの[StageController](../../image_drawer/drawing/stage/controller.py)と受け入れテスト（`tests/test_stage_*.py`。工程順・原子的グループ・レイヤー権限・レビュー退出・StyleIntent・Action/attempt予算・決定性・目標画像の隔離）、機械可読な[Stage JSON](drawing_stage_workflow_v2.json)、この契約、[独立した静的契約テスト](../../tests/test_drawing_stage_workflow_design.py)。
+- **まだ必要なもの**：Episode v2 JSON Schema（systemイベント・グループの原子性・stage_id・layer.role・表示フラグ）、v2 Rendererの決定的な筆跡Golden、Policy/Reward/学習器の実体。
 - **合格条件**：静的チェックに加え、実際のControllerが受け付けたAction列をReplayし、同じRGBA/レイヤー/表示状態へ戻ること。新しいControllerを実装していないのに静的テストだけで「動作確認済み」と報告しない。
 
 **規範的なID・順序・権限は[Stage JSON](drawing_stage_workflow_v2.json)を優先**。初見の説明は[固定制作工程](fixed_drawing_workflow_v2.md)が正本。不一致を見つけたら黙って片方を解釈せず、仕様とテストを同じPRで修正する。
