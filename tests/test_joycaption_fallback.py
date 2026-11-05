@@ -18,7 +18,7 @@ from image_drawer.prompting.registry import PreprocessorRegistry
 from image_drawer.prompting.tagger_http import HTTPTagProvider
 
 ROOT = Path(__file__).resolve().parents[1]
-SETTINGS = ROOT / "docs/users/preprocessor_settings.example.json"
+SETTINGS = ROOT / "docs/users/preprocessor_settings.high.example.json"
 JOYCAPTION_ID = "fancyfeast/llama-joycaption-beta-one-hf-llava"
 
 
