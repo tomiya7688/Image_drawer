@@ -115,14 +115,14 @@ Tags:    Tagger A → Tagger B → Tagger C → …
 
 独立したVerifierを登録できる。候補に見えない事実を足していないか・重要事実が欠けていないかを画像と照合する。ただしVerifierも誤るので\`verified_by_model\`は絶対的正解ではない。**最後のCaptionモデルが有効な文章を生成し、Verifierだけが拒否した場合**は\`verifier_refused_unverified\`として未照合扱いで保持する。
 
-### 5.1 標準フォールバックモデルの調査・決定（2026-11-05）
+### 5.1 旧大型モデル選定と高設定の位置づけ（2026-11-05）
 
-学習用画像説明の低拒否率モデルとして、**JoyCaption Beta One**（`fancyfeast/llama-joycaption-beta-one-hf-llava`）を標準の**img2txtフォールバックに採用**する。初段の標準設定例には`Qwen/Qwen3-VL-8B-Instruct`を置くが、モデル名や切替段数は固定しない。
+学習用画像説明の低拒否率モデルとして**JoyCaption Beta One**（`fancyfeast/llama-joycaption-beta-one-hf-llava`）を検討し、大型モデルの組み合わせを**高設定**として保存する。8GB VRAMを前提とする通常設定は次節5.2を正本とする。
 
 | モデル | 調査した根拠・制限 | 判断 |
 | --- | --- | --- |
 | **JoyCaption Beta One** | 作者がSFW・NSFW双方と写真・アニメ等の幅広い画像への対応を明示。Diffusion学習用の文章生成に特化。自然文で応答し、複数対象・左右・OCRに既知の誤り、まれな拒否あり | **標準フォールバック** |
-| `Felldude/Qwen3-VL-8B-Instruct-Uncensored-V2` | Apache 2.0表記のNSFW向け調整モデル。作者は画像を動画として説明する不具合を報告。VRAM24GB以上 | **JoyCaption拒否時の標準第3段** |
+| `Felldude/Qwen3-VL-8B-Instruct-Uncensored-V2` | Apache 2.0表記のNSFW向け調整モデル。作者は画像を動画として説明する不具合を報告。VRAM24GB以上 | **高設定の第3段** |
 | `GitMylo/nsfwcaption-qwen3-vl-8b-v2-safetensors` | 作者はキャプション用途の低拒否率を明記。ただし人物やキャラクター名を取り違える旨を報告 | ユーザー追加候補 |
 | `Qwen/Qwen3-VL-8B-Instruct` | 汎用画像理解とOpenAI互換推論サービスに対応。Apache 2.0のモデルカードあり | 構造化Caption初段の標準例 |
 
@@ -132,7 +132,7 @@ Tags:    Tagger A → Tagger B → Tagger C → …
 [GitMylo V2](https://huggingface.co/GitMylo/nsfwcaption-qwen3-vl-8b-v2-safetensors)・
 [Qwen3-VL](https://huggingface.co/Qwen/Qwen3-VL-8B-Instruct)。
 
-**標準チェーンは Qwen3-VL → JoyCaption Beta One → Felldude Uncensored V2。** 初段/2段が拒否・空・不正形式・一時障害になれば3段まで続け、3段も失敗したら画像をダミーCaptionで学習せず失敗を記録する。標準3段はユーザー定義のN段ルーティングに対する単なる推奨設定であり、モデル数は固定しない。
+**高設定の比較チェーンは Qwen3-VL-8B → JoyCaption Beta One（通常の重み） → Felldude Uncensored 8B V2。** 初段/2段が拒否・空・不正形式・一時障害になれば3段まで続け、3段も失敗したら画像をダミーCaptionで学習せず失敗を記録する。標準3段はユーザー定義のN段ルーティングに対する単なる推奨設定であり、モデル数は固定しない。
 
 **選定の意味**：モデル作者が明記した学習目的・対応範囲・既知の制約を根拠に、採用モデル名まで決めた。ただし画像を使った独立の精度比較や拒否率実測は行っていない。JoyCaptionが無拒否であるとの主張や、他候補を数値で下回る／上回るといった未測定の断言はしない。
 
@@ -141,6 +141,27 @@ Tags:    Tagger A → Tagger B → Tagger C → …
 Felldudeにも`adapter: "prose_caption"`という同じ自然文正規化を用い、JSON強制をしない。第3段に採用されてもそのCaptionを無条件で正しいと扱わず、特に静止画像が動画説明になった件数を品質評価する。
 
 **実行環境・権利**：JoyCaptionの公式案内はbf16でVRAM約17GB、24GB以上のGPUを推奨し、vLLMによるOpenAI互換サーバーも示している。モデルカードに`meta-llama/Llama-3.1-8B-Instruct`が基盤として記されている。JoyCaptionコードのApache 2.0とモデル重みの許諾条件は混同せず、導入時に基盤モデルの条件を確認する。Image_drawer本体へモデル重みは同梱しない。
+
+### 5.2 VRAM 8GB / RAM 32GBを通常動作基準にした変更
+
+**標準設定は [8GB向け設定JSON](../users/preprocessor_settings.example.json)。
+[高設定JSON](../users/preprocessor_settings.high.example.json)の8Bモデルを通常設定として呼び出さない。**
+
+| 処理 | 8GB向けモデル | 実行重みの目安 |
+| --- | --- | --- |
+| Caption初段 | [Qwen3-VL-4B-Instruct-GGUF](https://huggingface.co/Qwen/Qwen3-VL-4B-Instruct-GGUF) Q4_K_M | 約2.5GB + mmproj |
+| Caption第2段 | [JoyCaption Beta One GGUF](https://huggingface.co/mradermacher/llama-joycaption-beta-one-hf-llava-GGUF) Q3_K_M | 約4.02GB + mmproj |
+| Caption第3段 | [Felldude Qwen3-VL-4B Uncensored GGUF](https://huggingface.co/mradermacher/Qwen3-VL-4B-Instruct-Uncensored-GGUF) Q4_K_M | 約2.5GB + mmproj |
+| Tagger | Qwen3-VL-4B → Felldude 4B | **同じ重みで別の画像推論を実行** |
+
+- 大型8BモデルをVRAMへ同時常駐させない。**llama.cpp routerの`--models-max 1`でロード数を1**に制限し、`-c 4096 -np 1`でコンテキストと同時推論を抑える。GPUへ入り切らない場合はCPUへ一部を配置する。RAM32GBがあってもVRAM不足が必ず解決するとは限らない。
+- JoyCaption量子化重みと**画像投影器の配布元が異なる**ため、[必要な6ファイルのみを取得するセットアップスクリプト](../../scripts/setup_local_8g_models.py)で同じサブディレクトリへ置く。モデル名はllama.cppの`/models`で確認する。
+- `vision_tagger` Adapterは、Captionの出力をTagへ流用するのではなく、**画像をもう一度VLMへ送る**。TaggerのJSONは`TagNormalizer`と`TagFormatter`に渡す。タグ用に別の8Bモデルを常時稼働させない。
+- 4B Uncensoredの[作者モデル](https://huggingface.co/Felldude/Qwen3-VL-4B-Instruct-Uncensored)はNSFW画像と文章のペアで調整したことを明示する。低拒否率は**実画像で未測定**、誤認識・無拒否の保証はしない。
+- **実8GB GPUへの導入、モデル切替時のピークVRAM、画像精度は未検証**。通常設定と高設定ではmodel ID、重み、量子化に基づきcacheを分離する。モデルの選択数Nは変更可能。
+
+Windowsの実行手順：[通常8GB環境のセットアップ](../users/preprocessing_local8g.md)。
+ソフトの前処理以外のDrawingPolicy/Trainerが8GBで学習可能かは未検証で、前処理のCI成功をtxt2img学習成功と扱わない。
 
 ## 6. タグの種類・分類・整形も独立した必須工程
 
