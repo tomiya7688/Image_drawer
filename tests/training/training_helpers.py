@@ -149,3 +149,31 @@ def run_scripted(
         config,
     )
     return runner.run_trial(PolicyInput(image_id, prompt), seed, stop_after_stage)
+
+
+# {
+#   責務: [ make_dataset: 単色の長方形を持つ合成PNGを登録したDatasetを作る(画像だけを登録する) ]
+#   戻り値: [ dataset_dir ]
+# }
+def make_dataset(root, count: int = 12):
+    from PIL import Image
+
+    from image_drawer.dataset import create_default_registry, register_images
+
+    source = root / "source"
+    source.mkdir()
+    palette = [(220, 40, 40), (40, 90, 220), (40, 170, 70), (230, 190, 30)]
+    for index in range(count):
+        image = Image.new("RGB", (32, 32), (255, 255, 255))
+        left = 2 + (index * 5) % 14
+        color = palette[index % len(palette)]
+        for x in range(left, left + 12):
+            for y in range(8, 24):
+                image.putpixel((x, y), color)
+        image.save(source / f"img_{index:02d}.png")
+    dataset_dir = root / "dataset"
+    register_images(
+        source, dataset_dir, create_default_registry(),
+        tagger_id="color-layout-tags", captioner_id="color-layout-caption",
+    )  # fmt: skip
+    return dataset_dir
