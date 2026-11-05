@@ -79,6 +79,7 @@ class PromptComposer:
         has_japanese = bool(re.search(r"[ぁ-んァ-ン一-龥]", text))
         normalized = unicodedata.normalize("NFKC", text).casefold()
         seen: set[str] = set()
+        allowed_labels = {name.casefold() for name in tags.positive_tags}
         for tag in tags.normalized.tags:
             label = tag.label.replace("_", " ").casefold().strip()
             if label in seen:
@@ -89,6 +90,10 @@ class PromptComposer:
                 continue
             if tag.confidence < self.threshold:
                 withheld.append((tag.label, "low_confidence"))
+                continue
+            # TagFormatterが品質語や禁止カテゴリを落としても復活させない。
+            if label not in allowed_labels:
+                withheld.append((tag.label, "filtered_by_formatter"))
                 continue
             phrase = _JP_ALIASES.get(label) if has_japanese else label
             if not phrase:
