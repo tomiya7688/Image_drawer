@@ -23,6 +23,8 @@ Image Drawer の最上位目的は、**AI自身が実際にブラシで描き、
 
 **学習前には画像から文章とタグを別々に自動生成し、タグを分類・整形します。ユーザーが好きなモデルを何個でも登録して切り替えられます。** [利用者向け前処理設定](docs/users/preprocessing.md)／[開発者向け抽出仕様](docs/developers/prompt_extraction_v1.md)。
 
+**通常の前処理動作基準はVRAM 8GB・メインメモリ32GBです。** [8GB向け量子化モデルと逐次ロードの手順](docs/users/preprocessing_local8g.md)を使ってください。8Bモデルを同時起動する旧設定は高設定用として保存してあります。実GPUでの動作と描画Policy自体の学習はまだ未検証です。
+
 **初見の方は [設計ガイド](docs/developers/start_here.md) から読んでください。** 「画像だけで学習」「自動タグ・prompt抽出器を切り替えられる」「ラフ→下書き→本描きの順序固定」の全体像を説明しています。詳細は[コンセプト](docs/kadoka/concept.md)と[制作過程v1](docs/developers/drawing_process_v1.md)・[受け入れ試験](docs/developers/drawing_process_acceptance.md)。既存のPart Bank・COMPOSEは補助的な素材機能であり、筆による制作行動の学習の代わりではありません。
 
 ## 文書は読者別に分かれています
