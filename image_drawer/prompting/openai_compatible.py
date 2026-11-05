@@ -5,7 +5,7 @@ from __future__ import annotations
 import base64
 import hashlib
 import json
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from urllib.error import HTTPError, URLError
 from urllib.parse import urlsplit
 from urllib.request import Request
@@ -25,7 +25,7 @@ class OpenAICompatibleVisionProvider:
     provider_id: str
     model_id: str
     endpoint: str
-    api_key: str = ""
+    api_key: str = field(default="", repr=False)  # reprや例外に鍵を出さない
     timeout_seconds: int = 120
     json_mode: bool = False
     model_revision: str = ""

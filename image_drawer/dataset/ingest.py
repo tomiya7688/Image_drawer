@@ -73,7 +73,8 @@ class IngestReport(SerializableModel):
 #     build_prompt: 説明文とタグから、学習用promptを組み立てる(PromptBuilder)
 #   ]
 #   処理: [
-#     説明文を先頭に置き、confidenceの高いタグを最大5個、括弧で補う
+#     説明文を先頭に置き、confidenceの高いタグを最大5個、括弧で補う。
+#     抽出器がin_prompt=falseと示したタグ(rating、copyright、style、metaなど)は文に使わない
 #   ]
 #   引数: [
 #     caption: CaptionExtractorの出力
@@ -84,8 +85,9 @@ class IngestReport(SerializableModel):
 #   ]
 # }
 def build_prompt(caption: str, tags: list[dict[str, Any]]) -> str:
+    usable = [tag for tag in tags if tag.get("in_prompt", True) is not False]
     labels = [
-        tag["label"] for tag in sorted(tags, key=lambda tag: (-tag["confidence"], tag["label"]))
+        tag["label"] for tag in sorted(usable, key=lambda tag: (-tag["confidence"], tag["label"]))
     ][:5]
     if caption and labels:
         return f"{caption}（{'、'.join(labels)}）"
@@ -222,6 +224,23 @@ def _write_cache(path: Path, tags: list, caption: str, issues: list[QualityIssue
 
 # {
 #   責務: [
+#     _failure_message: 抽出器の例外を品質警告の文にする。分類(kind)を持つ例外は"kind: 内容"にする
+#   ]
+#   引数: [
+#     role: "tagger" または "captioner", extractor_id: 抽出器のid, exc: 例外
+#   ]
+#   戻り値: [
+#     message: 利用者向けの説明。例外の内容にAPIキーや画像を含めない責任は抽出器にある
+#   ]
+# }
+def _failure_message(role: str, extractor_id: str, exc: Exception) -> str:
+    kind = getattr(exc, "kind", None)
+    detail = f"{kind}: {exc}" if isinstance(kind, str) and kind else str(exc)
+    return f"{role} {extractor_id}: {detail}"
+
+
+# {
+#   責務: [
 #     extract_with_cache: 抽出結果をキャッシュから再利用し、無ければ抽出して保存する
 #   ]
 #   処理: [
@@ -253,7 +272,7 @@ def extract_with_cache(
             tags = []
             issues.append(QualityIssue("extractor_invalid_output", f"tagger {tagger_id}: bad tags"))
     except Exception as exc:  # 抽出器は外部モデルを含みうるため、種類を問わず警告にする
-        issues.append(QualityIssue("extractor_failed", f"tagger {tagger_id}: {exc}"))
+        issues.append(QualityIssue("extractor_failed", _failure_message("tagger", tagger_id, exc)))
     try:
         caption = registry.captioner(captioner_id).extract(image)
         if not isinstance(caption, str):
@@ -262,7 +281,9 @@ def extract_with_cache(
                 QualityIssue("extractor_invalid_output", f"captioner {captioner_id}: not text")
             )
     except Exception as exc:
-        issues.append(QualityIssue("extractor_failed", f"captioner {captioner_id}: {exc}"))
+        issues.append(
+            QualityIssue("extractor_failed", _failure_message("captioner", captioner_id, exc))
+        )
     if not caption.strip():
         issues.append(QualityIssue("empty_caption", "caption is empty"))
     if not tags and tagger_id != DISABLED_TAGGER_ID:

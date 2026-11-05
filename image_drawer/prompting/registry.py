@@ -5,6 +5,7 @@ from __future__ import annotations
 import hashlib
 import json
 import os
+import re
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Callable, Mapping
@@ -128,6 +129,7 @@ class PreprocessorRegistry:
         self.normalizer_id = "default"
         self.formatter_id = "default"
         self.prompt_formatter_id: str | None = None
+        self.profile_id = "human-prompt-aligned-v1"
         self.adapters: dict[str, tuple[str, ModelFactory]] = {}
         self.register_adapter("openai_compatible", "caption", self._vision_adapter)
         self.register_adapter("joycaption", "caption", self._joycaption_adapter)
@@ -231,6 +233,7 @@ class PreprocessorRegistry:
             "normalizer_id",
             "formatter_id",
             "prompt_formatter_id",
+            "profile_id",
         ):
             state[name] = getattr(self, name)
         return state
@@ -335,6 +338,12 @@ class PreprocessorRegistry:
             ),
         )
         self.formatter_id = "user"
+        profile_id = settings.get("profile_id", self.profile_id)
+        if not isinstance(profile_id, str) or not re.fullmatch(
+            r"[A-Za-z0-9][A-Za-z0-9._-]{0,63}", profile_id
+        ):
+            raise ValueError("profile_idは英数字・. _ -の64文字以内で指定する")
+        self.profile_id = profile_id
         prompt_formatter_id = settings.get("prompt_formatter")
         if prompt_formatter_id is not None and not isinstance(prompt_formatter_id, str):
             raise ValueError("prompt_formatterは登録済みの整形器名(文字列)を指定する")
@@ -381,24 +390,59 @@ class PreprocessorRegistry:
         self.tag_chain = tuple(tag_chain)
         self.verifier_id = verifier_id
 
-    def build(self) -> ImageTrainingPreprocessor:
-        if not self.caption_chain or not self.tag_chain:
-            raise ValueError("CaptionとTaggerの両方にモデルchainが必要")
-        caption = ImagePromptPipeline(
+    # {
+    #   責務: [
+    #     build_caption_pipeline: 設定したCaption chainと検証器から、文章抽出のPipelineを作る
+    #   ]
+    #   戻り値: [
+    #     pipeline: ImagePromptPipeline(profile_idは設定のprofile_id)
+    #   ]
+    #   エラー: [
+    #     ValueError: Caption chainが未設定
+    #   ]
+    # }
+    def build_caption_pipeline(self) -> ImagePromptPipeline:
+        if not self.caption_chain:
+            raise ValueError("Caption chainが未設定")
+        return ImagePromptPipeline(
             providers=[self.caption_models[name] for name in self.caption_chain],
             verifier=self.verifiers.get(self.verifier_id) if self.verifier_id else None,
+            profile_id=self.profile_id,
         )
-        tagger = TaggingPipeline(
+
+    # {
+    #   責務: [
+    #     build_tag_pipeline: 設定したTagger chainから、タグ抽出のPipelineを作る
+    #   ]
+    #   戻り値: [
+    #     pipeline: TaggingPipeline
+    #   ]
+    #   エラー: [
+    #     ValueError: Tagger chainが未設定
+    #   ]
+    # }
+    def build_tag_pipeline(self) -> TaggingPipeline:
+        if not self.tag_chain:
+            raise ValueError("Tagger chainが未設定")
+        return TaggingPipeline(
             [self.tag_models[name] for name in self.tag_chain],
             normalizer=self.normalizers[self.normalizer_id],
             formatter=self.formatters[self.formatter_id],
         )
+
+    def build(self) -> ImageTrainingPreprocessor:
+        if not self.caption_chain or not self.tag_chain:
+            raise ValueError("CaptionとTaggerの両方にモデルchainが必要")
         prompt_formatter = (
             self.prompt_formatters[self.prompt_formatter_id]
             if self.prompt_formatter_id is not None
             else None
         )
-        return ImageTrainingPreprocessor(caption, tagger, prompt_formatter=prompt_formatter)
+        return ImageTrainingPreprocessor(
+            self.build_caption_pipeline(),
+            self.build_tag_pipeline(),
+            prompt_formatter=prompt_formatter,
+        )
 
     @classmethod
     def from_settings_file(cls, path: str | Path) -> PreprocessorRegistry:

@@ -29,6 +29,7 @@ class VisionResponse:
 class VisionProvider(Protocol):
     provider_id: str
     model_id: str
+    config_fingerprint: str  # 秘密を含まず、結果に影響する設定を表す(Datasetのcache_keyに使う)
 
     def describe(self, image: bytes, mime_type: str, instruction: str) -> VisionResponse:
         """画像を使った文章生成。API・ローカルQwen共通の入口。"""

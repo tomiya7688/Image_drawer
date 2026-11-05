@@ -58,6 +58,7 @@ class TagExtractionResult:
 class TagProvider(Protocol):
     provider_id: str
     model_id: str
+    config_fingerprint: str  # 秘密を含まず、結果に影響する設定を表す(Datasetのcache_keyに使う)
 
     def tag(self, image: bytes, mime_type: str) -> object:
         """Tagger独立の推論入口。VLM captionとは別に必ず実行する。"""
@@ -397,7 +398,7 @@ def _category(value: object, *, strict: bool = True) -> str:
     return category
 
 
-def _display_label(label: str) -> str:
+def display_label(label: str) -> str:
     """booru等の語区切りは空白化するが、^_^やo_oなどの顔文字は保持。"""
     if re.fullmatch(r"[A-Za-z]_[A-Za-z]", label) or not any(c.isalnum() for c in label):
         return label
@@ -431,7 +432,7 @@ class TagFormatter:
         positive: list[str] = []
         seen: set[str] = set()
         for tag in tags.tags:
-            display = _display_label(tag.label)
+            display = display_label(tag.label)
             if self.exclude_quality_fillers and display.casefold() in _QUALITY_FILLERS:
                 continue
             grouped.setdefault(tag.category, []).append(display)
