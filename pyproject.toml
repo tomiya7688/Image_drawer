@@ -41,6 +41,7 @@ include = ["image_drawer*"]
 [tool.pytest.ini_options]
 addopts = "-q"
 testpaths = ["tests"]
+markers = ["training_experiment: 数十分かかる学習実験。IMAGE_DRAWER_TRAINING_EXPERIMENT=1で手動実行する"]
 
 [tool.ruff]
 target-version = "py311"

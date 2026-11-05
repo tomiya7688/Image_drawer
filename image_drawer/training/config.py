@@ -31,8 +31,9 @@ REWARD_COMPONENTS: tuple[str, ...] = (
     "failure_penalty",
 )
 
-# 設計書4.3節: 記録・評価だけに使い、更新には使わない成分の既定値(重み0)。
-_RECORD_ONLY_COMPONENTS = frozenset({"shape", "text_match"})
+# 記録・評価だけに使い、更新には使わない成分(重み0)。outline/color/perceptualは
+# progress(potentialの差)を特徴群で分解した記録で、学習はprogressで行う(二重計上しない)。
+_RECORD_ONLY_COMPONENTS = frozenset({"shape", "outline", "color", "perceptual", "text_match"})
 
 
 # {
@@ -162,6 +163,7 @@ class TrainConfig:
     batch_images: int = 4
     seeds_per_image: int = 8
     iterations: int = 200
+    checkpoint_every: int = 50
     gamma: float = 0.99
     baseline_ema: float = 0.1
     entropy_coef: float = 0.01
@@ -186,7 +188,7 @@ class TrainConfig:
             raise ValueError("text_encoder_idは空にできません")
         for name in (
             "canvas_side", "max_actions", "batch_images", "seeds_per_image",
-            "iterations", "stroke_samples", "tail_length", "summary_side",
+            "iterations", "checkpoint_every", "stroke_samples", "tail_length", "summary_side",
         ):  # fmt: skip
             if not isinstance(getattr(self, name), int) or getattr(self, name) < 1:
                 raise ValueError(f"{name}は1以上の整数にしてください")

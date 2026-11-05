@@ -589,3 +589,20 @@ GPUと大規模モデルは本書の範囲外です。上の拡張点から後�
 | 8 | `experiment.py`、`evaluation.py`、`__main__.py`、統合試験、実測 | #69、PR7 | 8.3、8.4節。実測後の既定値調整は別PR |
 
 PR8の後、実験結果（`learned`/`not_learned`/`inconclusive`）を記録するPRを別に作ります。結果が`not_learned`なら、そのままREADMEとIssue #70に「未完成」と記録します。
+
+## 13. 実装時の差分（claude/70-trainer）
+
+契約を変えない範囲で、実装が設計書から外れた点です。`__main__.py`（CLI）と実測（PR8の実測部分）は未実装です。
+
+| 項目 | 実装 |
+| --- | --- |
+| `ObservationBuilder.build` | 引数は`(text_condition, controller, engine, budget)`。直近Actionは`ProposalResult`ではなく`controller.attempts()`から作る（拒否Actionの種別は`ProposalResult`に無いため）。`LayerBrief`に`layer_id`を含める（`select_layer`の宛先解決に必要） |
+| `DrawingPolicy` | `accumulate_entropy_grad`、`stroke_sigma`、`params_sha256()`を追加（エントロピー項とガウス幅の減衰、checkpoint照合に必要） |
+| `RewardConfig` | `outline`/`color`/`perceptual`は`progress`の特徴群別の分解で、学習重みの既定は0（二重計上しない）。学習信号は`progress`・`action_cost`・`final_bonus`・`failure_penalty`。`text_match`は未計算（常に0.0、学習重み0） |
+| `RewardBreakdown` | `attempt_index`を追加。`finish`は専用のActionが無く、7番目の`advance_stage`（refine→finish）のstepが`final_bonus`を受ける |
+| 乱数 | 状態を持たない導出（`SeedSequence([master_seed, stream, iteration, ...])`）。再開はcheckpointのiterationだけで一致するため、checkpointへ乱数状態を保存しない |
+| `ExperimentRecord` | `abort_reason`を追加。`TrainConfig.checkpoint_every`を追加。checkpointの既定の置き場所は`<output_dir>/checkpoints/` |
+| 追加ファイル | `image_ops.py`（箱フィルタ縮小。Policy側とReward側で共有）、`policy_features.py`（特徴ベクトル化）、`reward_spec.py`（`stage_reward_v2.json`の必要部分の検証付き複製。テストで正本と一致を確認） |
+| 目標画像 | `RewardTarget.image_sha256`は正規化前のファイルのハッシュで、保存済みPNGと一致しないため検証しない。非正方形は正方形へ伸ばして縮小する（暫定） |
+| 終了理由（11節） | `Trial.end_reason`は`controller.termination_reason`を写す（`finished`/`action_budget_exhausted`/`attempt_budget_exhausted`） |
+| 学習できるAction | `erase_v2`・`create_layer`・レビュー退出（`review_reason`）はv0のPolicyが出さない |

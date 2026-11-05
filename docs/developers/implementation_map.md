@@ -85,7 +85,7 @@ S2 Dataset ←→ #78 抽出（統合）─────────────�
 | 工程Controller・Episode v2・Replay（S1b・S1c） | 実装済み（PR #84・#87）。S4の永続化・実プロセス強制終了の試験は未実装 |
 | Dataset登録（S2） | 実装済み（PR #74）。基本の抽出器は画素の統計だけ |
 | 抽出パイプライン（#78）と統合（#83） | 実装済み（PR #78・#88）。実モデルでの精度と実ネットワーク接続は未検証 |
-| 学習（S3） | 前半（設定・TextEncoder・報酬特徴）は実装済み（PR #89）。後半（観測・rollout・Policy・Trainer・ClaimGate）は実装中 |
+| 学習（S3） | 前半は実装済み（PR #89）。後半（観測・Policy・Rollout・Reward・Trainer・ClaimGate）は PR #90 で実装。CLIと実測は未実装で、学習の成功は未確認 |
 | 推論・GUI（S4）・汎化評価（S5） | 設計済み（PR #81）。**コードは未実装** |
 | 旧M6〜M14（GUI・実験ランナー・探索など） | 保留（Issue #62）。S4・S5・S3に再定義 |
 
