@@ -47,6 +47,9 @@ def _read_stage(path: Path, expected_key: str) -> dict | None:
         ).hexdigest()
         if digest != actual or data.get("cache_key") != expected_key:
             return None
+        # 一時的な拒否・ネットワーク障害は次回の実行時に再試行させる。
+        if data.get("status") != "ok":
+            return None
         return data
     except (OSError, ValueError, KeyError, TypeError):
         return None
@@ -212,7 +215,10 @@ def preprocess_dataset(
         caption = caption_results[item.image_id]
         item.quality_issues = []
         if tag["status"] != "ok" or caption["status"] != "ok":
+            # 過去の抽出器が作ったタグ・Captionを今回の教師として残さない。
             item.training_prompt = ""
+            item.tags = []
+            item.caption = ""
             for stage, record in (("tags", tag), ("caption", caption)):
                 if record["status"] != "ok":
                     failures.append((item.image_id, stage, record["status"]))
@@ -256,6 +262,8 @@ def preprocess_dataset(
             count += 1
         except (PromptExtractionError, ValueError) as exc:
             item.training_prompt = ""
+            item.tags = []
+            item.caption = ""
             failures.append((item.image_id, "compose", type(exc).__name__))
             item.quality_issues.append(QualityIssue("prompt_failed", str(exc)))
 
