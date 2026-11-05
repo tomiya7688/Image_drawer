@@ -171,3 +171,19 @@ def test_runner_before_after_with_toy_policy_shows_expected_direction(tmp_path):
     assert {"rgb_128", "edge_128", "rgb_hist_16", "heldout_ssim64"} <= set(rows)
     assert rows["rgb_128"]["delta"] > 0 and rows["heldout_ssim64"]["delta"] > 0
     assert rows["rgb_128"]["n_groups"] == 2
+
+
+def test_compare_pairs_only_shared_inference_seeds_and_reports_missing_blank(tmp_path):
+    output = run_toy(
+        tmp_path, {"before": make_runner(FailingPolicy()), "after": make_runner(PaintPolicy())}
+    )
+    # beforeからk=1を欠かすと、共通のk=0だけで対応づける(位置でずらして比べない)。
+    output.generations = [
+        g for g in output.generations if not (g.condition == "before" and g.k == 1)
+    ]
+    rows = compare_conditions(output, "after", "before", resamples=50)
+    assert rows and all(r["n_items"] == 2 for r in rows)
+    # blankの指標が欠けた実行結果は、KeyErrorでなく原因の分かるエラーにする。
+    del output.blank_metrics["img1"]["rgb_128"]
+    with pytest.raises(ValueError, match="blank metric"):
+        compare_conditions(output, "after", "before", resamples=50)

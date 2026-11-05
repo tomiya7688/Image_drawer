@@ -175,6 +175,24 @@ def _make_image_sink(out: Path, side: int):
 
 
 # {
+#   責務: [ _parse_conditions: --conditionを検証し、名前 -> 指定の辞書にする ]
+#   エラー: [ ValueError: 0件、名前または指定が空、名前の重複、予約名blank ]
+# }
+def _parse_conditions(items: list[str]) -> dict[str, str]:
+    if not items:
+        raise ValueError("at least one --condition name=path is required")
+    specs: dict[str, str] = {}
+    for item in items:
+        name, _, spec = item.partition("=")
+        if not name.strip() or not spec.strip():
+            raise ValueError(f"--condition must be name=path: {item!r}")
+        if name in specs or name == "blank":
+            raise ValueError(f"--condition name is duplicated or reserved: {name}")
+        specs[name] = spec
+    return specs
+
+
+# {
 #   責務: [ _cmd_run: 規則を確認し、条件ごとに生成して結果を保存する ]
 #   処理: [ testでは凍結宣言と帳簿を要求する。失敗した生成があっても結果は保存し、終了コード1を返す ]
 # }
@@ -186,6 +204,16 @@ def _cmd_run(args: argparse.Namespace) -> int:
     from image_drawer.training.reward import RewardEvaluator
 
     eval_set = EvalSet.load(args.eval_set)
+    # 台帳に記録する前に、条件と評価集合の整合を確認する(実行不能な入力で台帳を汚さない)。
+    specs = _parse_conditions(args.condition)
+    samples = list(iter_samples(args.dataset, args.split))
+    if args.split == "test":
+        # 評価集合とDatasetが一致しなければ、部分的な結果を保存せずに実行不能とする。
+        wanted = {item.image_id for item in eval_set.items}
+        missing = sorted(wanted - {pair[0].image_id for pair in samples})
+        if missing:
+            raise ValueError(f"eval_set items are missing from the dataset test split: {missing}")
+        samples = [pair for pair in samples if pair[0].image_id in wanted]
     ledger = args.ledger or args.out.parent / LEDGER_NAME
     try:
         authorize_run(args.split, eval_set, args.freeze_manifest, ledger)
@@ -197,17 +225,7 @@ def _cmd_run(args: argparse.Namespace) -> int:
         if args.train_config
         else TrainConfig()
     )
-    conditions = {}
-    for item in args.condition:
-        name, _, spec = item.partition("=")
-        if not spec:
-            print(f"error: --condition must be name=path: {item}", file=sys.stderr)
-            return EXIT_UNRUNNABLE
-        conditions[name] = _load_runner(spec, config)
-    samples = list(iter_samples(args.dataset, args.split))
-    if args.split == "test":
-        wanted = {item.image_id for item in eval_set.items}
-        samples = [pair for pair in samples if pair[0].image_id in wanted]
+    conditions = {name: _load_runner(spec, config) for name, spec in specs.items()}
     manifest = DatasetManifest.load(args.dataset)
     groups = {image.image_id: image.group_id for image in manifest.images}
     output = run_generations(
@@ -234,7 +252,8 @@ def _cmd_compare(args: argparse.Namespace) -> int:
     from image_drawer.generalization.compare import compare_all
     from image_drawer.generalization.runner import RunOutput
 
-    output = RunOutput.from_json((args.run / "run.json").read_text(encoding="utf-8"))
+    run_path = args.run / "run.json" if args.run.is_dir() else args.run
+    output = RunOutput.from_json(run_path.read_text(encoding="utf-8"))
     unseen = None
     if args.eval_set:
         unseen = {i.image_id for i in EvalSet.load(args.eval_set).unseen_prompt_items()}

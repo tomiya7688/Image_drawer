@@ -30,21 +30,23 @@ def assert_same_hardware(output: RunOutput, first: str, second: str) -> None:
 #   責務: [
 #     _itt_scores: 条件の生成ごとの得点を、画像ごとに集める。失敗には画像のblank得点を割り当てる
 #   ]
-#   戻り値: [ scores: image_id -> [k順の得点] ]
+#   戻り値: [ scores: image_id -> {推論seedの通し番号k: 得点} ]
 # }
-def _itt_scores(output: RunOutput, condition: str, metric: str) -> dict[str, list[float]]:
+def _itt_scores(output: RunOutput, condition: str, metric: str) -> dict[str, dict[int, float]]:
     by_item: dict[str, list[GenerationResult]] = defaultdict(list)
     for generation in output.generations:
         if generation.condition == condition:
             by_item[generation.image_id].append(generation)
-    scores: dict[str, list[float]] = {}
+    scores: dict[str, dict[int, float]] = {}
     for image_id, generations in by_item.items():
         generations.sort(key=lambda g: g.k)
+        if metric not in output.blank_metrics.get(image_id, {}):
+            raise ValueError(f"blank metric {metric!r} is missing for image {image_id!r}")
         blank = output.blank_metrics[image_id][metric]
-        scores[image_id] = [
-            blank if g.failure_kind or metric not in g.metrics else g.metrics[metric]
+        scores[image_id] = {
+            g.k: blank if g.failure_kind or metric not in g.metrics else g.metrics[metric]
             for g in generations
-        ]
+        }
     return scores
 
 
@@ -89,7 +91,12 @@ def compare_conditions(
         ids = sorted(set(first) & set(second) & (item_ids if item_ids is not None else set(first)))
         if not ids:
             continue
-        gains = [mean(x - y for x, y in zip(first[i], second[i])) for i in ids]
+        # 同じ通し番号k(同じ推論seed)どうしだけを対応づける。共通のkが無い項目は比較できない。
+        shared = {i: sorted(set(first[i]) & set(second[i])) for i in ids}
+        ids = [i for i in ids if shared[i]]
+        if not ids:
+            continue
+        gains = [mean(first[i][k] - second[i][k] for k in shared[i]) for i in ids]
         delta, lower, upper = cluster_bootstrap(
             gains, [groups[i] for i in ids], resamples=resamples, rng_seed=rng_seed
         )
@@ -101,7 +108,7 @@ def compare_conditions(
                 "delta": delta,
                 "ci95": [lower, upper],
                 "win_rate": win_rate(gains),
-                "effect_size": effect_size(gains, [mean(second[i]) for i in ids]),
+                "effect_size": effect_size(gains, [mean(second[i].values()) for i in ids]),
                 "n_groups": len({groups[i] for i in ids}),
                 "n_items": len(ids),
             }

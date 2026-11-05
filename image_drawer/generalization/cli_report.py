@@ -79,6 +79,7 @@ def cmd_report(args: argparse.Namespace) -> int:
     args.out.write_text(
         json.dumps(report, ensure_ascii=False, indent=2, sort_keys=True), encoding="utf-8"
     )
+    args.markdown.parent.mkdir(parents=True, exist_ok=True)
     args.markdown.write_text(render_markdown(report), encoding="utf-8")
     print(f"report {report['report_id']}: claim_level={report['claim_level']}")
     return 0
@@ -92,20 +93,25 @@ def cmd_human_pack(args: argparse.Namespace) -> int:
 
     plan = HumanEvalPlan.from_json(args.plan.read_text(encoding="utf-8"))
     eval_set = EvalSet.load(args.eval_set)
+    images_dir = args.run / "images"
+    if not images_dir.is_dir():
+        raise ValueError(f"generated images not found: {images_dir}")
     images: dict[tuple[str, str], bytes] = {}
-    for item_id in plan.item_ids:
-        for condition_dir in (args.run / "images").iterdir():
+    for condition_dir in sorted(p for p in images_dir.iterdir() if p.is_dir()):
+        for item_id in plan.item_ids:
             path = condition_dir / f"{item_id}.png"
-            if path.exists():
+            if path.is_file():
                 images[(item_id, condition_dir.name)] = path.read_bytes()
-        sample = next(iter(images.values()), None)
-        if sample is not None:
-            import io
+    if not images:
+        raise ValueError(f"no generated images for the planned items in {images_dir}")
+    # 白紙は確認項目に使う。大きさは生成画像と同じにする。
+    import io
 
-            size = Image.open(io.BytesIO(sample)).size
-            buffer = io.BytesIO()
-            Image.new("RGB", size, (255, 255, 255)).save(buffer, format="PNG")
-            images[(item_id, "blank")] = buffer.getvalue()
+    size = Image.open(io.BytesIO(next(iter(images.values())))).size
+    buffer = io.BytesIO()
+    Image.new("RGB", size, (255, 255, 255)).save(buffer, format="PNG")
+    for item_id in plan.item_ids:
+        images[(item_id, "blank")] = buffer.getvalue()
     prompts = {item.image_id: item.prompt for item in eval_set.items}
     key_path = args.out.with_name(args.out.name + "_blind_key.json")
     count = build_human_pack(plan, images, prompts, args.out, key_path)
