@@ -5,6 +5,7 @@ prompt・タグ・Captionの手入力欄は持たない（抽出結果は閲覧�
 
 from __future__ import annotations
 
+import logging
 import queue
 import threading
 from collections.abc import Callable
@@ -20,6 +21,7 @@ from image_drawer.dataset import (
     register_images,
 )
 
+LOGGER = logging.getLogger(__name__)
 FAILURES = (OSError, ValueError, KeyError)
 
 
@@ -114,7 +116,22 @@ class RegistrationFailed:
     reason: str
 
 
-RegistrationState = RegistrationIdle | Registering | RegistrationDone | RegistrationFailed
+# {
+#   責務: [ RegistrationSummaryFailed: 登録(register_images)は成功したが、結果の概要を読めなかった ]
+# }
+@dataclass(frozen=True)
+class RegistrationSummaryFailed:
+    report: IngestReport
+    reason: str
+
+
+RegistrationState = (
+    RegistrationIdle
+    | Registering
+    | RegistrationDone
+    | RegistrationFailed
+    | RegistrationSummaryFailed
+)
 
 
 # {
@@ -133,8 +150,9 @@ class DatasetPanelModel:
         self.register = register
         self.state: RegistrationState = RegistrationIdle()
         entries = self.entries()
-        self.tagger_id = entries["tag"][0].id
-        self.captioner_id = entries["caption"][0].id
+        # 抽出器が1つも無いregistryでも落とさない。登録の開始時にエラーにする。
+        self.tagger_id: str | None = entries["tag"][0].id if entries["tag"] else None
+        self.captioner_id: str | None = entries["caption"][0].id if entries["caption"] else None
         self._messages: queue.Queue[tuple[Any, ...]] = queue.Queue()
         self._thread: threading.Thread | None = None
 
@@ -170,6 +188,8 @@ class DatasetPanelModel:
         return found
 
     def select(self, *, tagger_id: str | None = None, captioner_id: str | None = None) -> None:
+        if isinstance(self.state, Registering):
+            raise RuntimeError("登録中は抽出器を変更できません")
         if tagger_id is not None:
             self.registry.tagger(tagger_id)  # 未登録はKeyError
             self.tagger_id = tagger_id
@@ -214,13 +234,18 @@ class DatasetPanelModel:
     ) -> bool:
         if isinstance(self.state, Registering):
             return False
+        if self.tagger_id is None or self.captioner_id is None:
+            raise ValueError("TaggerまたはCaptionerが登録されていません")
         self.state = Registering()
         self._messages = queue.Queue()
+        # 選択はここで固定してワーカーへ渡す（実行中の変更を持ち込まない）。
+        ids = (self.tagger_id, self.captioner_id)
         self._thread = threading.Thread(
             target=self._work,
-            args=(Path(source_dir), Path(dataset_dir), seed, allow_external_upload, self._messages),
+            args=(Path(source_dir), Path(dataset_dir), seed, allow_external_upload, ids,
+                  self._messages),
             daemon=True,
-        )
+        )  # fmt: skip
         self._thread.start()
         return True
 
@@ -229,20 +254,30 @@ class DatasetPanelModel:
             return {}
         return {i.image_id: i.cache_key for i in DatasetManifest.load(dataset_dir).images}
 
-    def _work(self, source_dir, dataset_dir, seed, allow_external_upload, messages) -> None:
+    def _work(self, source_dir, dataset_dir, seed, allow_external_upload, ids, messages) -> None:
+        tagger_id, captioner_id = ids
         try:
             before = self._previous_keys(dataset_dir)
             report = self.register(
                 source_dir, dataset_dir, self.registry,
-                tagger_id=self.tagger_id, captioner_id=self.captioner_id, seed=seed,
+                tagger_id=tagger_id, captioner_id=captioner_id, seed=seed,
                 allow_external_upload=allow_external_upload,
             )  # fmt: skip
+        except FAILURES as error:
+            messages.put(("failed", str(error)))
+            return
+        except Exception as error:  # 想定外でもワーカーを黙って死なせない
+            LOGGER.exception("登録ワーカーで想定外の例外")
+            messages.put(("failed", f"想定外のエラー: {type(error).__name__}: {error}"))
+            return
+        try:
             summary = summarize_dataset(dataset_dir)
             updated = sum(
                 1 for r in summary.rows if before.get(r.image_id, r.cache_key) != r.cache_key
             )
-        except FAILURES as error:
-            messages.put(("failed", str(error)))
+        except Exception as error:  # 登録は済んでいるので別状態で知らせる
+            LOGGER.exception("登録後の概要の読込に失敗")
+            messages.put(("summary_failed", report, f"{type(error).__name__}: {error}"))
         else:
             messages.put(("done", report, summary, updated))
 
@@ -260,6 +295,8 @@ class DatasetPanelModel:
                 continue
             if kind == "failed":
                 self.state = RegistrationFailed(rest[0])
+            elif kind == "summary_failed":
+                self.state = RegistrationSummaryFailed(*rest)
             else:
                 self.state = RegistrationDone(*rest)
 

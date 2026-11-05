@@ -376,3 +376,146 @@ def test_dataset_panel_has_no_input_for_prompt_tags_or_captions() -> None:
     assert not [n for n in dir(DatasetPanelModel) if n.startswith(("set_", "edit", "update"))]
     with pytest.raises(dataclasses.FrozenInstanceError):
         ImageRow("a", "train", (), "", "", "", "", "", ()).caption = "x"  # type: ignore[misc]
+
+
+# --- レビュー指摘の回帰試験 ---
+
+
+def test_generation_unexpected_worker_exception_becomes_failed(tmp_path: Path) -> None:
+    from image_drawer.gui.controller import GenerationFailed
+
+    def broken(request, policies, *, cancel=None, on_progress=None):
+        raise RuntimeError("boom")
+
+    controller = make_generation(tmp_path, broken)
+    controller.start(request_for(), tmp_path / "g")
+    controller.wait(10)
+    state = controller.poll()
+    assert isinstance(state, GenerationFailed) and "boom" in state.reason
+    controller.reset()
+    assert controller.start(request_for(), tmp_path / "g2")  # 再実行できる
+    controller.wait(10)
+
+
+def test_dataset_panel_unexpected_exception_and_summary_failure_are_distinct(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from image_drawer.dataset import IngestReport
+    from image_drawer.gui import dataset_panel
+    from image_drawer.gui.dataset_panel import (
+        DatasetPanelModel,
+        RegistrationFailed,
+        RegistrationSummaryFailed,
+    )
+
+    def exploding(*args, **kwargs):
+        raise RuntimeError("boom")
+
+    model = DatasetPanelModel(register=exploding)
+    model.start(tmp_path, tmp_path / "ds")
+    model.wait(10)
+    state = model.poll()
+    assert isinstance(state, RegistrationFailed) and "boom" in state.reason
+
+    def ok(*args, **kwargs):
+        return IngestReport()
+
+    def bad_summary(_dir):
+        raise OSError("manifest unreadable")
+
+    monkeypatch.setattr(dataset_panel, "summarize_dataset", bad_summary)
+    model = DatasetPanelModel(register=ok)
+    model.start(tmp_path, tmp_path / "ds")
+    model.wait(10)
+    state = model.poll()
+    assert isinstance(state, RegistrationSummaryFailed) and "unreadable" in state.reason
+
+
+def test_dataset_panel_freezes_selection_and_rejects_select_while_registering(
+    tmp_path: Path,
+) -> None:
+    import threading
+
+    from image_drawer.dataset import IngestReport
+    from image_drawer.gui import dataset_panel
+    from image_drawer.gui.dataset_panel import DatasetPanelModel
+
+    gate, seen = threading.Event(), []
+
+    def waiting(*args, **kwargs):
+        gate.wait(5)
+        seen.append((kwargs["tagger_id"], kwargs["captioner_id"]))
+        return IngestReport()
+
+    model = DatasetPanelModel(register=waiting)
+    model.select(tagger_id="color-layout-tags")
+    model.start(tmp_path, tmp_path / "ds")
+    with pytest.raises(RuntimeError):
+        model.select(tagger_id="none")
+    gate.set()
+    model.wait(10)
+    assert seen == [("color-layout-tags", "color-layout-caption")]
+    assert dataset_panel.RegistrationSummaryFailed  # 公開されている
+
+
+def test_dataset_panel_with_empty_registry_does_not_crash() -> None:
+    from image_drawer.dataset import ExtractorRegistry
+    from image_drawer.gui.dataset_panel import DatasetPanelModel
+
+    model = DatasetPanelModel(ExtractorRegistry())
+    assert model.tagger_id is None and model.captioner_id is None
+    with pytest.raises(ValueError):
+        model.start(Path("."), Path("ds"))
+
+
+def test_gui_main_converts_run_exceptions_and_none_to_exit_codes(
+    monkeypatch: pytest.MonkeyPatch, capsys
+) -> None:
+    import image_drawer.gui as gui
+    from image_drawer.gui import app
+
+    monkeypatch.setattr(app, "run", lambda path=None: None)
+    assert gui.main([]) == 0
+    monkeypatch.setattr(app, "run", lambda path=None: 3)
+    assert gui.main([]) == 3
+
+    def boom(path=None):
+        raise RuntimeError("x")
+
+    monkeypatch.setattr(app, "run", boom)
+    assert gui.main([]) == 1 and "異常終了" in capsys.readouterr().err
+
+
+def test_tk_play_is_cancelled_on_reload_and_error_resets_the_view(tmp_path: Path) -> None:
+    tk = pytest.importorskip("tkinter")
+    try:
+        root = tk.Tk()
+    except tk.TclError as error:
+        pytest.skip(f"表示が使えないためSKIP（成功ではありません）: {error}")
+    root.withdraw()
+    view = None
+    try:
+        from image_drawer.gui.app import build_main_window
+
+        view = build_main_window(root)
+        good = str(FIXTURES / "full_seven_stage.episode.json")
+        view.open_path(good)
+        view._model().cursor.seek_index(-1)
+        view.toggle_play()
+        assert view._after_id is not None and view._playing
+        bad = tmp_path / "bad.json"
+        bad.write_text("{", encoding="utf-8")
+        view.open_path(str(bad))
+        assert view._after_id is None and not view._playing
+        assert view.history.size() == 0 and view.layers.size() == 0
+        assert all(label.cget("text") == "" for label in view.stage_labels)
+        assert view.canvas.find_all() == () and "読み込めません" in view.draft.cget("text")
+        view.open_path(good)
+        view._model().cursor.seek_index(-1)
+        view.toggle_play()
+        view.toggle_play()  # 停止
+        assert view._after_id is None
+    finally:
+        root.destroy()
+        view = None
+        gc.collect()

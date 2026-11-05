@@ -35,4 +35,9 @@ def main(argv: Sequence[str] | None = None) -> int:
     except ImportError as error:
         print(f"GUIを起動できません（tkinterが必要です）: {error}", file=sys.stderr)
         return 2
-    return app.run(args.open)
+    try:
+        code = app.run(args.open)
+    except Exception as error:  # 画面の想定外の例外を終了コードに変える
+        print(f"GUIが異常終了しました: {type(error).__name__}: {error}", file=sys.stderr)
+        return 1
+    return code if isinstance(code, int) else 0

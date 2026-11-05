@@ -23,6 +23,7 @@ from image_drawer.gui.dataset_panel import (
     Registering,
     RegistrationDone,
     RegistrationFailed,
+    RegistrationSummaryFailed,
 )
 from image_drawer.gui.viewmodel import (
     ViewerController,
@@ -54,6 +55,7 @@ class ReplayView(ttk.Frame):
         self.controller = controller or ViewerController()
         self._photo: tk.PhotoImage | None = None
         self._playing = False
+        self._after_id: str | None = None
         self._build()
 
     def _build(self) -> None:
@@ -95,6 +97,7 @@ class ReplayView(ttk.Frame):
             self.open_path(path)
 
     def open_path(self, path: str, *, policy_trained: bool | None = None) -> None:
+        self._stop_play()
         self.controller.load(path, policy_trained=policy_trained)
         self.refresh(reload=True)
 
@@ -120,27 +123,54 @@ class ReplayView(ttk.Frame):
             model.cursor.seek(model.episode.events[selected[0]].seq)
             self.refresh()
 
+    def _stop_play(self) -> None:
+        self._playing = False
+        if self._after_id is not None:
+            self.after_cancel(self._after_id)
+            self._after_id = None
+
     def toggle_play(self) -> None:
-        self._playing = not self._playing
         if self._playing:
-            self._tick()
+            self._stop_play()
+            return
+        self._playing = True
+        self._tick()
 
     def _tick(self) -> None:
+        self._after_id = None
         model = self._model()
         if not self._playing or model is None or model.cursor.index >= model.cursor.last_index:
-            self._playing = False
+            self._stop_play()
             return
         self._step(1)
-        self.after(PLAY_INTERVAL_MS, self._tick)
+        self._after_id = self.after(PLAY_INTERVAL_MS, self._tick)
+
+    def _clear_view(self) -> None:
+        """読み込めない・空のときに、前回の表示を残さず初期表示へ戻す。"""
+        self._syncing = True
+        try:
+            self.badge.config(text="")
+            self.draft.config(text="")
+            self.canvas.delete("all")
+            self._photo = None
+            self.history.delete(0, "end")
+            self.layers.delete(0, "end")
+            self.slider.config(to=0)
+            self.slider.set(-1)
+            self.brush.config(text="")
+            for label in self.stage_labels:
+                label.config(text="")
+        finally:
+            self._syncing = False
 
     def refresh(self, reload: bool = False) -> None:
         state = self.controller.state
-        if isinstance(state, ViewerLoadError):
-            self.badge.config(text="")
-            self.draft.config(text=f"読み込めません: {state.reason}")
-            return
         model = self._model()
         if isinstance(state, ViewerEmpty) or model is None:
+            self._stop_play()
+            self._clear_view()
+            if isinstance(state, ViewerLoadError):
+                self.draft.config(text=f"読み込めません: {state.reason}")
             return
         self._syncing = True
         try:
@@ -170,9 +200,16 @@ class ReplayView(ttk.Frame):
 
     def _draw_canvas(self, model: ViewerModel) -> None:
         image = model.canvas()
-        zoom = max(1, VIEW_SIDE // max(image.width, image.height))
+        side = max(image.width, image.height)
         png = encode_png_rgba(image.width, image.height, image.rgba)
-        self._photo = tk.PhotoImage(data=base64.b64encode(png)).zoom(zoom)
+        photo = tk.PhotoImage(data=base64.b64encode(png))
+        if side > VIEW_SIDE:  # 大きい画像は整数比で縮小して表示する（画素は変えない）
+            divisor = -(-side // VIEW_SIDE)
+            photo, zoom = photo.subsample(divisor), 1 / divisor
+        else:
+            zoom = max(1, VIEW_SIDE // side)
+            photo = photo.zoom(zoom)
+        self._photo = photo
         self.canvas.delete("all")
         self.canvas.create_image(0, 0, anchor="nw", image=self._photo)
         stroke = model.cursor.last_stroke()
@@ -266,8 +303,8 @@ class DatasetView(ttk.Frame):
             ttk.Label(row, text=name, width=12).pack(side="left")
             ttk.Entry(row, textvariable=self.vars[name]).pack(side="left", fill="x", expand=True)
         entries = model.entries()
-        self.tagger = tk.StringVar(value=model.tagger_id)
-        self.captioner = tk.StringVar(value=model.captioner_id)
+        self.tagger = tk.StringVar(value=model.tagger_id or "")
+        self.captioner = tk.StringVar(value=model.captioner_id or "")
         for label, variable, kind in (
             ("tagger", self.tagger, "tag"),
             ("captioner", self.captioner, "caption"),
@@ -291,17 +328,21 @@ class DatasetView(ttk.Frame):
         try:
             self.model.select(tagger_id=self.tagger.get(), captioner_id=self.captioner.get())
             seed = int(self.vars["seed"].get())
-        except (KeyError, ValueError) as error:
+        except (KeyError, ValueError, RuntimeError) as error:
             self.status.config(text=f"実行できません: {error}")
             return
         dataset = Path(self.vars["dataset"].get())
         notes = self.model.external_warnings() + self.model.selection_differences(dataset)
-        started = self.model.start(
-            Path(self.vars["source"].get()),
-            dataset,
-            seed=seed,
-            allow_external_upload=self.allow_external.get(),
-        )
+        try:
+            started = self.model.start(
+                Path(self.vars["source"].get()),
+                dataset,
+                seed=seed,
+                allow_external_upload=self.allow_external.get(),
+            )
+        except (KeyError, ValueError, RuntimeError) as error:
+            self.status.config(text=f"実行できません: {error}")
+            return
         self.status.config(text=" / ".join(notes) or "登録中")
         if started:
             self.after(POLL_INTERVAL_MS, self._poll)
@@ -312,6 +353,10 @@ class DatasetView(ttk.Frame):
             self.after(POLL_INTERVAL_MS, self._poll)
         elif isinstance(state, RegistrationFailed):
             self.status.config(text=f"実行できません: {state.reason}")
+        elif isinstance(state, RegistrationSummaryFailed):
+            self.status.config(
+                text=f"登録は完了（{state.report.added}件）、概要を読めません: {state.reason}"
+            )
         elif isinstance(state, RegistrationDone):
             summary = state.summary
             self.status.config(

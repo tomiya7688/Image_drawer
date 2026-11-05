@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 import queue
 import threading
 from collections.abc import Callable
@@ -46,6 +47,7 @@ class GenerationFailed:
 GenerationState = (
     GenerationIdle | Generating | GenerationComplete | GenerationDraft | GenerationFailed
 )
+LOGGER = logging.getLogger(__name__)
 FAILURES = (PolicyError, OutputConflictError, OSError, ValueError)
 
 
@@ -99,6 +101,9 @@ class GenerationController:
             written = write_outcome(outcome, out_dir, overwrite=overwrite)
         except FAILURES as error:
             messages.put(("failed", str(error)))
+        except Exception as error:  # 想定外でもワーカーを黙って死なせず、失敗として通知する
+            LOGGER.exception("生成ワーカーで想定外の例外")
+            messages.put(("failed", f"想定外のエラー: {type(error).__name__}: {error}"))
         else:
             messages.put(("done", outcome, written))
 

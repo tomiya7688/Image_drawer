@@ -560,6 +560,7 @@ S4-7は、[統合設計](design_data_pipeline_integration.md)のI-1（アダプ�
 | 10 | 4.2節の引数一覧 | `--checkpoint ID=SIDECAR_JSON`と`--train-config`を追加。学習済みcheckpointをPolicyとして登録する（水準Bの実行口）。`PolicyRegistry`の既定には`random-legal-v1`（未学習・テスト用、numpyが必要）だけが載る | 登録簿を外から差せる口が無いと水準Bを実行できない |
 | 11 | 6.1節の5「学習用の`RewardEvaluator`を推論経路でimportしない」 | `image_drawer/inference/`と`steps/draw_episode.py`は`RewardEvaluator`・`reward`・`dataset`をimportしない（ASTで検査）。ただしcheckpoint読込に使う`training.checkpoint`が`training.optimizer`経由で`training.reward`の型を間接的に読み込む | checkpointの形式知識を複製せず`load_checkpoint`を再利用したため |
 | 12 | 5.2節(b)「生成中は、受理されたActionごとに画面を更新」 | 生成中に更新するのは受理数と現在の工程のラベルまで。生成中のキャンバスのライブ描画は未実装で、完了後に同じファイルをReplay画面で開く | Controllerの内部Engineを公開せずに実現するため（Controller契約の変更が要る） |
+| 13 | 5.2節(a)のCanvas表示サイズは未規定 | 表示領域は320px。小さい画像は整数倍に拡大し、大きい画像は整数比で縮小して表示する（画素は変更しない）。読み込めない・空のときは前回の表示を消して初期表示へ戻す | レビュー指摘への対応 |
 
 ## 10. 未決事項
 
