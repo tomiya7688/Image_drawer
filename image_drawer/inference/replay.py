@@ -34,23 +34,31 @@ class ReplayOutput:
 
 
 # {
-#   責務: [ load_episode_file: episode.jsonまたはdraft.jsonを読み、Episodeにする ]
+#   責務: [ load_episode_document: episode.jsonまたはdraft.jsonを読み、(Episode, Draftの中断理由)を返す ]
 #   処理: [ expected_sha256があればファイルのバイト列と照合する。draft.jsonは接頭辞Episodeを取り出す ]
 #   エラー: [ OSError: 読めない, ReplayMismatchError: ハッシュ不一致・形式不正 ]
 # }
-def load_episode_file(path: str | Path, *, expected_sha256: str | None = None) -> DrawingEpisode:
+def load_episode_document(
+    path: str | Path, *, expected_sha256: str | None = None
+) -> tuple[DrawingEpisode, str | None]:
     data = Path(path).read_bytes()
     if expected_sha256 is not None and hashlib.sha256(data).hexdigest() != expected_sha256:
         raise ReplayMismatchError("Episodeファイルのハッシュが記録と一致しません")
     try:
-        text = data.decode("utf-8")
-        document = loads_strict(text)
+        document = loads_strict(data.decode("utf-8"))
         if isinstance(document, dict) and document.get("schema_version") == DRAFT_SCHEMA:
-            prefix = document.get("episode_prefix")
-            return loads_episode(json.dumps(prefix, ensure_ascii=False))
-        return loads_episode(data)
+            prefix = json.dumps(document.get("episode_prefix"), ensure_ascii=False)
+            return loads_episode(prefix), str(document.get("reason"))
+        return loads_episode(data), None
     except (DrawingError, UnicodeDecodeError, ValueError, RecursionError) as error:
         raise ReplayMismatchError(f"Episodeを検証できません: {error}") from error
+
+
+# {
+#   責務: [ load_episode_file: load_episode_documentのEpisodeだけを返す ]
+# }
+def load_episode_file(path: str | Path, *, expected_sha256: str | None = None) -> DrawingEpisode:
+    return load_episode_document(path, expected_sha256=expected_sha256)[0]
 
 
 # {
