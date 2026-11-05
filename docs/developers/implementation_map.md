@@ -85,7 +85,7 @@ S2 Dataset ←→ #78 抽出（統合）─────────────�
 | 工程Controller・Episode v2・Replay（S1b・S1c） | 実装済み（PR #84・#87）。S4の永続化・実プロセス強制終了の試験は未実装 |
 | Dataset登録（S2） | 実装済み（PR #74）。基本の抽出器は画素の統計だけ |
 | 抽出パイプライン（#78）と統合（#83） | 実装済み（PR #78・#88）。実モデルでの精度と実ネットワーク接続は未検証 |
-| 学習（S3） | 前半は実装済み（PR #89）。後半（観測・Policy・Rollout・Reward・Trainer・ClaimGate）は PR #90 で実装。CLIと実測は未実装で、学習の成功は未確認 |
+| 学習（S3） | 前半は実装済み（PR #89）。後半（観測・Policy・Rollout・Reward・Trainer・ClaimGate）は PR #90 で実装。CLIと実測は未実装で、学習の成功は未確認。ストロークは連続座標で直線が描けないため、離散線分への置換を設計済み（[design_stroke_action.md](design_stroke_action.md)、未実装） |
 | 推論・GUI（S4 #71） | 実装済み（CLI・Step・Replay/生成/Dataset画面）。**水準A（配線）まで確認**。学習済みcheckpointでの実行（水準B）と品質（水準C）は未検証。画面の操作・見た目は手動確認が必要 |
 | 汎化評価（S5） | 評価集合・帳簿・統計・監査器・工程指標・人間評価（PR #92）、画質指標・ランナー・CLI・報告書・ゲート（本ブランチ）を実装。**実checkpointでの評価は未実測**で、学習の成功・精度は未確認。`useful_stroke_rate`・`prompt_shuffle_delta`等の対照指標の実行配線とOpenCLIP系の独立指標は未実装 |
 | 旧M6〜M14（GUI・実験ランナー・探索など） | 保留（Issue #62）。S4・S5・S3に再定義 |
