@@ -82,3 +82,10 @@ def test_cli_returns_2_for_unusable_inputs(dataset_dir: Path, tmp_path: Path, ca
     bad.write_text('{"unknown_key": 1}', encoding="utf-8")
     assert main(["train", str(dataset_dir), "--config", str(bad)]) == 2
     assert main(["evaluate", str(tmp_path / "none"), "--dataset", str(dataset_dir)]) == 2
+
+
+def test_cli_evaluate_rejects_too_few_images_or_seeds(dataset_dir: Path, tmp_path: Path) -> None:
+    for flag in ("--images", "--seeds"):
+        for value in ("0", "-1"):
+            argv = ["evaluate", str(tmp_path), "--dataset", str(dataset_dir), flag, value]
+            assert main(argv) == 2

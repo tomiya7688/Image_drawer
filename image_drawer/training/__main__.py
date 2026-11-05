@@ -162,6 +162,8 @@ def _probe_evidence(
 #   戻り値: [ exit_code: 0(判定はverdictに出力) ]
 # }
 def _evaluate(args: argparse.Namespace) -> int:
+    if args.images < MIN_IMAGES or args.seeds < MIN_SEEDS:
+        raise ValueError(f"--imagesは{MIN_IMAGES}以上、--seedsは{MIN_SEEDS}以上にしてください")
     experiment_dir = Path(args.experiment_dir)
     record_path = experiment_dir / "experiment.json"
     record = json.loads(record_path.read_text(encoding="utf-8"))
