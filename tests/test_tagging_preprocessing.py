@@ -214,10 +214,11 @@ def test_user_runtime_registry_can_register_models_and_custom_formatters():
     registry.register_caption("caption", FakeCaption("c1", "v1", [sample_caption()]))
     registry.register_tagger("tags", FakeTagger("t1", "tagger", [{"tags": ["apple"]}]))
     registry.register_tag_formatter("style", TagFormatter(include_style=True))
-    registry.register_prompt_formatter(
-        "custom",
-        lambda scene, tags, seed: scene.short + " / " + ", ".join(tags.positive_tags),
-    )
+    with pytest.warns(FutureWarning):
+        registry.register_prompt_formatter(
+            "custom",
+            lambda scene, tags, seed: scene.short + " / " + ", ".join(tags.positive_tags),
+        )
     registry.configure(
         caption_chain=["caption"],
         tag_chain=["tags"],

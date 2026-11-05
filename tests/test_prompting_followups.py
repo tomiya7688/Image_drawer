@@ -147,22 +147,20 @@ def test_cli_reports_a_missing_key_as_a_settings_error(tmp_path, capsys):
     assert "KeyError" not in capsys.readouterr().err
 
 
-def test_prompt_formatter_can_be_selected_in_settings():
+def test_prompt_formatter_in_settings_is_rejected_because_it_is_deprecated():
     registry = PreprocessorRegistry()
-    registry.register_prompt_formatter("custom", lambda scene, tags, seed: "x")
-    with pytest.warns(FutureWarning, match="prompt_formatter"):
+    with pytest.warns(FutureWarning):
+        registry.register_prompt_formatter("custom", lambda scene, tags, seed: "x")
+    with pytest.raises(ValueError, match="prompt_formatter"):
         registry.load_settings(settings(prompt_formatter="custom"))
-    assert registry.prompt_formatter_id == "custom"
-    assert registry.build().prompt_formatter is registry.prompt_formatters["custom"]
-
-
-def test_unregistered_prompt_formatter_in_settings_is_rejected_and_rolled_back():
-    registry = PreprocessorRegistry()
-    with pytest.raises(ValueError, match="prompt formatter"), pytest.warns(FutureWarning):
-        registry.load_settings(settings(prompt_formatter="nope"))
-    assert registry.caption_models == {}
+    assert registry.caption_models == {} and registry.prompt_formatter_id is None
     with pytest.raises(ValueError, match="prompt_formatter"):
         registry.load_settings(settings(prompt_formatter=3))
+    registry.load_settings(settings())
+    with pytest.warns(FutureWarning):
+        registry.register_prompt_formatter("later", lambda scene, tags, seed: "y")
+    registry.configure(caption_chain=["vlm"], tag_chain=["tagger"], prompt_formatter_id="later")
+    assert registry.build().prompt_formatter is registry.prompt_formatters["later"]
 
 
 def tag_set(rating: str, *labels: tuple[str, str]) -> TagSet:

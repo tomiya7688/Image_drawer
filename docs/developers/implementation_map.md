@@ -16,7 +16,7 @@
 | 工程Controller（S1b #67） | [design_stage_controller.md](design_stage_controller.md)、[契約](stage_controller_contract_v2.md)、[固定工程](fixed_drawing_workflow_v2.md) | `image_drawer/drawing/stage/` | 設計書の受け入れテスト一覧 |
 | Episode・Replay（S1c #68） | [design_episode_replay.md](design_episode_replay.md)、[v2 schema](schemas/drawing_episode_v2.schema.json)、[v1仕様](drawing_process_v1.md)、[受け入れ試験](drawing_process_acceptance.md) | `image_drawer/drawing/episode*`、`replay*` | 同上 |
 | Dataset登録（S2 #69） | [image_dataset.md](image_dataset.md)、[入力契約](training_input_v1.json)、[データ品質](drawing_data_quality_v1.md) | `image_drawer/dataset/` | `tests/test_dataset.py` |
-| タグ・説明文の抽出（#78） | [prompt_extraction_v1.md](prompt_extraction_v1.md)、[統合方針](design_data_pipeline_integration.md) | `image_drawer/prompting/` | `tests/test_prompting_*.py` |
+| タグ・説明文の抽出（#78） | [prompt_extraction_v1.md](prompt_extraction_v1.md)、[統合方針](design_data_pipeline_integration.md) | `image_drawer/prompting/` | `tests/test_prompting_*.py`、`tests/test_dataset_prompting_integration.py`、`tests/test_external_upload_policy.py` |
 | 学習（S3 #70） | [design_trainer.md](design_trainer.md)、[Policy](drawing_policy_accuracy_v1.md)、[Reward](stage_reward_v2.md)、[画像のみ学習](image_only_learning_v1.md) | `image_drawer/training/` | 設計書の受け入れテスト一覧 |
 | 推論・GUI（S4 #71） | [design_inference_gui.md](design_inference_gui.md)、[DSL](workflow_dsl.md)、[GUI](gui.md) | `image_drawer/steps/`、`gui/`、CLI | 同上 |
 | 汎化評価（S5 #72） | [design_evaluation_protocol.md](design_evaluation_protocol.md)、[学習と評価](training_and_evaluation.md) | `image_drawer/evaluation/`（報告） | 同上 |

@@ -163,6 +163,12 @@ class PreprocessorRegistry:
         self.formatters[name] = formatter
 
     def register_prompt_formatter(self, name: str, formatter: PromptFormatter) -> None:
+        """廃止予定。診断用のtraining_prompt(seed)だけで使う。Datasetの経路では使われない。"""
+        warnings.warn(
+            "register_prompt_formatterは廃止予定です(Datasetのprompt builderに一本化)",
+            FutureWarning,
+            stacklevel=2,
+        )
         self._ensure_new(self.prompt_formatters, name)
         self.prompt_formatters[name] = formatter
 
@@ -361,11 +367,9 @@ class PreprocessorRegistry:
         if prompt_formatter_id is not None and not isinstance(prompt_formatter_id, str):
             raise ValueError("prompt_formatterは登録済みの整形器名(文字列)を指定する")
         if prompt_formatter_id is not None:
-            warnings.warn(
-                "settingsのprompt_formatterは廃止予定です。学習用promptの組み立ては"
-                "Datasetのprompt builderのversionに一本化されます",
-                FutureWarning,
-                stacklevel=3,
+            raise ValueError(
+                "settingsのprompt_formatterは廃止されました。学習用promptの組み立ては"
+                "Datasetのprompt builderのversionに一本化されています"
             )
         self.configure(
             caption_chain=settings.get("caption_chain", []),
