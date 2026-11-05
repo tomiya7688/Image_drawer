@@ -11,7 +11,7 @@
 
 txt2imgのため、画像から**内部で学習用プロンプト**を生成する。TextEncoderが文章の意味を特徴に変換し、DrawingPolicyはそれを条件に描く。外部からテキストや人間の筆跡を受け取る必要はない。
 
-画像からタグと自然言語のpromptを抽出する処理はソフト内で行う。**利用者がTagExtractorとCaptionExtractorをそれぞれ切り替えられる**ことを必須とする。内部処理は`画像 → Tag/Caption抽出 → PromptBuilder → TextEncoder → DrawingPolicy`。空文を受け取った場合は失敗を記録し、ユーザーにTXT等を追加提出させない。詳細は[画像だけで学ぶ仕様](image_only_learning_v1.md)と[データ登録・抽出器の品質仕様](drawing_data_quality_v1.md)。
+画像からタグと自然言語のpromptを抽出する処理はソフト内で行う。Datasetは[3パス前処理とTextEncoderの実装契約](dataset_preprocessing_text_encoder_v1.md)に従ってタグ→Caption→自然文への統合を別々に行う。**利用者がTagExtractorとCaptionExtractorをそれぞれ切り替えられる**ことを必須とする。内部処理は`画像 → Tag/Caption抽出 → PromptBuilder → TextEncoder → DrawingPolicy`。空文を受け取った場合は失敗を記録し、ユーザーにTXT等を追加提出させない。詳細は[画像だけで学ぶ仕様](image_only_learning_v1.md)と[データ登録・抽出器の品質仕様](drawing_data_quality_v1.md)。
 
 ## 2. 決められた工程に沿って実際に描く
 
@@ -19,10 +19,10 @@ txt2imgのため、画像から**内部で学習用プロンプト**を生成す
 
 ```text
 登録画像
-  ├─ TagExtractorが必要に応じタグを自動生成
-  └─ CaptionExtractorが説明文を自動生成
+  ├─ TagExtractorが全画像からタグを自動生成（第1パス）
+  └─ CaptionExtractorが全画像から説明文を自動生成（第2パス）
              ↓
-PromptBuilder → TextEncoder
+PromptComposer（合成・調整：第3パス）→ TextEncoder
               ↓
 Policyへ渡すのは「内部の文章特徴＋白紙＋自分の途中状態」
              ↓
