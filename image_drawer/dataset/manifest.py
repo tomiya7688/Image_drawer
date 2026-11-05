@@ -20,6 +20,10 @@ from image_drawer.dataset.models import (
 )
 
 MANIFEST_NAME = "manifest.json"
+# 後から足した任意の項目。空のときはdataset_hashの計算から除き、古いmanifestのハッシュを保つ
+_OPTIONAL_IMAGE_FIELDS = ("caption_variants", "extraction_trace")
+VARIANT_NAMES = ("short", "standard", "detailed")
+VARIANT_WEIGHTS = (0.4, 0.4, 0.2)
 
 
 # {
@@ -50,7 +54,8 @@ class DatasetManifest(SerializableModel):
     #     compute_hash: 再現性の記録に使うハッシュを計算して保存する
     #   ]
     #   処理: [
-    #     dataset_hash以外の全内容を、キー順に整えたJSONにしてSHA-256を取る
+    #     dataset_hash以外の全内容を、キー順に整えたJSONにしてSHA-256を取る。
+    #     任意の項目(caption_variants、extraction_trace)は空なら含めない
     #   ]
     #   戻り値: [
     #     digest: 16進のSHA-256
@@ -59,6 +64,10 @@ class DatasetManifest(SerializableModel):
     def compute_hash(self) -> str:
         body = self.to_dict()
         body["dataset_hash"] = ""
+        for image in body["images"]:
+            for name in _OPTIONAL_IMAGE_FIELDS:
+                if not image.get(name):
+                    image.pop(name, None)
         payload = json.dumps(body, ensure_ascii=False, sort_keys=True).encode("utf-8")
         self.dataset_hash = hashlib.sha256(payload).hexdigest()
         return self.dataset_hash
@@ -131,32 +140,76 @@ class DatasetManifest(SerializableModel):
 
 # {
 #   責務: [
+#     choose_variant: 画像ごとに決定的に、短文40%・標準文40%・詳細文20%から1つ選ぶ
+#   ]
+#   処理: [
+#     SHA256("{seed}:{image_id}")の先頭32bitを[0,1)にし、割合の累積と比べる(比率は#78の仮の分布)
+#   ]
+#   戻り値: [
+#     name: "short"、"standard"、"detailed" のいずれか
+#   ]
+# }
+def choose_variant(seed: int, image_id: str) -> str:
+    value = int(hashlib.sha256(f"{seed}:{image_id}".encode()).hexdigest()[:8], 16) / 2**32
+    cumulative = 0.0
+    for name, weight in zip(VARIANT_NAMES, VARIANT_WEIGHTS):
+        cumulative += weight
+        if value < cumulative:
+            return name
+    return VARIANT_NAMES[-1]
+
+
+def _prompt_of(image: TrainingImage, variant: str) -> str:
+    text = image.caption_variants.get(variant, "")
+    return text if text.strip() else image.training_prompt
+
+
+# {
+#   責務: [
 #     iter_samples: 指定したsplitの画像を、Policyへ渡す入力と、評価器だけが読む目標に分けて返す
 #   ]
 #   処理: [
 #     1: 学習用promptが空の画像は、品質警告に記録したまま対象から外す
 #     2: 画像1件ごとに PolicyInput(prompt) と RewardTarget(画像パス)を別の型で返す
+#     3: variant_seedを指定すると、画像ごとに決定的に文の長さを選ぶ。指定しなければprompt_variantを使う。
+#        変種が無い画像は学習用promptを使う
 #   ]
 #   引数: [
 #     dataset_dir: Datasetのディレクトリ
 #     split: train、validation、test のいずれか
+#     prompt_variant: "standard"(既定)、"short"、"detailed"
+#     variant_seed: 指定すると40:40:20で選ぶ。位置引数の契約(dataset_dir, split)は変わらない
 #   ]
 #   戻り値: [
 #     samples: (PolicyInput, RewardTarget)の組を、image_id順に返すイテレーター
 #   ]
 #   エラー: [
-#     ValueError: splitが不正
+#     ValueError: splitまたはprompt_variantが不正
 #   ]
 # }
-def iter_samples(dataset_dir: Path, split: str) -> Iterator[tuple[PolicyInput, RewardTarget]]:
+def iter_samples(
+    dataset_dir: Path,
+    split: str,
+    *,
+    prompt_variant: str = "standard",
+    variant_seed: int | None = None,
+) -> Iterator[tuple[PolicyInput, RewardTarget]]:
     if split not in SPLITS:
         raise ValueError(f"split must be one of {SPLITS}")
+    if prompt_variant not in VARIANT_NAMES:
+        raise ValueError(f"prompt_variant must be one of {VARIANT_NAMES}")
     manifest = DatasetManifest.load(dataset_dir)
     # 学習用promptが空の例は、失敗として記録した上で学習の対象から外す。外部テキストは要求しない。
     selected = [i for i in manifest.images if i.split == split and i.training_prompt.strip()]
+
+    def variant_of(image: TrainingImage) -> str:
+        if variant_seed is None:
+            return prompt_variant
+        return choose_variant(variant_seed, image.image_id)
+
     return (
         (
-            PolicyInput(image_id=image.image_id, prompt=image.training_prompt),
+            PolicyInput(image_id=image.image_id, prompt=_prompt_of(image, variant_of(image))),
             RewardTarget(
                 image_id=image.image_id,
                 image_path=str(dataset_dir / image.image_path),
