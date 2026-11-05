@@ -18,9 +18,23 @@
 | `ingest.py` | 登録、`cache_key`、キャッシュ、品質警告、グループ単位の分割 |
 | `manifest.py` | `DatasetManifest`の保存・読込・ハッシュ検証、`iter_samples` |
 | `models.py` | `TrainingImage`、`ExtractorInfo`、`PolicyInput`、`RewardTarget` |
-| `cli.py` | `image-drawer-dataset`（`register`、`extractors`、`show`） |
+| `cli.py` | `image-drawer-dataset`（`register`、`extractors`、`show`。`register`は`--extractor-settings`、`--allow-external-upload`、`--dry-run`） |
+| `extraction.py` | 抽出器の呼び出しと結果のキャッシュ。`extractor_failed`を含む結果は保存しない |
+| `prompting_adapters.py` | `image_drawer.prompting`のPipelineを抽出器として包む（`PromptingCaptionExtractor`・`PromptingTagExtractor`・`register_prompting_extractors`） |
+| `png_encode.py` | 外部へ送る正規化後の画像を、メタデータなしPNG（8MiB以下）にする |
+| `egress.py` / `upload_plan.py` | 外部送信の許可（Datasetの`dataset_config.json`・実行時の許可）、`egress.jsonl`の追記、`--dry-run`の集計 |
 
-**未実装**: 学習済みモデルを使うタグ・説明文の抽出器。基本の抽出器は画素の統計だけで、画像の内容を理解しません。
+学習済みモデルを使う抽出器は、`image_drawer.prompting`をアダプタ経由で登録して使います（[統合設計](design_data_pipeline_integration.md)）。基本の抽出器は画素の統計だけで、画像の内容を理解しません。
+
+### 任意の拡張（後方互換）
+
+抽出器は次のメソッドを**持っていれば**使われます。持たない抽出器は従来どおりです。
+
+- `extract_with_trace(image)`: `(結果, trace)`を返す。`trace`は`TrainingImage.extraction_trace["caption" / "tags"]`に保存されます（選ばれたモデル、`attempts`、`verifier_status`、`egress`＝送信の有無とホスト名）。
+- `extract_variants(image)`: `{"short", "standard", "detailed"}`を返す。`TrainingImage.caption_variants`に保存され、PromptBuilderは**v2**（タグを文へ追記しない）になります。v2のcache_keyはv1と別です。
+- `iter_samples(dataset_dir, split, *, prompt_variant="standard", variant_seed=None)`: `variant_seed`を指定すると、`SHA256("{seed}:{image_id}")`から短文40%・標準文40%・詳細文20%を決定的に選びます。
+- タグの`in_prompt`が`false`のもの（rating・作品名・画風・meta）は、v1のPromptBuilderでも文に使いません。
+- 新しい項目が空のときは`dataset_hash`の計算に含めないため、古いmanifestはそのまま読めます。
 
 ## 抽出器の契約
 

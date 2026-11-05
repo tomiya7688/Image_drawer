@@ -2,7 +2,7 @@
 >
 > **目的:** 重複している二つの実装を、どちらも捨てずに最小の境界でつなぐ方針を決める。外部のモデルAPIへ画像を送る場合の安全要件も定める。
 >
-> **状態:** 設計書。調査した2026-11-05時点で、PR #74（`image_drawer/dataset/`）とPR #78（`image_drawer/prompting/`）はどちらも`main`にマージされていない。この文書の統合用コードは**まだ存在しない**。「〜します」は実装後の仕様を意味する。外部モデルの精度や、抽出文が画像に忠実であることは、この文書では示さない。
+> **状態:** 設計書。統合用コード（`image_drawer/dataset/prompting_adapters.py`など）は Issue #83 でI-1〜I-4として実装済み。実装時の補足は9.1節に記す。調査時点（2026-11-05）では#74・#78は未マージだった。外部モデルの精度や、抽出文が画像に忠実であることは、この文書では示さない。
 
 # 画像のみのDatasetとプロンプト前処理の統合設計
 
@@ -317,11 +317,25 @@ I-3を入れる前は、外部のホストを使う設定を文書で案内し�
 | 5 | #78の`https`は任意のホストへ接続できる | 三重の許可、`allowed_hosts`、リダイレクト禁止などを追加 | 画像は非公開のデータであり得る。要件は6節 |
 | 6 | [画像のみ学習](image_only_learning_v1.md)は、キャッシュ鍵を`SHA256(image_bytes_hash, tagger…, captioner…, prompt_builder_version)`とする | S2の実装に従い、正規化versionを加える。#78の列は`model_hash`/`config_hash`に畳み込む | S2が実装しているキーが正本の意図を満たし、列の変更も検出できる |
 
+### 9.1 実装時の補足（Issue #83、設計の範囲内の具体化）
+
+| # | 内容 |
+| ---: | --- |
+| 1 | タグの`prompt`用カテゴリ（4.1節）は、`tags[]`の各要素の`in_prompt`（真偽）で表す。`PromptBuilder`は`in_prompt`が`false`のタグを文に使わない。ratingは`tags`ではなく`extraction_trace.tags.rating`に保存する |
+| 2 | `extraction_trace`は`{"caption": {...}, "tags": {...}}`の形。各`trace`は4.4節の項目（`egress`は`{"sent": bool, "hosts": [...]}`）を持つ |
+| 3 | `PromptBuilder` v2は、抽出器が`extract_variants`を持つ場合にmanifest全体で使う。変種が得られなかった画像は、v1と同じ組み立てになる |
+| 4 | 設定JSONに任意の`profile_id`（既定`human-prompt-aligned-v1`）を追加した。抽出器idの`<profile_id>`になる |
+| 5 | `register_images(..., allow_external_upload=False)`と、CLIの`--extractor-settings`（指定時の`--tagger`/`--captioner`の既定は`prompting:*`）を追加した。Datasetの設定は`dataset_config.json`の`{"external_upload": "allowed"}` |
+| 6 | 外部判定は「ホストがlocalhost・127.0.0.1・::1以外、または`data_egress`が`external`」。内部IP（プライベート・リンクローカル・予約・マルチキャスト、10進/16進表記、IPv4射影IPv6）と`.local`/`.internal`等の名前は常に拒否する。DNSで内部IPへ解決される名前は検出していない |
+| 7 | `egress.jsonl`の`status`は`ok`、または失敗の種類（HTTPエラーは`unavailable:500`のように状態コード付き）。`image_sha256`は送ったPNGのSHA-256 |
+| 8 | 応答の制限は1MiB（VLM・Tagger共通）。説明文の制御文字は不正として次のモデルへ進む |
+| 9 | `prompt_formatter`設定は、5節の「I-3で警告、I-4でエラー」に従い、I-4で`ValueError`にした（PR #78の「設定で選べるようにする」指摘は、この廃止方針が優先される）。`register_prompt_formatter`は廃止予定の警告を出して残す |
+
 ## 10. 未決事項
 
 | ID | 内容 | 決める場所 |
 | --- | --- | --- |
-| D1 | Datasetの`external_upload`設定を、manifestに入れるか、別の設定ファイルに置くか（`dataset_hash`の範囲に含めるか） | I-2、I-3 |
+| D1 | Datasetの`external_upload`設定を、manifestに入れるか、別の設定ファイルに置くか（`dataset_hash`の範囲に含めるか） | **I-3で決定: `<dataset>/dataset_config.json`に置き、manifestと`dataset_hash`には含めない**（9.1節） |
 | D2 | 外部APIの利用料金と上限の扱い（本書は金額の管理を決めない） | 運用ルール |
 | D3 | 8MiBの上限と、縮小の禁止が、実用に合うか | I-3の実測 |
 | D4 | S2のmanifestに版キーを追加するか | I-2。S2のレビュー |

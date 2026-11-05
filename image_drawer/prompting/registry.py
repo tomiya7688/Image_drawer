@@ -5,10 +5,13 @@ from __future__ import annotations
 import hashlib
 import json
 import os
+import re
+import warnings
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Callable, Mapping
 
+from ._egress_policy import validate_provider_entry
 from .core import (
     ExtractionResult,
     ImagePromptPipeline,
@@ -128,6 +131,7 @@ class PreprocessorRegistry:
         self.normalizer_id = "default"
         self.formatter_id = "default"
         self.prompt_formatter_id: str | None = None
+        self.profile_id = "human-prompt-aligned-v1"
         self.adapters: dict[str, tuple[str, ModelFactory]] = {}
         self.register_adapter("openai_compatible", "caption", self._vision_adapter)
         self.register_adapter("joycaption", "caption", self._joycaption_adapter)
@@ -159,6 +163,12 @@ class PreprocessorRegistry:
         self.formatters[name] = formatter
 
     def register_prompt_formatter(self, name: str, formatter: PromptFormatter) -> None:
+        """廃止予定。診断用のtraining_prompt(seed)だけで使う。Datasetの経路では使われない。"""
+        warnings.warn(
+            "register_prompt_formatterは廃止予定です(Datasetのprompt builderに一本化)",
+            FutureWarning,
+            stacklevel=2,
+        )
         self._ensure_new(self.prompt_formatters, name)
         self.prompt_formatters[name] = formatter
 
@@ -184,6 +194,8 @@ class PreprocessorRegistry:
             model_revision=entry.get("model_revision", ""),
             timeout_seconds=entry.get("timeout_seconds", 120),
             json_mode=entry.get("json_mode", False),
+            data_egress=entry.get("data_egress", "local"),
+            allowed_hosts=tuple(entry.get("allowed_hosts", ())),
         )
 
     @staticmethod
@@ -195,6 +207,11 @@ class PreprocessorRegistry:
 
     @staticmethod
     def _tagger_adapter(entry: dict) -> HTTPTagProvider:
+        env_name = entry.get("api_key_env", "")
+        if not isinstance(env_name, str):
+            raise ValueError("api_key_envは環境変数名を指定する")
+        if env_name and not os.environ.get(env_name):
+            raise ValueError(f"環境変数{env_name}が未設定または空です")
         return HTTPTagProvider(
             provider_id=entry["id"],
             model_id=entry["model_id"],
@@ -203,10 +220,86 @@ class PreprocessorRegistry:
             threshold=entry.get("threshold", 0.35),
             character_threshold=entry.get("character_threshold", 0.85),
             timeout_seconds=entry.get("timeout_seconds", 120),
+            api_key=os.environ.get(env_name, "") if env_name else "",
+            data_egress=entry.get("data_egress", "local"),
+            allowed_hosts=tuple(entry.get("allowed_hosts", ())),
         )
 
+    # {
+    #   責務: [
+    #     _snapshot: 設定の読込前の登録状態を控え、失敗時に戻せるようにする
+    #   ]
+    #   戻り値: [
+    #     state: 登録簿の可変な状態のコピー
+    #   ]
+    # }
+    def _snapshot(self) -> dict:
+        names = (
+            "caption_models",
+            "tag_models",
+            "verifiers",
+            "normalizers",
+            "formatters",
+            "prompt_formatters",
+            "adapters",
+        )
+        state = {name: dict(getattr(self, name)) for name in names}
+        for name in (
+            "caption_chain",
+            "tag_chain",
+            "verifier_id",
+            "normalizer_id",
+            "formatter_id",
+            "prompt_formatter_id",
+            "profile_id",
+        ):
+            state[name] = getattr(self, name)
+        return state
+
+    # {
+    #   責務: [
+    #     _restore: _snapshotで控えた状態へ登録簿を戻す
+    #   ]
+    #   引数: [
+    #     state: _snapshotの戻り値
+    #   ]
+    # }
+    def _restore(self, state: dict) -> None:
+        for name, value in state.items():
+            setattr(self, name, value)
+
+    # {
+    #   責務: [
+    #     load_settings: ユーザー設定を登録簿へ読み込む。全か無かで、途中で失敗したら登録を残さない
+    #   ]
+    #   処理: [
+    #     1: 読込前の状態を控える
+    #     2: 設定を適用する。必須項目の欠落(KeyError)や型の誤り(TypeError)は設定エラー(ValueError)にする
+    #     3: 失敗したら控えた状態へ戻して例外を伝える
+    #   ]
+    #   引数: [
+    #     settings: idraw-preprocessor-registry/v1 の設定
+    #   ]
+    #   エラー: [
+    #     ValueError: 設定が不正。登録簿は読込前のまま
+    #   ]
+    # }
     def load_settings(self, settings: Mapping) -> None:
         """ユーザー設定。画像ごとの補助ファイルではない。"""
+        state = self._snapshot()
+        try:
+            self._apply_settings(settings)
+        except KeyError as exc:
+            self._restore(state)
+            raise ValueError(f"設定に必須項目がありません: {exc.args[0]}") from exc
+        except TypeError as exc:
+            self._restore(state)
+            raise ValueError(f"設定の型が不正です: {exc}") from exc
+        except BaseException:
+            self._restore(state)
+            raise
+
+    def _apply_settings(self, settings: Mapping) -> None:
         if settings.get("schema_version") != "idraw-preprocessor-registry/v1":
             raise ValueError("未知のユーザー前処理設定バージョン")
         providers = settings.get("providers", [])
@@ -226,6 +319,7 @@ class PreprocessorRegistry:
                 kind == "caption" and configured_kind == "verifier"
             ):
                 raise ValueError("adapterとkindが一致しない")
+            validate_provider_entry(entry)
             provider = factory(entry)
             if configured_kind == "verifier":
                 self.register_verifier(entry["id"], provider)
@@ -263,10 +357,25 @@ class PreprocessorRegistry:
             ),
         )
         self.formatter_id = "user"
+        profile_id = settings.get("profile_id", self.profile_id)
+        if not isinstance(profile_id, str) or not re.fullmatch(
+            r"[A-Za-z0-9][A-Za-z0-9._-]{0,63}", profile_id
+        ):
+            raise ValueError("profile_idは英数字・. _ -の64文字以内で指定する")
+        self.profile_id = profile_id
+        prompt_formatter_id = settings.get("prompt_formatter")
+        if prompt_formatter_id is not None and not isinstance(prompt_formatter_id, str):
+            raise ValueError("prompt_formatterは登録済みの整形器名(文字列)を指定する")
+        if prompt_formatter_id is not None:
+            raise ValueError(
+                "settingsのprompt_formatterは廃止されました。学習用promptの組み立ては"
+                "Datasetのprompt builderのversionに一本化されています"
+            )
         self.configure(
             caption_chain=settings.get("caption_chain", []),
             tag_chain=settings.get("tag_chain", []),
             verifier_id=settings.get("verifier_id"),
+            prompt_formatter_id=prompt_formatter_id,
         )
 
     def configure(
@@ -305,24 +414,59 @@ class PreprocessorRegistry:
         self.tag_chain = tuple(tag_chain)
         self.verifier_id = verifier_id
 
-    def build(self) -> ImageTrainingPreprocessor:
-        if not self.caption_chain or not self.tag_chain:
-            raise ValueError("CaptionとTaggerの両方にモデルchainが必要")
-        caption = ImagePromptPipeline(
+    # {
+    #   責務: [
+    #     build_caption_pipeline: 設定したCaption chainと検証器から、文章抽出のPipelineを作る
+    #   ]
+    #   戻り値: [
+    #     pipeline: ImagePromptPipeline(profile_idは設定のprofile_id)
+    #   ]
+    #   エラー: [
+    #     ValueError: Caption chainが未設定
+    #   ]
+    # }
+    def build_caption_pipeline(self) -> ImagePromptPipeline:
+        if not self.caption_chain:
+            raise ValueError("Caption chainが未設定")
+        return ImagePromptPipeline(
             providers=[self.caption_models[name] for name in self.caption_chain],
             verifier=self.verifiers.get(self.verifier_id) if self.verifier_id else None,
+            profile_id=self.profile_id,
         )
-        tagger = TaggingPipeline(
+
+    # {
+    #   責務: [
+    #     build_tag_pipeline: 設定したTagger chainから、タグ抽出のPipelineを作る
+    #   ]
+    #   戻り値: [
+    #     pipeline: TaggingPipeline
+    #   ]
+    #   エラー: [
+    #     ValueError: Tagger chainが未設定
+    #   ]
+    # }
+    def build_tag_pipeline(self) -> TaggingPipeline:
+        if not self.tag_chain:
+            raise ValueError("Tagger chainが未設定")
+        return TaggingPipeline(
             [self.tag_models[name] for name in self.tag_chain],
             normalizer=self.normalizers[self.normalizer_id],
             formatter=self.formatters[self.formatter_id],
         )
+
+    def build(self) -> ImageTrainingPreprocessor:
+        if not self.caption_chain or not self.tag_chain:
+            raise ValueError("CaptionとTaggerの両方にモデルchainが必要")
         prompt_formatter = (
             self.prompt_formatters[self.prompt_formatter_id]
             if self.prompt_formatter_id is not None
             else None
         )
-        return ImageTrainingPreprocessor(caption, tagger, prompt_formatter=prompt_formatter)
+        return ImageTrainingPreprocessor(
+            self.build_caption_pipeline(),
+            self.build_tag_pipeline(),
+            prompt_formatter=prompt_formatter,
+        )
 
     @classmethod
     def from_settings_file(cls, path: str | Path) -> PreprocessorRegistry:

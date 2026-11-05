@@ -21,6 +21,8 @@ def main(argv: list[str] | None = None) -> int:
     try:
         registry = PreprocessorRegistry.from_settings_file(args.settings)
         result = registry.build().preprocess_file(args.image)
+    except KeyError as exc:
+        parser.exit(2, f"設定に必須項目がありません: {exc}\n")
     except (ValueError, OSError, PromptExtractionError) as exc:
         parser.exit(1, f"前処理に失敗しました: {exc}\n")
 

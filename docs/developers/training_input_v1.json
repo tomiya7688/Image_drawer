@@ -114,7 +114,9 @@
   "prompt_extraction": {
     "profile_id": "human-prompt-aligned-v1",
     "config_path": "docs/developers/prompt_extraction_v1.json",
-    "pipeline": "image_drawer.prompting.ImageTrainingPreprocessor",
+    "pipeline": "image_drawer.dataset.register_images",
+    "extractor_adapter": "image_drawer.dataset.prompting_adapters",
+    "diagnostic_pipeline": "image_drawer.prompting.ImageTrainingPreprocessor",
     "caption_pipeline": "image_drawer.prompting.ImagePromptPipeline",
     "tag_pipeline": "image_drawer.prompting.TaggingPipeline",
     "registry": "image_drawer.prompting.PreprocessorRegistry",
