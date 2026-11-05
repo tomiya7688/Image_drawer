@@ -80,11 +80,11 @@ def test_caption_fallback_and_independent_tagger_in_single_router(monkeypatch):
     assert result.formatted_tags == ("red apple", "standing")
     assert result.tags.prepared.normalized.rating == "general"
     assert requests == [
+        (FIRST, True),
+        (THIRD, True),
         (FIRST, False),
         (SECOND, False),
         (THIRD, False),
-        (FIRST, True),
-        (THIRD, True),
     ]
 
 
