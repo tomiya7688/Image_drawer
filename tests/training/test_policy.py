@@ -131,7 +131,8 @@ def test_policy_masks_kinds_by_stage() -> None:
     assert codec.legal_kinds("rough") == codec.ACTION_KINDS
     assert codec.legal_kinds("finish") == ()
     mask = codec.kind_mask(observation)
-    assert mask.all()
+    # 初期状態は道具が未選択なので、選択系3種別だけが合法(詳細はtest_legal_mask.py)。
+    assert mask.tolist() == [True, True, True, False, False, False]
     # 選べるレイヤーが無ければselect_layerの確率は厳密に0。
     no_layers = dataclasses.replace(observation, layer_summary=())
     mask = codec.kind_mask(no_layers)
@@ -150,7 +151,8 @@ def test_policy_masks_kinds_by_stage() -> None:
 def _samples(policy: ParametricPolicy) -> list[PolicySample]:
     observation, _c, _e = make_observation()
     features = build_features(observation)
-    kinds, layers = codec.kind_mask(observation), codec.layer_mask(observation)
+    # 勾配の数式の検査なので、種別は全て選べるマスクにする(実際のマスクはtest_legal_mask.py)。
+    kinds, layers = np.ones(6, dtype=bool), codec.layer_mask(observation)
     choices = [
         codec.ActionChoice(0, layer_index=0),
         codec.ActionChoice(1, color_id=17),
@@ -210,7 +212,7 @@ def test_action_codec_roundtrips_through_engine() -> None:
     choices = [
         codec.ActionChoice(0, layer_index=0),
         codec.ActionChoice(1, color_id=255),
-        codec.ActionChoice(2, brush_index=11),
+        codec.ActionChoice(2, brush_index=9),
         codec.ActionChoice(2, brush_index=0),
         codec.ActionChoice(3, size_level=18, opacity_level=10),
         codec.ActionChoice(3, size_level=0, opacity_level=0),

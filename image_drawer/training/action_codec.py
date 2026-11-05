@@ -88,9 +88,65 @@ def layer_mask(observation: Observation) -> NDArray[np.bool_]:
 
 
 # {
+#   責務: [ brush_mask: stroke_v2で使えるブラシ(mode=stroke)の真偽(長さ12)。観測に依らない定数 ]
+#   処理: [ 消去ブラシはstroke_v2で必ず拒否されるため選ばせない(erase_v2はv0の対象外) ]
+# }
+def brush_mask() -> NDArray[np.bool_]:
+    return np.array([preset.mode == "stroke" for preset in default_catalog().presets], dtype=bool)
+
+
+# {
 #   責務: [
-#     kind_mask: 選べる種別の真偽(長さ6)。選択可能なレイヤーが無ければselect_layerも、
-#     線分を1本も引けない構成ならstroke_v2も不可
+#     _has_stage_paint: 現在工程の役割レイヤーに、可視で画素が残っているか(観測のlayer_summaryだけ)
+#   ]
+#   処理: [ 工程入場時に作られる専用レイヤーは空なので、画素があれば受理済みの有効な筆跡がある ]
+# }
+def _has_stage_paint(observation: Observation, roles: Sequence[str]) -> bool:
+    return any(
+        layer.visible and layer.has_pixels and layer.role in roles
+        for layer in observation.layer_summary
+    )
+
+
+# {
+#   責務: [
+#     _stroke_since_stage_entry: 直近の受理済みadvance_stage以降に、受理済みのstroke_v2があるか
+#   ]
+#   処理: [ 工程入場のsystem eventは試行ではないので、前工程を閉じた受理済みadvance_stageで区切る ]
+# }
+def _stroke_since_stage_entry(observation: Observation) -> bool:
+    for brief in reversed(observation.action_tail):
+        if brief.accepted and brief.kind == "advance_stage":
+            return False
+        if brief.accepted and brief.kind == "stroke_v2":
+            return True
+    return False
+
+
+# {
+#   責務: [
+#     can_advance: 現在工程を通常退出できると観測から言えるか。Controllerの退出条件(有効な筆跡と
+#     残存画素)のうち、観測にある情報で判定できる範囲だけを見る。必須描画のない工程(refine)は
+#     工程入場後の受理済みstrokeを数える
+#   ]
+# }
+def can_advance(observation: Observation) -> bool:
+    table = default_stage_table()
+    if observation.stage_id not in [spec.id for spec in table.stages]:
+        return False
+    spec = table.spec(observation.stage_id)
+    if spec.min_effectful_strokes == 0:
+        return _stroke_since_stage_entry(observation)
+    return _has_stage_paint(observation, spec.layer_roles)
+
+
+# {
+#   責務: [
+#     kind_mask: 観測だけから合法と分かる種別の真偽(長さ6)。工程表の許可種別に加え、
+#     選択可能なレイヤーが無ければselect_layer、ブラシ未選択ならset_brush_params、
+#     レイヤー・色・ブラシのいずれかが未選択、または線分を1本も引けない構成ならstroke_v2、
+#     工程を抜ける筆跡がまだ無ければadvance_stageを不可にする。
+#     select_color・select_brushは常に残るので、全候補が消えることはない
 #   ]
 # }
 def kind_mask(
@@ -98,10 +154,16 @@ def kind_mask(
 ) -> NDArray[np.bool_]:
     legal = set(legal_kinds(observation.stage_id))
     mask = np.array([kind in legal for kind in ACTION_KINDS], dtype=bool)
+    tool = observation.tool_state
     if not layer_mask(observation).any():
         mask[ACTION_KINDS.index("select_layer")] = False
-    if not start_mask(stroke_shape or StrokeShape()).any():
+    if not tool.brush_selected:
+        mask[ACTION_KINDS.index("set_brush_params")] = False
+    ready = tool.layer_selected and tool.color_selected and tool.brush_selected
+    if not ready or not start_mask(stroke_shape or StrokeShape()).any():
         mask[ACTION_KINDS.index("stroke_v2")] = False
+    if mask[ACTION_KINDS.index("advance_stage")] and not can_advance(observation):
+        mask[ACTION_KINDS.index("advance_stage")] = False
     return mask
 
 
@@ -258,6 +320,8 @@ def decode_action(
         )
     if kind == "select_brush":
         index = _require_range("brush_index", choice.brush_index, len(BRUSH_IDS))
+        if not brush_mask()[index]:
+            raise ValueError(f"brush_indexはstroke_v2で使えないブラシです: {index}")
         return DrawingAction(kind, {"brush_id": BRUSH_IDS[index]})
     if kind == "set_brush_params":
         size = _require_range("size_level", choice.size_level, SIZE_LEVELS)

@@ -214,7 +214,7 @@ def test_experiment_record_counts_failures_in_denominator(
     ends = sum(v for k, v in counts.items() if k.startswith("end_"))
     assert counts["trials"] == ends == 8
     assert counts.get("end_action_budget", 0) + counts.get("end_attempt_budget", 0) > 0
-    assert counts["accepted_attempts"] + counts["rejected_attempts"] > 0
+    assert counts["accepted_attempts"] + counts.get("rejected_attempts", 0) > 0
 
 
 def test_training_is_reproducible_with_same_seed(dataset_dir: Path, tmp_path: Path) -> None:
