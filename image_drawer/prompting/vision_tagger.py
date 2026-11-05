@@ -52,9 +52,8 @@ class VisionTaggerProvider:
 
     @property
     def config_fingerprint(self) -> str:
-        value = ":".join(
-            (self.backend.config_fingerprint, _TAGGING_VERSION, TAGGING_INSTRUCTION)
-        )
+        value = self.backend.config_fingerprint + _TAGGING_VERSION
+        value += TAGGING_INSTRUCTION
         return hashlib.sha256(value.encode("utf-8")).hexdigest()
 
     # {
