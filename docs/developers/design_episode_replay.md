@@ -1,6 +1,6 @@
 > **対象読者:** Episode v2の保存・読込、Replayer、受け入れテストを実装する開発者
 > **目的:** S1c（Issue #68）で実装するEpisode v2の保存形式、厳密な読込、製品コードのReplayer、fixture、受け入れテスト、PR分割を実装前に確定する。
-> **状態:** 実装設計書。**Episode v2の保存・読込とReplayerは未実装**です。本書の「実装する」は計画であり、実装済みを意味しません。[StageController設計書](design_stage_controller.md)（S1b）の後続で、その公開名を前提にします。正本の[Controller契約](stage_controller_contract_v2.md)、[Stage JSON](drawing_stage_workflow_v2.json)、[v1仕様](drawing_process_v1.md)は変更しません。
+> **状態:** 実装設計書。Episode v2の保存・読込、構造検証、製品Replayer、7工程fixtureはS1c（Issue #68、ブランチ `claude/68-episode-replay`）で**実装済み（マージ前）**です。実装との差分は§12の末尾の表にあります。Journal・ACKを使う実行中の永続化とクラッシュ注入（S4）は未実施です。[StageController設計書](design_stage_controller.md)（S1b）の後続で、その公開名を前提にします。正本の[Controller契約](stage_controller_contract_v2.md)、[Stage JSON](drawing_stage_workflow_v2.json)、[v1仕様](drawing_process_v1.md)は変更しません。
 
 # Episode v2の保存とReplayer 実装設計（S1c）
 
@@ -467,6 +467,20 @@ fixtureは`tests/fixtures/drawing_episode_v2/`に置き、`python tests/test_rep
 | `max_actions`上限 | Stage JSONは100000 | S1bに合わせ19,900。schemaの`budget.max_actions`も同じ上限 |
 | 構造検証の範囲 | 契約§8は「Controllerが受け付けたAction列をReplayする」 | Replayerは構造と再適用だけを行い、Stage規則（有効筆跡など）を再判定しない。理由は、Controllerの内部状態（画素差分）に依存するため、Controllerを通さない原則と両立しないこと |
 | `Episode` Artifact | 監査は`Episode`型の追加を計画 | 型名`Episode`とメタデータ形式だけをS1cで定め、Artifactの組み立てと`StepResult`はS4に委ねる |
+
+### 実装時の差分（S1c）
+
+| 項目 | 設計 | 実装 |
+| --- | --- | --- |
+| 構造検証の分割 | `episode_groups.py`に集約（目安260行） | 300行制限のため、文法を`group_grammar.py`、event 1件の型・値域検査を`episode_events.py`へ分けた（Controllerのgroups・rules・progressは依然としてimportしない） |
+| `DrawingAction.to_dict/from_dict` | v2は7キー | `annotated`引数で切り替える（v1は5キーのまま） |
+| `DrawingEpisode`のimport | `stage.table`を使ってworkflow hashを照合 | `stage`パッケージの初期化が`episode`をimportするため、循環を避けて`check_workflow_identity`内で遅延importする |
+| `iter_replay`のframe | 適用のたびにframeを返す | グループ全体を適用した後に、そのグループの各eventのframeを返す。`capture()`できるのはグループ末尾のframeで、それ以外と次へ進んだ後はReplayError |
+| `replay`のheader検査 | hash・header不一致を再生前に検出 | workflow識別（id・SHA-256）と画布・seed（Engine構築）を再生前に検査する。brush/controlのhashは`to_dict`/`loads_episode`が検査する |
+| `loads_episode(recover=True)` | 末尾の未確定グループを切り詰める | 同じ。確定グループが残らない場合と、グループ以外の破損はEpisodeFormatError |
+| クラッシュ注入 | `os.replace`前などに注入 | `os.fsync`・`os.replace`・`_sync_directory`をテストで差し替え、`BaseException`で打ち切るシミュレーション。実プロセスの強制終了は未実施（S4） |
+| frames fixture | 合成画素・レイヤーRGBA・stage_id | 12×8の画布。ReplayerではなくControllerのEngine状態から記録する。`.gitattributes`でfixtureの改行変換を無効にする |
+| S1aのv2 Episodeテスト | — | v2 headerにworkflow等が必須になったため、`test_drawing_engine_v2.py`の往復テストをController由来のEpisodeに変更 |
 
 ## 13. 未決事項
 

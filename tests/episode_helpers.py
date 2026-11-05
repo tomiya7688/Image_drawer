@@ -135,3 +135,12 @@ __all__ = [
     "review_controller",
     "transition_index",
 ]
+
+
+def signature(state) -> tuple:
+    """画素・レイヤー（id・role・visible）・選択状態・工程・finishedの比較用の値。"""
+    layers = [(la.id, la.role, la.visible, bytes(la.pixels.data)) for la in state.layers]
+    return (
+        layers, state.active_layer_id, state.selected_color_id, state.selected_brush_id,
+        state.size_level_id, state.opacity_level_id, state.stage_id, state.finished,
+    )  # fmt: skip
