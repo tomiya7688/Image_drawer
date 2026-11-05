@@ -39,21 +39,16 @@ def test_default_profile_is_8gb_not_high_profile():
     }
     registry = PreprocessorRegistry.from_settings_file(STANDARD)
     pipeline = registry.build()
-    assert [m.model_id for m in pipeline.caption_pipeline.providers] == [
-        FIRST,
-        SECOND,
-        THIRD,
-    ]
+    caption_models = tuple(m.model_id for m in pipeline.caption_pipeline.providers)
+    assert caption_models == (FIRST, SECOND, THIRD)
     assert [m.model_id for m in pipeline.tag_pipeline.providers] == [FIRST, THIRD]
-    assert all(
-        isinstance(model, VisionTaggerProvider)
-        for model in pipeline.tag_pipeline.providers
-    )
+    taggers = pipeline.tag_pipeline.providers
+    assert isinstance(taggers[0], VisionTaggerProvider)
+    assert isinstance(taggers[1], VisionTaggerProvider)
     high = PreprocessorRegistry.from_settings_file(HIGH)
     assert high.caption_models["accurate-vlm"].model_id == "Qwen/Qwen3-VL-8B-Instruct"
-    assert high.caption_models["nsfw-caption-last"].model_id == (
-        "Felldude/Qwen3-VL-8B-Instruct-Uncensored-V2"
-    )
+    high_last = high.caption_models["nsfw-caption-last"]
+    assert high_last.model_id == "Felldude/Qwen3-VL-8B-Instruct-Uncensored-V2"
 
 
 def test_caption_fallback_and_independent_tagger_in_single_router(monkeypatch):
@@ -65,28 +60,21 @@ def test_caption_fallback_and_independent_tagger_in_single_router(monkeypatch):
         if is_tag:
             if self.model_id == FIRST:
                 return VisionResponse(refusal=True)
-            return VisionResponse(
-                json.dumps(
-                    {
-                        "general": {"red_apple": 0.9, "standing": 0.6},
-                        "rating": {"general": 0.99},
-                    }
-                )
-            )
+            payload = {
+                "general": {"red_apple": 0.9, "standing": 0.6},
+                "rating": {"general": 0.99},
+            }
+            return VisionResponse(json.dumps(payload))
         if self.model_id in (FIRST, SECOND):
             return VisionResponse(refusal=True)
         return VisionResponse("A red apple sits on a white table.")
 
     monkeypatch.setattr(OpenAICompatibleVisionProvider, "describe", fake_describe)
-    result = PreprocessorRegistry.from_settings_file(STANDARD).build().preprocess(
-        b"test image", "image/png"
-    )
+    registry = PreprocessorRegistry.from_settings_file(STANDARD)
+    result = registry.build().preprocess(b"test image", "image/png")
     assert result.caption.selected_model == THIRD
-    assert [a.status for a in result.caption.attempts] == [
-        "refused",
-        "refused",
-        "ok",
-    ]
+    caption_statuses = [a.status for a in result.caption.attempts]
+    assert caption_statuses == ["refused", "refused", "ok"]
     assert result.tags.model_id == THIRD
     assert [a.status for a in result.tags.attempts] == ["refused", "ok"]
     assert result.formatted_tags == ("red apple", "standing")
@@ -114,8 +102,9 @@ def test_tagger_invalid_payload_falls_back_without_fake_tags(monkeypatch, tag_pa
 
     monkeypatch.setattr(OpenAICompatibleVisionProvider, "describe", fake_describe)
     pipeline = PreprocessorRegistry.from_settings_file(STANDARD).build()
-    with pytest.raises(PromptExtractionError, match="preprocessing_failed"):
+    with pytest.raises(PromptExtractionError, match="tags:all_taggers_failed") as caught:
         pipeline.preprocess(b"test image", "image/png")
+    assert caught.value.kind == "preprocessing_failed"
 
 
 def test_changing_tagger_instruction_or_model_changes_cache_identity():
