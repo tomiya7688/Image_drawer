@@ -1,6 +1,6 @@
 > **対象読者：** 固定工程を実装する人・契約テストを書く人
 > **目的：** [初見向けの7工程表](fixed_drawing_workflow_v2.md)を、実装差のない状態遷移・レイヤー・失敗処理に落とす。
-> **状態：** v2設計案。StageControllerはS1b（Issue #67）で`image_drawer/drawing/stage/`に実装済み（マージ前）。Episode v2の保存・Replayerは未実装。画像を用いた自己描画学習も未実装。
+> **状態：** v2設計案。StageControllerはS1b（Issue #67）で`image_drawer/drawing/stage/`に実装済み（マージ前）。Episode v2の保存・Replayerは S1c（Issue #68）で実装済み（マージ前）。画像を用いた自己描画学習も未実装。
 
 # 工程Controllerの動作契約 v2
 

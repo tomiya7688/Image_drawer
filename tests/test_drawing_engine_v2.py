@@ -12,6 +12,7 @@ import sys
 from pathlib import Path
 
 import pytest
+from stage_helpers import full_run, make_controller
 
 ROOT = Path(__file__).resolve().parents[1]
 if __name__ == "__main__":
@@ -213,12 +214,11 @@ def test_eraser_only_lowers_alpha_of_the_selected_layer():
 
 
 def test_v2_episode_header_round_trip_and_checksum_guard():
-    actions = brush_actions("ink_fine")
-    engine = run_actions(actions)
-    engine.apply(DrawingAction("finish", {}, actor="synthetic"))
-    episode = DrawingEpisode(
-        "e1", "synthetic", "p", WIDTH, HEIGHT, RENDERER_V2, engine.state.history, {}, SEED
-    )
+    # v2 Episodeはworkflow・group付きの記録が必須（S1c）。Controllerが作るEpisodeで往復を確認する。
+    controller = make_controller(width=WIDTH, height=HEIGHT, seed=SEED)
+    full_run(controller)
+    episode = controller.episode()
+    assert episode.renderer_version == RENDERER_V2
     raw = episode.to_dict()
     assert DrawingEpisode.from_dict(raw).to_dict() == raw
     with pytest.raises(DrawingError):

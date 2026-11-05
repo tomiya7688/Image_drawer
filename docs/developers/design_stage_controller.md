@@ -60,7 +60,7 @@ Controllerの前提となる変更を、先に別PRで入れます。
 
 | 対象 | 変更 |
 | --- | --- |
-| `models.py` | `STAGE_IDS`（6工程）、`FINISH_STAGE_ID = "finish"`、`REVIEW_REASONS`（3コード）を定義。`EventGroup(id, index, size)`（frozen）を追加。`DrawingAction`へ`stage_id: str \| None = None`と`group: EventGroup \| None = None`を追加。`DrawingState`へ`stage_id: str \| None = None`を追加。`to_dict`/`from_dict`はこのPRでは変えません（S1c-1で拡張） |
+| `models.py` | `STAGE_IDS`（6工程）、`FINISH_STAGE_ID = "finish"`、`REVIEW_REASONS`（3コード）を定義。`EventGroup(id, index, size)`（frozen）を追加。`DrawingAction`へ`stage_id: str \| None = None`と`group: EventGroup \| None = None`を追加。`DrawingState`へ`stage_id: str \| None = None`を追加。`to_dict`/`from_dict`はこのPRでは変えません（S1c-1で拡張済み） |
 | `handlers.py` | v2専用の工程マーカー4種を追加。`enter_stage{stage_id}`（`state.stage_id`を設定）、`exit_stage{stage_id}`（現在の工程と一致を要求。状態は変えない）、`advance_stage{}`または`{review_reason}`（工程設定済みを要求。状態は変えない）、`clear_active_layer{}`（`active_layer_id=None`）。`handle_finish`はv2で`stage_id`が設定済みなら`"finish"`にする |
 | `engine.py` | `_dispatch`のv2表へ上記を追加。`apply_group(actions) -> list[DrawingAction]`を追加（§4.4） |
 
