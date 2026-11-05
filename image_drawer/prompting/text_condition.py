@@ -229,28 +229,7 @@ class TextConditionEncoder:
 def load_text_encoder_from_settings(settings_path: str | Path) -> TextConditionEncoder:
     import json
 
+    from .text_encoder_registry import TextEncoderRegistry
+
     settings = json.loads(Path(settings_path).read_text(encoding="utf-8"))
-    config = settings.get("text_encoder", {})
-    providers: list[TextEncoderProvider] = []
-    for entry in config.get("providers", []):
-        if entry["adapter"] == "sentence_transformer":
-            providers.append(
-                SentenceTransformerEncoder(
-                    encoder_id=entry["id"],
-                    model_id=entry["model_id"],
-                    model_revision=entry.get("model_revision", "main"),
-                    device=entry["device"],
-                    dimension=entry.get("dimension", 384),
-                )
-            )
-        elif entry["adapter"] == "hashed_ngram":
-            providers.append(
-                HashedNgramTextEncoder(
-                    encoder_id=entry["id"], dimension=entry.get("dimension", 64)
-                )
-            )
-        else:
-            raise ValueError("未登録のtext encoder adapter: " + str(entry["adapter"]))
-    if not providers:
-        raise ValueError("text_encoder.providers設定が必要")
-    return TextConditionEncoder(providers)
+    return TextEncoderRegistry().build(settings)
