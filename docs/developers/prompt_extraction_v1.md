@@ -132,7 +132,7 @@ Tags:    Tagger A → Tagger B → Tagger C → …
 [GitMylo V2](https://huggingface.co/GitMylo/nsfwcaption-qwen3-vl-8b-v2-safetensors)・
 [Qwen3-VL](https://huggingface.co/Qwen/Qwen3-VL-8B-Instruct)。
 
-**高設定の比較チェーンは Qwen3-VL-8B → JoyCaption Beta One（通常の重み） → Felldude Uncensored 8B V2。** 初段/2段が拒否・空・不正形式・一時障害になれば3段まで続け、3段も失敗したら画像をダミーCaptionで学習せず失敗を記録する。標準3段はユーザー定義のN段ルーティングに対する単なる推奨設定であり、モデル数は固定しない。
+**高設定の比較チェーンは Qwen3-VL-8B → JoyCaption Beta One（通常の重み） → Felldude Uncensored 8B V2。** 初段/2段が拒否・空・不正形式・一時障害になれば3段まで続け、3段も失敗したら画像をダミーCaptionで学習せず失敗を記録する。高設定の3段はユーザー定義のN段ルーティングに対する一つの比較例であり、モデル数は固定しない。
 
 **選定の意味**：モデル作者が明記した学習目的・対応範囲・既知の制約を根拠に、採用モデル名まで決めた。ただし画像を使った独立の精度比較や拒否率実測は行っていない。JoyCaptionが無拒否であるとの主張や、他候補を数値で下回る／上回るといった未測定の断言はしない。
 
