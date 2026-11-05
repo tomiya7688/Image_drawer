@@ -9,6 +9,12 @@ from image_drawer.steps.base import (
     StepSchema,
 )
 from image_drawer.steps.compose import PartBankComposeStep
+from image_drawer.steps.draw_episode import (
+    DrawEpisodeStep,
+    DrawIncomplete,
+    ReplayEpisodeStep,
+    register_drawing_steps,
+)
 from image_drawer.steps.mock import create_mock_registry
 from image_drawer.steps.registry import StepRegistry
 from image_drawer.steps.retrieve_parts import (
@@ -18,9 +24,12 @@ from image_drawer.steps.retrieve_parts import (
 
 __all__ = [
     "ArtifactTypeSpec",
+    "DrawEpisodeStep",
+    "DrawIncomplete",
     "ParameterSpec",
     "PartBankComposeStep",
     "PartBankRetrievePartsStep",
+    "ReplayEpisodeStep",
     "Step",
     "StepContext",
     "StepRegistry",
@@ -28,4 +37,5 @@ __all__ = [
     "StepSchema",
     "create_mock_registry",
     "create_part_bank_registry",
+    "register_drawing_steps",
 ]

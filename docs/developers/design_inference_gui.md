@@ -2,7 +2,7 @@
 >
 > **目的:** Issue #71（S4）の実装設計を定める。文章だけを入力し、AIが7工程を自律して描く推論と、その過程を確認するGUIを、既存のRuntime・DSL・CLIの仕組みに乗せて作る手順を示す。
 >
-> **状態:** 設計書。この文書に書く`DRAW_EPISODE`、`REPLAY_EPISODE`、`image-drawer-draw`、GUIの各画面は**まだ実装されていない**。「〜します」は実装後の仕様を意味する。モデルが絵を描けること、学習できることはこの文書では示さない。
+> **状態:** 実装済み（Issue #71）。`DRAW_EPISODE`、`REPLAY_EPISODE`、`image-drawer-draw`、GUIの3画面（Replay・生成・Dataset）が`image_drawer/inference/`、`steps/draw_episode.py`、`gui/`にある。確認したのは**水準A（配線）まで**で、モデルが絵を描けること、学習できることはこの文書では示さない。画面の操作・見た目は自動テストでは未確認。実装との差分は9節の7〜12。
 
 # txt2img推論・GUI・Workflow連携の実装設計（S4）
 
@@ -45,11 +45,11 @@
 
 | 部品 | 状態（2026-11-05時点） |
 | --- | --- |
-| `DrawingEngine`、`DrawingEpisode`（`image_drawer/drawing/`） | S1aの作業ブランチにあり、`main`には未マージ |
-| `StageController`、Replayer | 未実装（S1b、S1c） |
-| `DrawingPolicy`、Trainer、checkpoint | 未実装（S3） |
-| `DRAW_EPISODE`、`REPLAY_EPISODE`、`image-drawer-draw` | 未実装（本設計） |
-| GUI | `image_drawer/gui/__init__.py`のplaceholderのみ。`--check`が`{"component": "gui", "status": "ok"}`を出力する |
+| `DrawingEngine`、`DrawingEpisode`（`image_drawer/drawing/`） | 実装済み（S1a） |
+| `StageController`、Replayer | 実装済み（S1b、S1c） |
+| `DrawingPolicy`、Trainer、checkpoint | 実装済み（S3）。学習の成功は未確認 |
+| `DRAW_EPISODE`、`REPLAY_EPISODE`、`image-drawer-draw` | 実装済み（水準Aまで確認） |
+| GUI | Replay・生成・Dataset画面を実装。`--check`は従来どおりheadlessで`{"component": "gui", "status": "ok"}`を出力する。クリック・ドラッグ・見た目は未確認 |
 | Step登録の仕組み（`StepSchema`、`StepResult`、`StepRegistry`、`output_resolver`） | 実装済み。`image_drawer/steps/` |
 | Runtime（追加Artifactの記録、系譜の検証） | 実装済み。`image_drawer/runtime/engine.py` |
 
@@ -553,16 +553,23 @@ S4-7は、[統合設計](design_data_pipeline_integration.md)のI-1（アダプ�
 | 3 | DSLの契約案は`policy`と`max_actions`だけ | `seed`、`width`、`height`を任意パラメータとして追加 | 画素の再現と、canvasの指定に必要。後方互換（既定値あり） |
 | 4 | [GUI設計](gui.md)の学習画面は、学習の開始・停止、Trialの評価・報酬を含む | S4では学習の開始・停止・Trial表示を作らず、Dataset登録と抽出器選択までとする | Issue #71の範囲が「Datasetの画像登録と抽出器の選択UI」であり、Trainerは未実装（S3）のため |
 | 5 | DSLは`max_actions`を1..19999とするが、Engineの`MAX_EVENTS`は20000で`actor=system`イベントを含む | 正本の範囲は変えず、実行時に`event_limit_exceeded`のDraftとして扱う | 上限付近でsystemイベントが加わると収まらない。上限の再定義はS1bで決める |
-| 6 | Draftは「完成Episodeと偽らない」（DSL、Controller契約） | Draftは`draft.json`と別名にし、`Episode` Artifactを作らない。Runtimeは変更しない | `DrawingEpisode.from_dict`が終端`finish`を要求するため。Draftの`Image`をArtifact化するRuntime変更は未決事項U3 |
+| 6 | Draftは「完成Episodeと偽らない」（DSL、Controller契約） | Draftは`draft.json`と別名にし、`Episode` Artifactを作らない。Runtimeは変更しない | 完成Episodeと混同しないため。Draftの`Image`をArtifact化するRuntime変更は未決事項U3 |
+| 7 | 2.2節はDraft理由に`budget_exhausted`等を例示し、`max_actions`を1..19999とする | 理由はS1bの`termination_reason`（`action_budget_exhausted`、`attempt_budget_exhausted`、`internal_error`）と、推論側の`cancelled`、`policy_error`、`event_limit_exceeded`、`engine_error`。`max_actions`の上限はS1bの`MAX_ACTIONS_LIMIT`（19900） | S1bが確定した値に合わせた（U1の解決） |
+| 8 | 2.2節は「`DrawingEpisode.from_dict`は終端`finish`を要求し、Draftは読み込めない」 | S1c実装ではdraft状態のEpisodeを`loads_episode`が読め、`replay`も接頭辞を再生できる。`draft.json`は`episode_prefix`にDraftのEpisodeをそのまま入れ、GUIは`ReplayCursor`、CLIの`--replay`は`replay`で表示・再生する | U2の解決 |
+| 9 | 4.2節の`--width`/`--height`の既定は256 | CLIの既定は「Policyのcanvas、無ければ256」。異なる値を指定したときのエラーは設計どおり。Stepの既定は設計どおり256のまま（学習時canvasと違えばエラー） | 唯一の登録Policyが小canvasで、既定値のままでは必ずエラーになるため。U7は未決 |
+| 10 | 4.2節の引数一覧 | `--checkpoint ID=SIDECAR_JSON`と`--train-config`を追加。学習済みcheckpointをPolicyとして登録する（水準Bの実行口）。`PolicyRegistry`の既定には`random-legal-v1`（未学習・テスト用、numpyが必要）だけが載る | 登録簿を外から差せる口が無いと水準Bを実行できない |
+| 11 | 6.1節の5「学習用の`RewardEvaluator`を推論経路でimportしない」 | `image_drawer/inference/`と`steps/draw_episode.py`は`RewardEvaluator`・`reward`・`dataset`をimportしない（ASTで検査）。ただしcheckpoint読込に使う`training.checkpoint`が`training.optimizer`経由で`training.reward`の型を間接的に読み込む | checkpointの形式知識を複製せず`load_checkpoint`を再利用したため |
+| 12 | 5.2節(b)「生成中は、受理されたActionごとに画面を更新」 | 生成中に更新するのは受理数と現在の工程のラベルまで。生成中のキャンバスのライブ描画は未実装で、完了後に同じファイルをReplay画面で開く | Controllerの内部Engineを公開せずに実現するため（Controller契約の変更が要る） |
+| 13 | 5.2節(a)のCanvas表示サイズは未規定 | 表示領域は320px。小さい画像は整数倍に拡大し、大きい画像は整数比で縮小して表示する（画素は変更しない）。読み込めない・空のときは前回の表示を消して初期表示へ戻す | レビュー指摘への対応 |
 
 ## 10. 未決事項
 
 | ID | 内容 | 決める場所 |
 | --- | --- | --- |
-| U1 | 予算切れ・試行上限を示す`ProposalResult.reason`のコード名と、終端を判定する公式の方法 | S1b |
-| U2 | Replayerが`finish`のないDraftの接頭辞、または`upto_seq`の部分再生を受け付けるか | S1c |
+| U1 | 予算切れ・試行上限を示す`ProposalResult.reason`のコード名と、終端を判定する公式の方法 | 解決: `StageController.termination_reason`を使う（9節の7） |
+| U2 | Replayerが`finish`のないDraftの接頭辞、または`upto_seq`の部分再生を受け付けるか | 解決: 両方を受け付ける（9節の8） |
 | U3 | 例外時にもDraftの`Image`をTrajectoryのArtifactとして残すRuntime拡張が必要か | S4-3のレビュー。必要ならRuntime変更を別PRにする |
-| U4 | GUIの画面ライブラリ（tkinter暫定）。Linuxの`python3-tk`、見た目、テスト容易性の比較 | S4-5の着手前 |
-| U5 | `DrawingPolicy.next_action`と`PolicyObservation`、`PolicyRegistry.resolve`の正式な名前とシグネチャ（本書の名前は仮名） | `design_trainer.md` |
-| U6 | `StyleIntent`の判定器の名前と入出力（`judge_style_intent`は仮名） | S1b |
+| U4 | GUIの画面ライブラリ（tkinter暫定）。Linuxの`python3-tk`、見た目、テスト容易性の比較 | 暫定のままtkinterで実装した。viewmodelはtkinterをimportしないため差し替え可能。最終決定は未了 |
+| U5 | `DrawingPolicy.next_action`と`PolicyObservation`、`PolicyRegistry.resolve`の正式な名前とシグネチャ（本書の名前は仮名） | 解決: 学習側は`DrawingPolicy.act(Observation, rng)`。推論側は`inference.policy`の`PolicyRegistry.resolve`が`LoadedPolicy`を返し、`open_session(prompt, seed)`の`PolicySession.next_action(controller, engine, budget)`を呼ぶ。`training_policy`が学習と同じ`ObservationBuilder`で観測を作る |
+| U6 | `StyleIntent`の判定器の名前と入出力（`judge_style_intent`は仮名） | 解決: `judge_style_intent(prompt)`（S1b） |
 | U7 | 既定canvas（256）と、学習時のcanvasの関係 | S3の学習設定 |
