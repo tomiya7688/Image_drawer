@@ -18,6 +18,12 @@ from image_drawer.gui.controller import (
     Generating,
 )
 
+from image_drawer.gui.dataset_panel import (
+    DatasetPanelModel,
+    Registering,
+    RegistrationDone,
+    RegistrationFailed,
+)
 from image_drawer.gui.viewmodel import (
     ViewerController,
     ViewerEmpty,
@@ -246,7 +252,80 @@ class GenerationView(ttk.Frame):
 
 
 # {
-#   責務: [ build_main_window: ウィンドウとタブ（Replay・生成）を組み立て、Replay画面を返す ]
+#   責務: [ DatasetView: Dataset画面(G3)。画像ディレクトリと抽出器の選択だけを入力する（prompt等の手入力欄なし） ]
+# }
+class DatasetView(ttk.Frame):
+    def __init__(self, master: tk.Misc, model: DatasetPanelModel) -> None:
+        super().__init__(master)
+        self.model = model
+        self.vars = {name: tk.StringVar() for name in ("source", "dataset", "seed")}
+        self.vars["seed"].set("0")
+        for name in ("source", "dataset", "seed"):
+            row = ttk.Frame(self)
+            row.pack(fill="x")
+            ttk.Label(row, text=name, width=12).pack(side="left")
+            ttk.Entry(row, textvariable=self.vars[name]).pack(side="left", fill="x", expand=True)
+        entries = model.entries()
+        self.tagger = tk.StringVar(value=model.tagger_id)
+        self.captioner = tk.StringVar(value=model.captioner_id)
+        for label, variable, kind in (
+            ("tagger", self.tagger, "tag"),
+            ("captioner", self.captioner, "caption"),
+        ):
+            row = ttk.Frame(self)
+            row.pack(fill="x")
+            ttk.Label(row, text=label, width=12).pack(side="left")
+            ids = [e.id for e in entries[kind]]
+            ttk.Combobox(row, textvariable=variable, values=ids, state="readonly").pack(side="left")
+        self.allow_external = tk.BooleanVar(value=False)
+        ttk.Checkbutton(
+            self, text="外部への画像送信を今回許可する", variable=self.allow_external
+        ).pack(anchor="w")
+        ttk.Button(self, text="登録 / 再抽出", command=self.register).pack(anchor="w")
+        self.status = ttk.Label(self, text="待機中")
+        self.status.pack(anchor="w")
+        self.rows = tk.Listbox(self, height=10)
+        self.rows.pack(fill="both", expand=True)
+
+    def register(self) -> None:
+        try:
+            self.model.select(tagger_id=self.tagger.get(), captioner_id=self.captioner.get())
+            seed = int(self.vars["seed"].get())
+        except (KeyError, ValueError) as error:
+            self.status.config(text=f"実行できません: {error}")
+            return
+        dataset = Path(self.vars["dataset"].get())
+        notes = self.model.external_warnings() + self.model.selection_differences(dataset)
+        started = self.model.start(
+            Path(self.vars["source"].get()),
+            dataset,
+            seed=seed,
+            allow_external_upload=self.allow_external.get(),
+        )
+        self.status.config(text=" / ".join(notes) or "登録中")
+        if started:
+            self.after(POLL_INTERVAL_MS, self._poll)
+
+    def _poll(self) -> None:
+        state = self.model.poll()
+        if isinstance(state, Registering):
+            self.after(POLL_INTERVAL_MS, self._poll)
+        elif isinstance(state, RegistrationFailed):
+            self.status.config(text=f"実行できません: {state.reason}")
+        elif isinstance(state, RegistrationDone):
+            summary = state.summary
+            self.status.config(
+                text=f"登録{state.report.added} 重複{state.report.duplicates} "
+                f"警告{summary.quality_issues} 更新されたcache_key{state.updated_cache_keys} "
+                f"hash {summary.dataset_hash[:12]}"
+            )
+            self.rows.delete(0, "end")
+            for row in summary.rows:
+                self.rows.insert("end", f"{row.image_id} [{row.split}] {row.training_prompt}")
+
+
+# {
+#   責務: [ build_main_window: ウィンドウとタブ（Replay・生成・Dataset）を組み立て、Replay画面を返す ]
 # }
 def build_main_window(root: tk.Tk, policies: PolicyRegistry | None = None) -> ReplayView:
     root.title("Image Drawer")
@@ -256,6 +335,7 @@ def build_main_window(root: tk.Tk, policies: PolicyRegistry | None = None) -> Re
     tabs.add(replay, text="Replay")
     registry = policies if policies is not None else default_policies([], None)
     tabs.add(GenerationView(tabs, GenerationController(registry), replay), text="生成")
+    tabs.add(DatasetView(tabs, DatasetPanelModel()), text="Dataset")
     return replay
 
 

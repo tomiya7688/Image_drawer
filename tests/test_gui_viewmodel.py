@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import dataclasses
+import gc
 import json
 import subprocess
 import sys
@@ -174,6 +175,7 @@ def test_tk_window_builds_when_display_is_available() -> None:
     except tk.TclError as error:
         pytest.skip(f"表示が使えないためSKIP（成功ではありません）: {error}")
     root.withdraw()
+    view = None
     try:
         from image_drawer.gui.app import build_main_window
 
@@ -182,6 +184,8 @@ def test_tk_window_builds_when_display_is_available() -> None:
         assert view.history.size() > 0
     finally:
         root.destroy()
+        view = None
+        gc.collect()  # tkの変数を別スレッドで解放させない
 
 
 # --- G2: 生成 ---
@@ -279,3 +283,96 @@ def test_gui_generation_calls_the_same_service_as_cli(tmp_path: Path) -> None:
     assert cli.generate_episode is generate_episode
     assert draw_episode.generate_episode is generate_episode
     assert replay.replay_episode_file is cli.replay_episode_file
+
+
+# --- G3: Dataset登録・抽出器の選択 ---
+
+
+def make_images(root: Path, count: int = 3) -> Path:
+    pil = pytest.importorskip("PIL.Image")
+    source = root / "source"
+    source.mkdir()
+    for index in range(count):
+        image = pil.new("RGB", (32, 32), (255, 255, 255))
+        for x in range(2 + index * 4, 14 + index * 4):
+            for y in range(8, 24):
+                image.putpixel((x, y), (200, 30 * index, 60))
+        image.save(source / f"img_{index}.png")
+    return source
+
+
+def test_dataset_panel_lists_registry_describe_entries() -> None:
+    from image_drawer.dataset import create_default_registry
+    from image_drawer.gui.dataset_panel import DatasetPanelModel
+
+    registry = create_default_registry()
+    entries = DatasetPanelModel(registry).entries()
+    described = registry.describe()
+    assert [e.id for e in entries["tag"]] == [i.id for i in described["tag"]]
+    assert [e.id for e in entries["caption"]] == [i.id for i in described["caption"]]
+    assert "none" in [e.id for e in entries["tag"]]
+    first = entries["tag"][0]
+    assert first.version and first.runtime and first.languages and first.capabilities
+    assert not any(e.external for kind in entries.values() for e in kind)
+    with pytest.raises(KeyError):
+        DatasetPanelModel(registry).select(tagger_id="missing")
+
+
+def test_dataset_panel_passes_selected_extractor_ids_to_register_images(tmp_path: Path) -> None:
+    from image_drawer.dataset import register_images
+    from image_drawer.gui.dataset_panel import DatasetPanelModel, RegistrationDone, Registering
+
+    source = make_images(tmp_path)
+    calls: list[dict] = []
+
+    def recording(*args, **kwargs):
+        calls.append(kwargs)
+        return register_images(*args, **kwargs)
+
+    model = DatasetPanelModel(register=recording)
+    model.select(tagger_id="color-layout-tags")
+    assert model.start(source, tmp_path / "ds", seed=5)
+    assert isinstance(model.state, Registering)
+    model.wait(60)
+    state = model.poll()
+    assert isinstance(state, RegistrationDone) and state.summary.images == 3
+    assert calls[0]["tagger_id"] == "color-layout-tags" and calls[0]["seed"] == 5
+    assert calls[0]["captioner_id"] == "color-layout-caption"
+    assert calls[0]["allow_external_upload"] is False
+    assert state.summary.dataset_hash and sum(state.summary.splits.values()) == 3
+    assert state.updated_cache_keys == 0
+
+    model.reset()
+    model.select(tagger_id="none")
+    assert model.selection_differences(tmp_path / "ds") == [
+        "Tagger: 選択=none / 記録=color-layout-tags"
+    ]
+    model.start(source, tmp_path / "ds")
+    model.wait(60)
+    again = model.poll()
+    assert isinstance(again, RegistrationDone) and again.updated_cache_keys == 3
+    assert calls[1]["tagger_id"] == "none" and again.summary.tagger == "none"
+    assert model.selection_differences(tmp_path / "ds") == []
+
+
+def test_dataset_panel_reports_failure_without_crashing(tmp_path: Path) -> None:
+    from image_drawer.gui.dataset_panel import DatasetPanelModel, RegistrationFailed
+
+    model = DatasetPanelModel()
+    model.start(tmp_path / "missing", tmp_path / "ds")
+    model.wait(30)
+    assert isinstance(model.poll(), RegistrationFailed)
+    model.reset()
+    assert model.state.__class__.__name__ == "RegistrationIdle"
+
+
+def test_dataset_panel_has_no_input_for_prompt_tags_or_captions() -> None:
+    import inspect
+
+    from image_drawer.gui.dataset_panel import DatasetPanelModel, ImageRow
+
+    parameters = set(inspect.signature(DatasetPanelModel.start).parameters) - {"self"}
+    assert parameters == {"source_dir", "dataset_dir", "seed", "allow_external_upload"}
+    assert not [n for n in dir(DatasetPanelModel) if n.startswith(("set_", "edit", "update"))]
+    with pytest.raises(dataclasses.FrozenInstanceError):
+        ImageRow("a", "train", (), "", "", "", "", "", ()).caption = "x"  # type: ignore[misc]
