@@ -7,6 +7,7 @@ Controllerの試行ログ・内部状態は読まない。Controllerが規則ど
 from __future__ import annotations
 
 import copy
+import math
 from dataclasses import dataclass, field
 
 from image_drawer.drawing import DrawingEpisode, DrawingError, Engine
@@ -39,6 +40,39 @@ class AuditViolation:
 
 # {
 #   責務: [
+#     StrokeRecord: 描画event1件の、画素への効果と経路長(有効stroke率・ドット率の元データ)
+#   ]
+#   フィールド: [
+#     seq, stage_id, action_type: 該当event
+#     effective: 許可された書込レイヤーの画素を1つ以上変えたか
+#     changed_pixels: 変わったRGBA画素数
+#     path_length_px: サンプル間の距離の合計(画素単位)
+#   ]
+# }
+@dataclass(frozen=True, slots=True)
+class StrokeRecord:
+    seq: int
+    stage_id: str
+    action_type: str
+    effective: bool
+    changed_pixels: int
+    path_length_px: float
+
+
+# {
+#   責務: [
+#     path_length_px: サンプル列の経路長を画素単位で求める
+#   ]
+# }
+def path_length_px(samples: list[dict]) -> float:
+    total = 0.0
+    for first, second in zip(samples, samples[1:]):
+        total += math.hypot(second["x_q8"] - first["x_q8"], second["y_q8"] - first["y_q8"])
+    return total / 256.0
+
+
+# {
+#   責務: [
 #     AuditResult: 監査の結果と、後続の指標が使う工程別の集計
 #   ]
 #   フィールド: [
@@ -46,6 +80,7 @@ class AuditViolation:
 #     review_only_stages: レビューのみで通過した工程
 #     effective_strokes_by_stage: 工程ごとの、画素を変えたstroke_v2の数
 #     changed_pixels_by_stage: 工程ごとの、有効なstroke_v2が変えた画素数(RGBAの1画素単位)の合計
+#     stroke_records: 描画event(stroke_v2・erase_v2)ごとの効果。指標の元データ
 #   ]
 # }
 @dataclass(slots=True)
@@ -54,6 +89,7 @@ class AuditResult:
     review_only_stages: list[str] = field(default_factory=list)
     effective_strokes_by_stage: dict[str, int] = field(default_factory=dict)
     changed_pixels_by_stage: dict[str, int] = field(default_factory=dict)
+    stroke_records: list[StrokeRecord] = field(default_factory=list)
 
     # {
     #   責務: [ passed: 規則違反が1件も無いか ]
@@ -188,7 +224,14 @@ def _check_drawing(episode: DrawingEpisode, table: StageTable, result: AuditResu
             )
         after = layer.pixels.data
         pixels = sum(before[i : i + 4] != after[i : i + 4] for i in range(0, len(after), 4))
-        if event.type == "stroke_v2" and pixels > 0 and layer.role in spec.layer_roles:
+        effective = pixels > 0 and layer.role in spec.write_layer_roles
+        samples = event.payload.get("samples", [])
+        result.stroke_records.append(
+            StrokeRecord(
+                event.seq, event.stage_id, event.type, effective, pixels, path_length_px(samples)
+            )
+        )
+        if event.type == "stroke_v2" and effective:
             strokes[event.stage_id] += 1
             changed[event.stage_id] += pixels
     result.effective_strokes_by_stage = strokes
