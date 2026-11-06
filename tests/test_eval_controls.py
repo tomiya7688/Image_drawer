@@ -5,10 +5,15 @@ from __future__ import annotations
 import pytest
 
 from image_drawer.generalization.cli_report import _controls_of
-from image_drawer.generalization.controls import prompt_shuffle_control, shuffle_targets
+from image_drawer.generalization.controls import (
+    PROBES,
+    probe_hit_rate_control,
+    prompt_shuffle_control,
+    shuffle_targets,
+)
 from image_drawer.generalization.gates import GateInputs
 from image_drawer.generalization.report import _unverified
-from image_drawer.generalization.runner import GenerationResult, RunOutput
+from image_drawer.generalization.runner import GenerationResult, ProbeResult, RunOutput
 
 IDS = [f"img{i}" for i in range(6)]
 
@@ -80,3 +85,34 @@ def test_report_controls_use_the_after_condition_and_list_only_the_missing_ones(
     assert _controls_of(output, {}) == {}
     both = " ".join(_unverified(GateInputs(policy_kind="trained"), output))
     assert "prompt_shuffle_delta・probe_hit_rate・nearest_train_hit_rate(未計算)" in both
+
+
+def probe_row(condition: str, prompt: str, k: int, hit: bool, failure: str | None = None):
+    return ProbeResult(condition, prompt, k, 0, 180, hit, failure)
+
+
+def test_probe_hit_rate_counts_failures_as_misses_and_needs_both_conditions() -> None:
+    output = output_with({"a": 0.5}, {"a": 0.5})
+    output.probes = [
+        probe_row("before", "赤い", 0, False),
+        probe_row("before", "赤い", 1, True),
+        probe_row("after", "赤い", 0, True),
+        probe_row("after", "赤い", 1, False, "policy_error"),
+    ]
+    assert probe_hit_rate_control(output) == {"before": 0.5, "after": 0.5, "n": 2}
+    output.probes = [p for p in output.probes if p.condition == "after"]
+    assert probe_hit_rate_control(output) is None
+    output.probes = []
+    assert probe_hit_rate_control(output) is None
+
+
+def test_probe_set_uses_distinct_palette_colors_of_the_named_hues() -> None:
+    from image_drawer.drawing.palette import palette_rgb
+
+    colors = {prompt: palette_rgb(color) for prompt, color in PROBES}
+    assert colors == {
+        "赤い": (255, 0, 0),
+        "青い": (0, 0, 255),
+        "緑の": (0, 255, 0),
+        "黄色い": (255, 255, 0),
+    }

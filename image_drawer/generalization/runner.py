@@ -19,7 +19,7 @@ from image_drawer.core import SerializableModel
 from image_drawer.dataset import PolicyInput, RewardTarget
 from image_drawer.drawing.replay import replay
 from image_drawer.drawing.stage.controller import AttemptRecord
-from image_drawer.generalization.controls import shuffle_targets
+from image_drawer.generalization.controls import PROBES, shuffle_targets
 from image_drawer.generalization.metrics_process import (
     GenerationCost,
     ProcessSample,
@@ -31,6 +31,7 @@ from image_drawer.generalization.metrics_quality import (
     blank_image,
     component_scores,
     heldout_scores,
+    probe_hit,
 )
 from image_drawer.generalization.stats import inference_seed
 from image_drawer.training.reward import RewardEvaluator
@@ -88,6 +89,23 @@ class GenerationResult(SerializableModel):
 
 # {
 #   責務: [
+#     ProbeResult: probeのpromptで生成した1回の結果。失敗(完成しない)も命中しなかった1件として残す
+#   ]
+#   フィールド: [ condition, prompt, k, seed: 生成の識別, expected_color_id: 期待色, hit: 命中したか, failure_kind ]
+# }
+@dataclass(slots=True)
+class ProbeResult(SerializableModel):
+    condition: str
+    prompt: str
+    k: int
+    seed: int
+    expected_color_id: int
+    hit: bool
+    failure_kind: str | None = None
+
+
+# {
+#   責務: [
 #     RunOutput: 1回の実行の全結果。JSONで保存し、compareとreportが読む
 #   ]
 #   フィールド: [
@@ -100,6 +118,7 @@ class GenerationResult(SerializableModel):
 #     exit_code: 0成功、1失敗の生成を含む、3 Replay不一致・監査器の不一致
 #     shuffled: promptを別の画像のものに入れ替えた生成(対照指標prompt_shuffle_delta用)。
 #     通常の生成・工程指標・コスト・終了コードには含めない
+#     probes: 構成的なprobeのpromptで生成した結果(対照指標probe_hit_rate用)。同じく別枠
 #   ]
 # }
 @dataclass(slots=True)
@@ -115,6 +134,7 @@ class RunOutput(SerializableModel):
     dataset_exclusions: int = 0
     exit_code: int = 0
     shuffled: list[GenerationResult] = field(default_factory=list)
+    probes: list[ProbeResult] = field(default_factory=list)
 
 
 # {
@@ -235,6 +255,36 @@ def _generate(
 
 # {
 #   責務: [
+#     _run_probes: 各条件で、probeのpromptごとに同じ推論seedで生成し、期待色が最大面積かを判定する
+#   ]
+#   処理: [
+#     目標画像は使わない(promptだけで生成する)。完成しなかった生成は命中に数えず、分母に残す。
+#     seedは条件に依存しない(対応づけ)
+#   ]
+# }
+def _run_probes(
+    conditions: Mapping[str, RolloutRunner], eval_set_id: str, seeds: int, side: int
+) -> list[ProbeResult]:
+    results: list[ProbeResult] = []
+    for prompt, color_id in PROBES:
+        probe_id = f"probe:{prompt}"
+        for k in range(seeds):
+            seed = inference_seed(eval_set_id, probe_id, k)
+            for name, runner in conditions.items():
+                trial = runner.run_trial(PolicyInput(probe_id, prompt), seed, None)
+                failure = _FAILURE_BY_END_REASON.get(trial.end_reason)
+                hit = False
+                if failure is None:
+                    try:
+                        hit = probe_hit(composite_over_white(trial.final_composite, side), color_id)
+                    except Exception:
+                        failure = "reward_eval_error"
+                results.append(ProbeResult(name, prompt, k, seed, color_id, hit, failure))
+    return results
+
+
+# {
+#   責務: [
 #     run_generations: 各条件を、同じ画像・推論seed・予算・canvasで生成し、指標と失敗を集める
 #   ]
 #   処理: [
@@ -263,6 +313,7 @@ def run_generations(
     hardware_ids: Mapping[str, str] | None = None,
     sink: Callable[[GenerationResult, Trial], None] | None = None,
     shuffle_prompts: bool = False,
+    probe: bool = False,
 ) -> RunOutput:
     sides = {runner.config.canvas_side for runner in conditions.values()}
     budgets = {(r.config.max_actions, r.config.max_attempts) for r in conditions.values()}
@@ -306,6 +357,7 @@ def run_generations(
                         name, runner, evaluator, swapped, features, group_id, k, seed
                     )
                     shuffled.append(swapped_result)
+    probes = _run_probes(conditions, eval_set_id, seeds_per_item, side) if probe else []
     failures = {name: _count_failures(generations, name, dataset_exclusions) for name in conditions}
     process = {n: asdict(compute_process_metrics(s)) for n, s in process_samples.items()}
     output = RunOutput(
@@ -319,6 +371,7 @@ def run_generations(
         hardware_ids=dict(hardware_ids or {n: describe_hardware() for n in conditions}),
         dataset_exclusions=dataset_exclusions,
         shuffled=shuffled,
+        probes=probes,
     )
     output.exit_code = decide_exit_code(output)
     return output

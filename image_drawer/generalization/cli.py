@@ -54,6 +54,11 @@ def _build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="promptを別の画像のものに入れ替えた生成も行い、prompt_shuffle_deltaを計算できるようにする",
     )
+    run.add_argument(
+        "--probe",
+        action="store_true",
+        help="色名などの構成的なpromptでも生成し、probe_hit_rateを計算できるようにする",
+    )
     run.add_argument("--out", type=Path, required=True)
     run.add_argument("--ledger", type=Path, default=None)
     compare = sub.add_parser("compare", help="実行結果を比較する")
@@ -244,6 +249,7 @@ def _cmd_run(args: argparse.Namespace) -> int:
         dataset_exclusions=len(eval_set.excluded),
         sink=_make_image_sink(args.out, config.canvas_side),
         shuffle_prompts=args.shuffle_prompts,
+        probe=args.probe,
     )
     args.out.mkdir(parents=True, exist_ok=True)
     (args.out / "run.json").write_text(output.to_json(indent=2), encoding="utf-8")
