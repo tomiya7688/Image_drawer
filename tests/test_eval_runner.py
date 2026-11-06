@@ -186,3 +186,55 @@ def test_compare_pairs_only_shared_inference_seeds_and_reports_missing_blank(tmp
     del output.blank_metrics["img1"]["rgb_128"]
     with pytest.raises(ValueError, match="blank metric"):
         compare_conditions(output, "after", "before", resamples=50)
+
+
+# {
+#   責務: [ RecordingPolicy: 試験用。生成ごとに観測のtext_conditionを記録する(PaintPolicyと同じ描画) ]
+# }
+class RecordingPolicy(PaintPolicy):
+    def __init__(self) -> None:
+        self.texts: list[bytes] = []
+
+    def act(self, observation, rng):
+        self.texts.append(observation.text_condition.tobytes())
+        return super().act(observation, rng)
+
+
+def distinct_prompt_samples(tmp_path):
+    samples = []
+    for image_id, prompt in (("img1", "赤い丸"), ("img2", "青い四角")):
+        path = tmp_path / f"{image_id}.png"
+        Image.new("RGB", (16, 16), (0, 0, 0)).save(path)
+        samples.append((PolicyInput(image_id, prompt), RewardTarget(image_id, str(path), "sha")))
+    return samples
+
+
+def test_runner_shuffle_prompts_records_swapped_generations_apart_from_normal_ones(tmp_path):
+    policy = RecordingPolicy()
+    evaluator = RewardEvaluator(CONFIG.reward, CONFIG.canvas_side)
+    groups = {"img1": "g1", "img2": "g2"}
+    kwargs = dict(seeds_per_item=2)
+    plain = run_generations(
+        {"after": make_runner(PaintPolicy())}, evaluator, distinct_prompt_samples(tmp_path),
+        groups, "set1", "validation", **kwargs,
+    )  # fmt: skip
+    output = run_generations(
+        {"after": make_runner(policy)}, evaluator, distinct_prompt_samples(tmp_path),
+        groups, "set1", "validation", shuffle_prompts=True, **kwargs,
+    )  # fmt: skip
+    assert plain.shuffled == []
+    assert len(output.shuffled) == len(output.generations) == 4
+    assert {(g.image_id, g.k, g.seed) for g in output.shuffled} == {
+        (g.image_id, g.k, g.seed) for g in output.generations
+    }
+    assert all(g.condition == "after" for g in output.shuffled)
+
+    # 通常の生成・工程指標・コスト・終了コードは、入れ替え生成の有無で変わらない
+    def key(g):
+        return (g.image_id, g.k, g.failure_kind, g.metrics, g.audit_passed, g.replay_exact)
+
+    assert [key(g) for g in output.generations] == [key(g) for g in plain.generations]
+    assert output.process == plain.process and output.exit_code == plain.exit_code
+    # 方策が見たpromptは2種類だけ(各画像の自分のpromptと、入れ替え先のprompt)
+    assert len(set(policy.texts)) == 2
+    assert RunOutput.from_json(output.to_json()).shuffled == output.shuffled
