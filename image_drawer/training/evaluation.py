@@ -212,7 +212,8 @@ class ClaimGate:
     #   責務: [ evaluate: 学習前・学習後・ランダムの測定表から3値の判定を作る ]
     #   処理: [
     #     1: 画像数・seed数・画像集合の一致を確認(不足はinconclusive)
-    #     2: M1(更新)、M2(完走率+0.30・予算超過が増えない)、M3(品質+0.05かつ下限>0)、
+    #     2: M1(更新)、M2(完走率+0.30、ただし余地(1-学習前)が小さければ余地まで・学習前を下回らない・
+    #        予算超過が増えない)、M3(品質+0.05かつ下限>0)、
     #        M4(ランダム超え)、M5(文章の使用)、M6(固定Script化の検査)を判定
     #     3: 全て合格し、整合検査とtarget隔離が通っていればlearned
     #   ]
@@ -235,10 +236,18 @@ class ClaimGate:
         values: dict[str, float | None] = {}
         passed["M1"] = evidence.param_delta_norm > 0 and evidence.log_prob_changed
         values["param_delta_norm"] = evidence.param_delta_norm
-        gain = _rate(after, "completed") - _rate(before, "completed")
+        before_rate = _rate(before, "completed")
+        gain = _rate(after, "completed") - before_rate
         increase = _rate(after, "budget_exceeded") - _rate(before, "budget_exceeded")
-        passed["M2"] = gain >= M2A_MIN_GAIN and increase <= 0
-        values.update(m2a_completion_gain=gain, m2b_budget_exceeded_increase=increase)
+        # 学習前の完走率が高いと+0.30の余地が無い(合法マスク後は未学習でも完走率1.00)。
+        # 余地を超える増分は求めず、学習前を下回らないことを求める
+        required = min(M2A_MIN_GAIN, 1.0 - before_rate)
+        passed["M2"] = gain >= required and gain >= 0 and increase <= 0
+        values.update(
+            m2a_completion_gain=gain,
+            m2a_required_gain=required,
+            m2b_budget_exceeded_increase=increase,
+        )
         mean, low, _high = _paired_gain(after, before, "final_quality", bootstrap_seed)
         passed["M3"] = mean >= M3_MIN_GAIN and low > 0
         values.update(m3_mean_gain=mean, m3_ci_lower=low)

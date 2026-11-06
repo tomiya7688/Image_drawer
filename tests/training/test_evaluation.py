@@ -85,6 +85,23 @@ def test_claim_gate_marks_not_learned_when_no_improvement() -> None:
     assert not report.passed["M2"] and not report.passed["M3"] and not report.passed["M4"]
 
 
+def test_m2_caps_required_gain_at_headroom_and_forbids_regression() -> None:
+    gate = ClaimGate()
+    baseline = table(completed=0.4, quality=0.35)
+
+    def m2(before_completed: float, after_completed: float) -> tuple[bool, float]:
+        before = table(completed=before_completed, quality=0.3)
+        after = table(completed=after_completed, quality=0.6, swapped=0.3)
+        report = gate.evaluate(before, after, baseline, EVIDENCE, integrity_ok=True)
+        return report.passed["M2"], report.values["m2a_required_gain"]
+
+    assert m2(1.0, 1.0) == (True, 0.0)  # 余地が無い: 学習前を下回らなければ合格
+    assert m2(0.8, 1.0) == (True, pytest.approx(0.2))  # 余地0.2まで求める
+    assert not m2(1.0, 0.8)[0]  # 完走率が下がれば不合格
+    assert m2(0.2, 0.4) == (False, 0.3)  # 余地が大きいときは従来どおり+0.30が必要
+    assert m2(0.2, 0.6)[0]
+
+
 def test_claim_gate_requires_confidence_interval_lower_bound_above_zero() -> None:
     before = table(completed=0.2, quality=0.3)
     after = table(completed=1.0, quality=0.35, swapped=0.0, jitter=0.5)
