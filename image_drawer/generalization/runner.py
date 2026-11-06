@@ -19,6 +19,7 @@ from image_drawer.core import SerializableModel
 from image_drawer.dataset import PolicyInput, RewardTarget
 from image_drawer.drawing.replay import replay
 from image_drawer.drawing.stage.controller import AttemptRecord
+from image_drawer.generalization.controls import shuffle_targets
 from image_drawer.generalization.metrics_process import (
     GenerationCost,
     ProcessSample,
@@ -97,6 +98,8 @@ class GenerationResult(SerializableModel):
 #     hardware_ids: 条件ごとの実行環境
 #     dataset_exclusions: 学習用promptが空で評価対象外になったtest画像の件数
 #     exit_code: 0成功、1失敗の生成を含む、3 Replay不一致・監査器の不一致
+#     shuffled: promptを別の画像のものに入れ替えた生成(対照指標prompt_shuffle_delta用)。
+#     通常の生成・工程指標・コスト・終了コードには含めない
 #   ]
 # }
 @dataclass(slots=True)
@@ -111,6 +114,7 @@ class RunOutput(SerializableModel):
     hardware_ids: dict[str, str]
     dataset_exclusions: int = 0
     exit_code: int = 0
+    shuffled: list[GenerationResult] = field(default_factory=list)
 
 
 # {
@@ -258,6 +262,7 @@ def run_generations(
     dataset_exclusions: int = 0,
     hardware_ids: Mapping[str, str] | None = None,
     sink: Callable[[GenerationResult, Trial], None] | None = None,
+    shuffle_prompts: bool = False,
 ) -> RunOutput:
     sides = {runner.config.canvas_side for runner in conditions.values()}
     budgets = {(r.config.max_actions, r.config.max_attempts) for r in conditions.values()}
@@ -265,6 +270,12 @@ def run_generations(
         raise ValueError("all conditions must share canvas and budget, and 'blank' is reserved")
     side = sides.pop()
     ordered = sorted(samples, key=lambda pair: pair[0].image_id)
+    # 入れ替え先のpromptは、評価集合IDだけで決まる固定の対応で選ぶ(条件・seedに依存しない)
+    prompts = {pair[0].image_id: pair[0].prompt for pair in ordered}
+    targets = (
+        shuffle_targets(list(prompts), eval_set_id) if shuffle_prompts else {}
+    )  # fmt: skip
+    shuffled: list[GenerationResult] = []
     generations: list[GenerationResult] = []
     process_samples: dict[str, list[ProcessSample]] = {name: [] for name in conditions}
     costs: dict[str, list[GenerationCost]] = {name: [] for name in conditions}
@@ -287,6 +298,14 @@ def run_generations(
                 costs[name].append(cost)
                 if sample is not None:
                     process_samples[name].append(sample)
+                if shuffle_prompts:
+                    swapped = PolicyInput(
+                        policy_input.image_id, prompts[targets[policy_input.image_id]]
+                    )
+                    swapped_result, _, _ = _generate(
+                        name, runner, evaluator, swapped, features, group_id, k, seed
+                    )
+                    shuffled.append(swapped_result)
     failures = {name: _count_failures(generations, name, dataset_exclusions) for name in conditions}
     process = {n: asdict(compute_process_metrics(s)) for n, s in process_samples.items()}
     output = RunOutput(
@@ -299,6 +318,7 @@ def run_generations(
         costs={name: summarize_costs(c) for name, c in costs.items()},
         hardware_ids=dict(hardware_ids or {n: describe_hardware() for n in conditions}),
         dataset_exclusions=dataset_exclusions,
+        shuffled=shuffled,
     )
     output.exit_code = decide_exit_code(output)
     return output

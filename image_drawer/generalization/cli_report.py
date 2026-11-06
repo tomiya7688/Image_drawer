@@ -30,6 +30,31 @@ def _git(*args: str) -> str:
 
 # {
 #   責務: [
+#     _controls_of: 実行結果から計算できる対照指標だけを作る(今はprompt_shuffle_deltaのみ)
+#   ]
+#   処理: [ 入れ替え生成(run --shuffle-prompts)が無ければ空。指標は報告書の例と同じ基準で選ぶ ]
+# }
+def _controls_of(output, comparison: dict) -> dict:
+    from image_drawer.generalization.compare import metric_names
+    from image_drawer.generalization.controls import prompt_shuffle_control
+
+    names = metric_names(output)
+    if not output.shuffled or not names:
+        return {}
+    metric = "rgb_128" if "rgb_128" in names else names[0]
+    bootstrap = comparison.get("bootstrap", {})
+    control = prompt_shuffle_control(
+        output,
+        "after",
+        metric,
+        resamples=int(bootstrap.get("resamples", 10000)),
+        rng_seed=int(bootstrap.get("rng_seed", 0)),
+    )
+    return {"prompt_shuffle_delta": control} if control else {}
+
+
+# {
+#   責務: [
 #     cmd_report: 比較と実行結果から報告書のJSONとMarkdownを作る
 #   ]
 #   処理: [
@@ -58,6 +83,7 @@ def cmd_report(args: argparse.Namespace) -> int:
         exclusions_disclosed=True,
         comparisons=comparison.get("comparisons", []),
         human=human,
+        controls=_controls_of(output, comparison),
     )
     report = build_report(
         comparison,

@@ -132,8 +132,13 @@ def _unverified(inputs: GateInputs, output: RunOutput) -> list[str]:
         notes.append("学習したPolicyの評価(試験用または未指定のPolicyのため、モデルの品質は未測定)")
     if inputs.human is None:
         notes.append("独立した人間評価(未実施)")
-    if not inputs.controls:
-        notes.append("prompt_shuffle_delta・probe_hit_rate・nearest_train_hit_rate(未計算)")
+    missing = [
+        name
+        for name in ("prompt_shuffle_delta", "probe_hit_rate", "nearest_train_hit_rate")
+        if name not in inputs.controls
+    ]
+    if missing:
+        notes.append("・".join(missing) + "(未計算)")
     if inputs.reproduced is not True:
         notes.append("新しい環境での再現(未確認)")
     notes.append("OpenCLIP系の独立指標(heldout_openclip_*)は測定していない")
