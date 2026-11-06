@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import random
 import sys
 from pathlib import Path
 
@@ -29,11 +30,21 @@ def make_dataset(root: Path, count: int) -> Path:
     source = root / "source"
     source.mkdir(parents=True, exist_ok=True)
     for index in range(count):
+        # 位置・大きさが連続的に変わる長方形に、画像ごとに異なる小ブロックを重ねる。
+        # 近重複として数群にまとまると、test splitが数枚になり判定が必ずinconclusiveになる
+        rng = random.Random(index)
         image = Image.new("RGB", (32, 32), (255, 255, 255))
-        left = 2 + (index * 5) % 14
-        for x in range(left, left + 12):
-            for y in range(8, 24):
+        width, height = rng.randrange(8, 20), rng.randrange(8, 20)
+        left, top = rng.randrange(0, 32 - width), rng.randrange(0, 32 - height)
+        for x in range(left, left + width):
+            for y in range(top, top + height):
                 image.putpixel((x, y), PALETTE[index % len(PALETTE)])
+        for _ in range(8):
+            x0, y0 = rng.randrange(0, 28), rng.randrange(0, 28)
+            block = tuple(rng.randrange(256) for _ in range(3))
+            for x in range(x0, x0 + 4):
+                for y in range(y0, y0 + 4):
+                    image.putpixel((x, y), block)
         image.save(source / f"img_{index:03d}.png")
     dataset = root / "dataset"
     register_images(
