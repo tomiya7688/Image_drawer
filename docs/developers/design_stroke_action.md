@@ -112,6 +112,6 @@ Engine の `stroke_v2{samples}` は変えません。変えるのは、Policy �
 - 温度は全headのlogitsに掛け（`logits / T`）、対数確率・エントロピーの勾配に`1/T`を掛ける。既定1.0では従来のsoftmaxと同じ。評価時も設定値の温度で統一する（ガウスの`sigma_end`固定は廃止）。
 - 直前ストロークの終点は、Policyが観測の`action_tail`（先頭が空なら新しいtrial、末尾が受理された`stroke_v2`なら提案した終点を確定）だけで追う。Observationの契約は変えていない。
 - 方向反転（相対方向8）は常に有効なため、1本目が引ければ2本目以降が全候補無効になる構成は実際には起きない。切り詰めの処理はあるが、テストでは`valid_moves`を差し替えて確認している。線分を1本も引けない構成（G=1など）では`kind`マスで`stroke_v2`を選べない。
-- 手順4のうち、`metrics.jsonl`に`stroke_count`・`stroke_single_segment_rate`・`stroke_truncated_count`を追加した。折れ線の平均曲がり角（`stroke_mean_turn_deg`。2本目以降の相対方向rの`min(r, 16-r)×22.5度`の平均で、折れ線が無ければ`None`）も同じ`metrics.jsonl`に追加した。`training/evaluation`（評価表）への記録は未実装（別PR）。
+- 手順4のうち、`metrics.jsonl`に`stroke_count`・`stroke_single_segment_rate`・`stroke_truncated_count`を追加した。折れ線の平均曲がり角（`stroke_mean_turn_deg`。2本目以降の相対方向rの`min(r, 16-r)×22.5度`の平均で、折れ線が無ければ`None`）も同じ`metrics.jsonl`に追加した。評価表（`evaluation.jsonl`の各行、`EvalRecord`）にも`stroke_count`・`stroke_single_segments`・`stroke_mean_turn_deg`を記録する（集計は`stroke_stats.py`で`metrics.jsonl`と共通）。ClaimGateの合否（M1〜M6）には使わない。
 - checkpointのsidecar JSONに`stroke_head_hash`を保存し、旧checkpoint（キーなし）と構成違いは`ValueError`（`CheckpointMismatchError`）で拒否する。`policy_version`は`parametric-softmax-stroke-v2`、`RandomLegalPolicy`は`random-legal-v2`（登録ID`random-legal-v1`は変えていない）。
 - 実測（パラメータ数・メモリ・学習の収束・絵の品質）は未実施で、見積りのまま。
