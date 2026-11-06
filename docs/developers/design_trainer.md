@@ -2,7 +2,7 @@
 >
 > **目的:** 文章と白紙からAI自身が描き、描画結果のRewardでPolicyを更新するTrainer（S3、Issue #70）の実装設計を定める。
 >
-> **状態:** 実装済み（Trainer、Policy、RewardEvaluator、TextEncoder、ClaimGate、学習CLI）。**実測（`training_experiment`）は未実施**です。この文書は「モデルが絵を描いて学習できた」ことを示しません。
+> **状態:** 実装済み（Trainer、Policy、RewardEvaluator、TextEncoder、ClaimGate、学習CLI）。合成画像での実測は1回だけで、判定は`not_learned`でした（12節）。この文書は「モデルが絵を描いて学習できた」ことを示しません。
 
 # Trainer実装設計（S3）
 
@@ -616,3 +616,28 @@ PR8の後、実験結果（`learned`/`not_learned`/`inconclusive`）を記録す
 | 終了理由（11節） | `Trial.end_reason`は`controller.termination_reason`を写す（`finished`/`action_budget_exhausted`/`attempt_budget_exhausted`） |
 | 学習できるAction | `erase_v2`・`create_layer`・レビュー退出（`review_reason`）はv0のPolicyが出さない |
 | CLI（`__main__.py`） | `python -m image_drawer.training train <dataset> [--config JSON] [--output-dir] [--seed] [--iterations] [--resume iter_N.json] [--stop-after N]` と `evaluate <experiment_dir> --dataset <dataset> [--images 8] [--seeds 5]`。出力先の既定は `reports/training/exp-<設定ハッシュ先頭8桁>`。終了コードは 0=完了（`evaluate`の判定が`not_learned`/`inconclusive`でも0。`verdict`を見る）、1=学習が中断、2=実行できない。`evaluate`はtest splitで学習前・学習後・ランダムを同条件（温度は設定値で統一）で測り、`claim.json`・`evaluation.jsonl`を書いて`experiment.json`の`claim`を更新する。`integrity_ok`は学習前Policyの試行のReplay一致と許可Action検査の結果（target隔離は契約テストで確認） |
+
+## 12. 実測記録（合成画像・1回）
+
+`scripts/run_training_experiment.py --images 150 --iterations 100 --seed 0` の結果です。閾値は1.4節のまま変えていません。合成した単純な画像での測定で、実画像・高画質・収束は主張しません。
+
+| 項目 | 値 |
+| --- | --- |
+| 画像 | test 21枚のうち評価に8枚、評価seed 5個 |
+| 学習 | 3200 trial。`finish` 1599、`action_budget` 122、`curriculum_stop` 1479。更新100回、skip 0 |
+| 判定 | `not_learned`（M1・M3・M4・M6が合格、M2・M5が不合格） |
+
+| ID | 値 | 合格 |
+| --- | --- | --- |
+| M1 | `param_delta_norm`=5.81 | 合格 |
+| M2 | 完走率の増分 0.0、予算超過率の増分 0.0 | **不合格**（+0.30以上が必要） |
+| M3 | 品質の増分の平均 +0.169（信頼区間の下限 +0.160） | 合格 |
+| M4 | 平均 +0.197（下限 +0.180） | 合格 |
+| M5 | 本文を入れ替えた画像との差の余裕 平均 0.0037（下限 −0.0002） | **不合格**（下限が0以下） |
+| M6 | 完走した絵の署名が17種類 | 合格 |
+
+- **学習は進んでいます:** 100 iterationの学習中、全工程が回る50回目以降は`finish_rate`が1.00で、品質は0.61から0.73へ単調に上がりました。
+- **M2の不合格:** 完走率の増分が0.0です。合法マスク（4.2節）を入れた後は、未学習のPolicyでも完走できると考えられます（未学習側の完走率そのものは未確認）。この場合、M2aの「+0.30以上」は満たせません。閾値の見直しは、理由を残して別PRで行います。この記録では変えていません。
+- **M5の不合格:** 本文を入れ替えても絵がほとんど変わらず、本文に応じて描き分ける力は示せていません。この測定の画像は「色の違う長方形」程度で、本文とのつながりが弱いことも原因の候補です（未検証）。
+- **測定の修正:** 旧スクリプトの合成画像は色4種と位置の組み合わせで、重複判定により数群にまとまり、test splitが2枚になって判定が必ず`inconclusive`でした。画像ごとに大きさ・位置と小ブロックを変え、test 21枚を得ています。
+- **未確認:** 実画像、複数seed、より長い学習。
