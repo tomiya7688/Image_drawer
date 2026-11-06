@@ -30,27 +30,35 @@ def _git(*args: str) -> str:
 
 # {
 #   責務: [
-#     _controls_of: 実行結果から計算できる対照指標だけを作る(今はprompt_shuffle_deltaのみ)
+#     _controls_of: 実行結果から計算できる対照指標だけを作る(prompt_shuffle_delta・probe_hit_rate)
 #   ]
-#   処理: [ 入れ替え生成(run --shuffle-prompts)が無ければ空。指標は報告書の例と同じ基準で選ぶ ]
+#   処理: [
+#     入れ替え生成(run --shuffle-prompts)とprobe生成(run --probe)は、それぞれ記録があるときだけ計算する。
+#     shuffleの指標は報告書の例と同じ基準で選ぶ
+#   ]
 # }
 def _controls_of(output, comparison: dict) -> dict:
     from image_drawer.generalization.compare import metric_names
-    from image_drawer.generalization.controls import prompt_shuffle_control
+    from image_drawer.generalization.controls import probe_hit_rate_control, prompt_shuffle_control
 
+    controls: dict = {}
     names = metric_names(output)
-    if not output.shuffled or not names:
-        return {}
-    metric = "rgb_128" if "rgb_128" in names else names[0]
-    bootstrap = comparison.get("bootstrap", {})
-    control = prompt_shuffle_control(
-        output,
-        "after",
-        metric,
-        resamples=int(bootstrap.get("resamples", 10000)),
-        rng_seed=int(bootstrap.get("rng_seed", 0)),
-    )
-    return {"prompt_shuffle_delta": control} if control else {}
+    if output.shuffled and names:
+        metric = "rgb_128" if "rgb_128" in names else names[0]
+        bootstrap = comparison.get("bootstrap", {})
+        shuffle = prompt_shuffle_control(
+            output,
+            "after",
+            metric,
+            resamples=int(bootstrap.get("resamples", 10000)),
+            rng_seed=int(bootstrap.get("rng_seed", 0)),
+        )
+        if shuffle:
+            controls["prompt_shuffle_delta"] = shuffle
+    probe = probe_hit_rate_control(output) if output.probes else None
+    if probe:
+        controls["probe_hit_rate"] = probe
+    return controls
 
 
 # {

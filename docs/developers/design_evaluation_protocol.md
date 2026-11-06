@@ -2,7 +2,7 @@
 >
 > **目的:** Issue #72（S5）の実装設計を定める。同じ条件で学習前後を再現し、未見画像・未見promptで改善を確認する手順と、「高精度」と公表してよい条件・してはいけない条件を、検証できる形で決める。
 >
-> **状態:** 設計書。`image-drawer-evaluate`、指標、報告書、ゲートは`image_drawer/generalization/`に実装済みです（`useful_stroke_rate`、`probe_hit_rate`・`nearest_train_hit_rate`の実行配線、OpenCLIP系の独立指標を除く。`prompt_shuffle_delta`は`run --shuffle-prompts`で配線済み）。実checkpointでの評価は未実測です。Policy、Trainer、Reward、Controllerも未実装のため、現時点では学習の効果を測定した結果は存在しない。文書が揃ったこと、CIが通ることは、モデルが絵を描けること、学習で上達したことを意味しない。
+> **状態:** 設計書。`image-drawer-evaluate`、指標、報告書、ゲートは`image_drawer/generalization/`に実装済みです（`useful_stroke_rate`、`nearest_train_hit_rate`の実行配線、OpenCLIP系の独立指標を除く。`prompt_shuffle_delta`は`run --shuffle-prompts`、`probe_hit_rate`は`run --probe`で配線済み）。実checkpointでの評価は未実測です。Policy、Trainer、Reward、Controllerも未実装のため、現時点では学習の効果を測定した結果は存在しない。文書が揃ったこと、CIが通ることは、モデルが絵を描けること、学習で上達したことを意味しない。
 
 # 汎化評価プロトコルの実装設計（S5）
 
@@ -196,7 +196,7 @@ Controllerは規則を満たさないActionを受理しないため、**受理�
 | 指標 | 式・手順 |
 | --- | --- |
 | `prompt_shuffle_delta` | `test`の項目`i`のpromptを、別の項目`j`（固定乱数で選ぶ）のpromptに入れ替えて生成し、`score(正しいprompt) − score(入れ替えたprompt)`の平均。0以下ならpromptを使っていない疑い |
-| `probe_hit_rate` | 構成的なprobe（例: 「赤い」と「青い」）で、指定した色の面積が背景を除いて最大となる割合。色名は固定256色の最近傍で判定する。個数・位置は後続のprobeで追加 |
+| `probe_hit_rate` | 構成的なprobe（例: 「赤い」と「青い」）で、指定した色の面積が背景を除いて最大となる割合。色名は固定256色の最近傍で判定する。個数・位置は後続のprobeで追加。実装のprobeは`controls.PROBES`の4つ（赤い・青い・緑の・黄色い）で、目標画像は使わずpromptだけで同じ推論seedの生成を行う。完成しなかった生成は命中に数えず分母に残す |
 | `nearest_train_hit_rate` | 生成画像`I`について、`train`の目標画像のうち最も近いもの（独立指標の距離で距離`d`）が閾値`τ`未満となる割合。記憶・コピーの疑いの検出（`τ`は`validation`で設定して凍結） |
 | `generalization_gap` | `gain_train − gain_test`（`gain`は`after − before`の平均） |
 

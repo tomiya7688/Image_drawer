@@ -10,6 +10,7 @@ from PIL import Image
 from image_drawer.dataset import PolicyInput, RewardTarget
 from image_drawer.drawing import DrawingAction
 from image_drawer.generalization.compare import compare_conditions
+from image_drawer.generalization.controls import PROBES, probe_hit_rate_control
 from image_drawer.generalization.runner import RunOutput, run_generations
 from image_drawer.generalization.stats import inference_seed
 from image_drawer.training.action_codec import ActionChoice, layer_mask
@@ -238,3 +239,41 @@ def test_runner_shuffle_prompts_records_swapped_generations_apart_from_normal_on
     # 方策が見たpromptは2種類だけ(各画像の自分のpromptと、入れ替え先のprompt)
     assert len(set(policy.texts)) == 2
     assert RunOutput.from_json(output.to_json()).shuffled == output.shuffled
+
+
+# {
+#   責務: [
+#     ColorByPromptPolicy: 試験用。観測のtext_conditionが一致したprobeのpromptの色で、最後のrefine工程を塗る
+#     (同じ色の塗り重ねは画素を変えず工程を抜けられないため、他の工程はPaintPolicyの黒のまま)
+#   ]
+# }
+class ColorByPromptPolicy(PaintPolicy):
+    def __init__(self) -> None:
+        encoder = get_text_encoder(CONFIG.text_encoder_id)
+        self.vectors = [(encoder.encode(prompt), color) for prompt, color in PROBES]
+
+    def act(self, observation, rng):
+        decision = super().act(observation, rng)
+        if decision.action.type == "select_color" and observation.stage_id == "refine":
+            for vector, color in self.vectors:
+                if np.allclose(observation.text_condition, vector):
+                    return PolicyDecision(
+                        DrawingAction("select_color", {"color_id": color}), decision.sample
+                    )
+        return decision
+
+
+def test_runner_probe_generates_with_probe_prompts_and_scores_the_expected_color(tmp_path):
+    output = run_toy(
+        tmp_path,
+        {"before": make_runner(PaintPolicy()), "after": make_runner(ColorByPromptPolicy())},
+        probe=True,
+    )
+    assert len(output.probes) == len(PROBES) * 2 * 2  # probe x seed(2) x 条件(2)
+    seeds = {(p.prompt, p.k): p.seed for p in output.probes}
+    assert all(p.seed == seeds[(p.prompt, p.k)] for p in output.probes)  # seedは条件に依存しない
+    control = probe_hit_rate_control(output)
+    assert control == {"before": 0.0, "after": 1.0, "n": len(PROBES) * 2}
+    assert RunOutput.from_json(output.to_json()).probes == output.probes
+    plain = run_toy(tmp_path, {"before": make_runner(PaintPolicy())})
+    assert plain.probes == []

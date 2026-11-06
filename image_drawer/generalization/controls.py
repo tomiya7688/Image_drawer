@@ -1,4 +1,4 @@
-"""対照指標(prompt_shuffle_delta)の計算。実行結果の入れ替え生成から、信頼区間つきの値を作る。"""
+"""対照指標(prompt_shuffle_delta・probe_hit_rate)の計算。実行結果から報告書の入力を作る。"""
 
 from __future__ import annotations
 
@@ -7,6 +7,38 @@ from collections.abc import Mapping, Sequence
 from typing import Any
 
 from image_drawer.generalization.stats import cluster_bootstrap
+
+# 構成的なprobe(設計書6.6節)。色名のpromptと、固定256色(6x6x6の立方体: 番号=36r+6g+b)での期待色。
+# 個数・位置は後続のprobeで追加する
+PROBES: tuple[tuple[str, int], ...] = (
+    ("赤い", 180),  # (255, 0, 0)
+    ("青い", 5),  # (0, 0, 255)
+    ("緑の", 30),  # (0, 255, 0)
+    ("黄色い", 210),  # (255, 255, 0)
+)
+
+
+# {
+#   責務: [
+#     probe_hit_rate_control: 条件ごとのprobe命中率(命中数 ÷ 全生成数)を作る。失敗は命中に数えず分母に残す
+#   ]
+#   引数: [ output: RunOutput(probesを持つもの), before, after: 比較する条件名 ]
+#   戻り値: [ {"before": 率, "after": 率, "n": 条件あたりの生成数}。どちらかの条件の記録が無ければNone ]
+# }
+def probe_hit_rate_control(
+    output: Any, before: str = "before", after: str = "after"
+) -> dict[str, Any] | None:
+    rates: dict[str, float] = {}
+    counts: dict[str, int] = {}
+    for condition in (before, after):
+        rows = [p for p in getattr(output, "probes", []) if p.condition == condition]
+        if not rows:
+            return None
+        counts[condition] = len(rows)
+        rates[condition] = sum(1 for p in rows if p.hit) / len(rows)
+    if counts[before] != counts[after]:
+        return None
+    return {"before": rates[before], "after": rates[after], "n": counts[after]}
 
 
 # {
