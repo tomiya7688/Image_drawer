@@ -192,6 +192,10 @@ def test_training_smoke_updates_parameters_and_writes_records(
     assert record.policy_before.sha256 != record.policy_after.sha256
     rows = (tmp_path / "metrics.jsonl").read_text(encoding="utf-8").splitlines()
     assert len(rows) == 2 and json.loads(rows[0])["iteration"] == 0
+    for row in map(json.loads, rows):
+        assert "stroke_mean_turn_deg" in row  # 折れ線が無ければNone、あれば0〜180度
+        turn = row["stroke_mean_turn_deg"]
+        assert turn is None or 0.0 <= turn <= 180.0
     assert (tmp_path / "experiment.json").is_file()
     assert (tmp_path / "checkpoints" / "iter_2.npz").is_file()
 

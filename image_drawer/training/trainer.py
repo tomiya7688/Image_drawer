@@ -30,6 +30,7 @@ from image_drawer.training.policy import DrawingPolicy
 from image_drawer.training.policy_params import AdamState
 from image_drawer.training.reward import RewardEvaluator, TargetFeatures
 from image_drawer.training.rollout import RolloutRunner, TrainingRollout
+from image_drawer.training.stroke_geometry import DIRECTIONS
 from image_drawer.training.text_encoder import TextEncoder, get_text_encoder
 
 STREAM_INIT, STREAM_SPLIT, STREAM_TRIAL = 0, 1, 2
@@ -236,6 +237,12 @@ class Trainer:
             if step.accepted and step.sample.choice.stroke_dirs is not None
         ]
         single = sum(len(choice.stroke_dirs) == 1 for choice in strokes)
+        # 2本目以降は直前に対する相対方向r(0が直進)。曲がり角は min(r, 方向数-r) x 22.5度
+        turns = [
+            min(rel, DIRECTIONS - rel) * (360.0 / DIRECTIONS)
+            for choice in strokes
+            for rel in choice.stroke_dirs[1:]
+        ]
         return {
             "iteration": iteration,
             "trials": len(trials),
@@ -250,6 +257,7 @@ class Trainer:
             "mean_entropy": stats.mean_entropy,
             "stroke_count": len(strokes),
             "stroke_single_segment_rate": single / len(strokes) if strokes else None,
+            "stroke_mean_turn_deg": float(np.mean(turns)) if turns else None,
             "stroke_truncated_count": sum(
                 choice.stroke_segments - len(choice.stroke_dirs) for choice in strokes
             ),
