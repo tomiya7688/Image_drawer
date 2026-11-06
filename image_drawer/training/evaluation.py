@@ -16,6 +16,7 @@ import numpy as np
 from image_drawer.dataset import PolicyInput, RewardTarget
 from image_drawer.training.reward import RewardEvaluator
 from image_drawer.training.rollout import RolloutRunner, Trial
+from image_drawer.training.stroke_stats import stroke_stats
 
 MIN_IMAGES = 8
 MIN_SEEDS = 5
@@ -43,6 +44,9 @@ class EvalRecord:
     swapped_quality: float | None
     pixel_distance: float | None
     action_signature: str
+    stroke_count: int = 0
+    stroke_single_segments: int = 0
+    stroke_mean_turn_deg: float | None = None
 
 
 # {
@@ -122,6 +126,7 @@ def run_evaluation(
                 swapped_quality, distance = _swap_metrics(
                     evaluator, features, trial, swapped, runner.config.canvas_side
                 )
+            shape = stroke_stats(step.sample.choice for step in trial.steps if step.accepted)
             records.append(
                 EvalRecord(
                     policy_input.image_id,
@@ -132,6 +137,9 @@ def run_evaluation(
                     swapped_quality,
                     distance,
                     action_signature(trial),
+                    shape.count,
+                    shape.single,
+                    shape.mean_turn_deg,
                 )  # fmt: skip
             )
     return records
