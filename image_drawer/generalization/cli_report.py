@@ -68,7 +68,13 @@ def _controls_of(output, comparison: dict, train_output=None) -> dict:
         controls["nearest_train_hit_rate"] = nearest
     if train_output is not None and names:
         metric = "rgb_128" if "rgb_128" in names else names[0]
-        gap = generalization_gap_control(output, train_output, metric)
+        gap = generalization_gap_control(
+            output,
+            train_output,
+            metric,
+            resamples=int(comparison.get("bootstrap", {}).get("resamples", 10000)),
+            rng_seed=int(comparison.get("bootstrap", {}).get("rng_seed", 0)),
+        )
         if gap:
             controls["generalization_gap"] = gap
     return controls

@@ -86,7 +86,7 @@ def nearest_train_hit_rate_control(
 #     大きいほどtrainだけ改善している(記憶・過学習の疑い)
 #   ]
 #   引数: [ test_output, train_output: RunOutput(beforeとafterを持つ), metric: 指標名, before, after ]
-#   戻り値: [ {"gap","gain_train","gain_test","metric","n_train","n_test"}。片方に条件の記録が無ければNone ]
+#   戻り値: [ {"gap","ci95","gain_train","gain_test","metric","n_train","n_test"}。ci95はtrainとtestをgroup単位で独立に復元抽出した差の95%区間。片方に条件の記録が無ければNone ]
 # }
 def generalization_gap_control(
     test_output: Any,
@@ -94,33 +94,51 @@ def generalization_gap_control(
     metric: str,
     before: str = "before",
     after: str = "after",
+    *,
+    resamples: int = 10000,
+    rng_seed: int = 0,
 ) -> dict[str, Any] | None:
     from image_drawer.generalization.compare import _itt_scores  # 循環importを避ける
 
-    def gain(output: Any) -> tuple[float, int] | None:
+    def gains(output: Any) -> tuple[list[float], list[str]] | None:
         first, second = _itt_scores(output, before, metric), _itt_scores(output, after, metric)
-        shared = sorted(set(first) & set(second))
-        if not shared:
-            return None
-        per_image = []
-        for image_id in shared:
+        group_of = {g.image_id: g.group_id for g in output.generations}
+        values: list[float] = []
+        groups: list[str] = []
+        for image_id in sorted(set(first) & set(second)):
             ks = sorted(set(first[image_id]) & set(second[image_id]))
             if ks:
-                per_image.append(
-                    sum(second[image_id][k] - first[image_id][k] for k in ks) / len(ks)
-                )
-        return (sum(per_image) / len(per_image), len(per_image)) if per_image else None
+                values.append(sum(second[image_id][k] - first[image_id][k] for k in ks) / len(ks))
+                groups.append(group_of.get(image_id, image_id))
+        return (values, groups) if values else None
 
-    test_gain, train_gain = gain(test_output), gain(train_output)
-    if test_gain is None or train_gain is None:
+    test, train = gains(test_output), gains(train_output)
+    if test is None or train is None:
         return None
+    gain_test, gain_train = sum(test[0]) / len(test[0]), sum(train[0]) / len(train[0])
+    # trainとtestは別の画像集合なので、それぞれをgroup単位で独立に復元抽出して差の区間を求める
+    rng = random.Random(rng_seed)
+
+    def resampled_mean(values: list[float], groups: list[str]) -> float:
+        by_group: dict[str, list[float]] = {}
+        for value, group in zip(values, groups):
+            by_group.setdefault(group, []).append(value)
+        keys = sorted(by_group)
+        picks = [rng.choice(keys) for _ in keys]
+        flat = [v for key in picks for v in by_group[key]]
+        return sum(flat) / len(flat)
+
+    estimates = sorted(resampled_mean(*train) - resampled_mean(*test) for _ in range(resamples))
+    low = estimates[min(resamples - 1, int(0.025 * resamples))]
+    high = estimates[min(resamples - 1, int(0.975 * resamples))]
     return {
-        "gap": train_gain[0] - test_gain[0],
-        "gain_train": train_gain[0],
-        "gain_test": test_gain[0],
+        "gap": gain_train - gain_test,
+        "ci95": [low, high],
+        "gain_train": gain_train,
+        "gain_test": gain_test,
         "metric": metric,
-        "n_train": train_gain[1],
-        "n_test": test_gain[1],
+        "n_train": len(train[0]),
+        "n_test": len(test[0]),
     }
 
 

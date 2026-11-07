@@ -151,6 +151,9 @@ def test_generalization_gap_is_train_gain_minus_test_gain() -> None:
     gap = generalization_gap_control(gain_output(0.2, 0.3), gain_output(0.2, 0.6), "rgb_128")
     assert gap["gain_test"] == pytest.approx(0.1) and gap["gain_train"] == pytest.approx(0.4)
     assert gap["gap"] == pytest.approx(0.3) and (gap["n_train"], gap["n_test"]) == (2, 2)
+    low, high = gap["ci95"]
+    assert low <= gap["gap"] <= high  # 全画像が同じ改善量なら区間は点になる
+    assert low == pytest.approx(0.3) and high == pytest.approx(0.3)
     assert generalization_gap_control(gain_output(0.2, 0.3), output_with({}, {}), "rgb_128") is None
 
 
@@ -159,3 +162,18 @@ def test_report_controls_include_generalization_gap_only_with_a_train_run() -> N
     assert "generalization_gap" not in _controls_of(test, {})
     controls = _controls_of(test, {}, gain_output(0.2, 0.5))
     assert controls["generalization_gap"]["gap"] == pytest.approx(0.2)
+
+
+def test_generalization_gap_interval_is_wide_when_gains_differ_across_groups_and_is_reproducible() -> (
+    None
+):
+    train = gain_output(0.2, 0.4, ids=("a", "b", "c", "d"))
+    for item in train.generations:
+        if item.condition == "after" and item.image_id in ("c", "d"):
+            item.metrics["rgb_128"] = 0.9  # c, dだけ大きく改善
+    test = gain_output(0.2, 0.3)
+    first = generalization_gap_control(test, train, "rgb_128", resamples=500, rng_seed=1)
+    again = generalization_gap_control(test, train, "rgb_128", resamples=500, rng_seed=1)
+    assert first == again
+    low, high = first["ci95"]
+    assert low < first["gap"] < high
