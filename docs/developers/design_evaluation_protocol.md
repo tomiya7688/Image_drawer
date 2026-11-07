@@ -198,7 +198,7 @@ Controllerは規則を満たさないActionを受理しないため、**受理�
 | `prompt_shuffle_delta` | `test`の項目`i`のpromptを、別の項目`j`（固定乱数で選ぶ）のpromptに入れ替えて生成し、`score(正しいprompt) − score(入れ替えたprompt)`の平均。0以下ならpromptを使っていない疑い |
 | `probe_hit_rate` | 構成的なprobe（例: 「赤い」と「青い」）で、指定した色の面積が背景を除いて最大となる割合。色名は固定256色の最近傍で判定する。個数・位置は後続のprobeで追加。実装のprobeは`controls.PROBES`の4つ（赤い・青い・緑の・黄色い）で、目標画像は使わずpromptだけで同じ推論seedの生成を行う。完成しなかった生成は命中に数えず分母に残す |
 | `nearest_train_hit_rate` | 生成画像`I`について、`train`の目標画像のうち最も近いもの（独立指標の距離で距離`d`）が閾値`τ`未満となる割合。記憶・コピーの疑いの検出（`τ`は`validation`で設定して凍結）。実装では、距離を`1 − heldout_ssim64`とし、`τ`を`image-drawer-evaluate memorization-tau`が決める（`validation`の各目標画像から`train`の目標画像までの最小距離の下側5%点。「未見の実画像でも普通は届かない近さ」までの接近をコピーの疑いと数える）。`run --memorization-tau tau.json`は各生成の最小距離を`nearest_train_distance`に記録し、`τ`と`train`の件数を`RunOutput.memorization`へ保存する。命中は距離が`τ`未満で、完成しなかった生成は命中に数えず分母に残す。`test`の結果を見て`τ`を変えない |
-| `generalization_gap` | `gain_train − gain_test`（`gain`は`after − before`の平均）。実装では、`run --split train --max-items N`（画像IDの昇順で先頭N件。Nは`test`と同数にする。台帳・凍結宣言は不要で、公表の根拠にしない比較用）の結果を`report --train-run`に渡し、ITT（失敗は白紙得点）の画像ごとの平均の平均で`gain`を求める。信頼区間は未実装 |
+| `generalization_gap` | `gain_train − gain_test`（`gain`は`after − before`の平均）。実装では、`run --split train --max-items N`（画像IDの昇順で先頭N件。Nは`test`と同数にする。台帳・凍結宣言は不要で、公表の根拠にしない比較用）の結果を`report --train-run`に渡し、ITT（失敗は白紙得点）の画像ごとの平均の平均で`gain`を求める。信頼区間（`ci95`）は、`train`と`test`をgroup単位で独立に復元抽出した差の95%区間（`compare`と同じ再抽出回数・乱数の種） |
 
 ### 6.7 失敗の集計
 
