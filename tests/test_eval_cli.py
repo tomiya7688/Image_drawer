@@ -101,3 +101,22 @@ def test_memorization_tau_is_computed_from_validation_and_saved(tmp_path, capsys
         main(["memorization-tau", "--dataset", str(empty), "--out", str(tmp_path / "x.json")]) == 2
     )
     assert not (tmp_path / "x.json").exists()
+
+
+def test_run_on_train_split_needs_no_freeze_manifest_and_respects_max_items(tmp_path):
+    dataset = write_dataset(tmp_path / "ds", BASE_IMAGES)
+    (dataset / "images").mkdir()
+    for image in BASE_IMAGES:
+        Image.new("RGB", (8, 8), (30, 30, 30)).save(dataset / image.image_path)
+    eval_set = tmp_path / "eval_set.json"
+    main(["plan", "--dataset", str(dataset), "--out", str(eval_set)])
+    out = tmp_path / "run-train"
+    code = main(
+        ["run", "--dataset", str(dataset), "--eval-set", str(eval_set), "--split", "train",
+         "--max-items", "1", "--condition", "before=random", "--condition", "after=random",
+         "--seeds", "1", "--out", str(out)]
+    )  # fmt: skip
+    assert code in (0, 1)  # 失敗した生成があっても結果は保存される
+    saved = json.loads((out / "run.json").read_text(encoding="utf-8"))
+    assert saved["split"] == "train" and {g["image_id"] for g in saved["generations"]} == {"a1"}
+    assert not (tmp_path / "test_ledger.jsonl").exists()  # 台帳に触れない
