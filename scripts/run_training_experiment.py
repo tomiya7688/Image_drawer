@@ -60,6 +60,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--images", type=int, default=150)
     parser.add_argument("--iterations", type=int, default=200)
     parser.add_argument("--seed", type=int, default=0)
+    parser.add_argument("--text-encoder", default="hashed-ngram-v1")
     args = parser.parse_args(argv)
     from image_drawer.training.__main__ import main as training_main
 
@@ -68,7 +69,7 @@ def main(argv: list[str] | None = None) -> int:
     config = root / "config.json"
     config.write_text(
         json.dumps({"canvas_side": 32, "summary_side": 8, "max_actions": 96,
-                    "text_encoder_id": "hashed-ngram-v1", "curriculum": {"enabled": True}}),
+                    "text_encoder_id": args.text_encoder, "curriculum": {"enabled": True}}),
         encoding="utf-8",
     )  # fmt: skip
     experiment = root / "experiment"

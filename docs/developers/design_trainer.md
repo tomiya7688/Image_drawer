@@ -700,3 +700,16 @@ PR8の後、実験結果（`learned`/`not_learned`/`inconclusive`）を記録す
 データセットのpromptは「白と赤が中心の正方形の画像（明るい、正方形、白、赤、桃）」のように長い共通のテンプレートを持ち、色を表す語は一部だけです。`hashed-ngram-v1`の出力はテンプレート部分に支配され、色の違いがベクトルにほとんど現れていません。方策はtextを入力に受け取る構造（`observation.py`）なので、入力の違いが小さすぎることが、prompt未使用の有力な原因と考えられます。
 
 ただし、これは相関的な証拠で、因果の確認ではありません。因果を確かめるには、色の違いが大きく出るencoder（例: 色語だけを別の特徴にする、またはテンプレート部分を除く）で学習し、`prompt_shuffle_delta`と`probe_hit_rate`が改善するかを調べる必要があります（未実施）。線形方策の容量と32pxでのRewardの弱さは、引き続き未検証です。
+
+### 12.5 色語を別特徴にするencoderでの因果の確認（prompt未使用の原因の切り分け・3回目）
+
+12.4の仮説（`hashed-ngram-v1`の出力がテンプレートに支配され、色の違いが小さすぎる）を確かめるため、`color-keyword-v1`（ハッシュn-gramに、色語10語の有無を示す特徴を連結して正規化）を追加しました。`scripts/run_training_experiment.py --text-encoder color-keyword-v1`で、12.2と同じ合成データ（150枚）・設定・学習seedのまま、encoderだけを替えて300 iteration学習し、12.2と同じ条件（validation分割14画像、推論seed 3、`--shuffle-prompts --probe --memorization-tau`）で評価しました。`claim_level`は`none`です。
+
+| 指標 | `hashed-ngram-v1`（12.2） | `color-keyword-v1` |
+| --- | --- | --- |
+| 完成率（random 0.55） | 1.00 | 1.00 |
+| `prompt_shuffle_delta` | −0.0002（区間 −0.0008〜+0.0004） | +0.0006（区間 −0.0008〜+0.0022） |
+| `probe_hit_rate`（before 0.0） | 0.0 | 0.0 |
+| `nearest_train_hit_rate`（before 0.071） | 0.0 | 0.0 |
+
+結論: 色の違いを明示するencoderでも、promptは使われませんでした（区間は0を含み、probeも0.0）。12.4の「encoderの出力がテンプレートに支配されていることが主な原因」という仮説は、この設定では支持されませんでした。1つの設定・1つの学習seedの結果で、encoderが無関係と断定はできません。残る候補は、線形方策の容量、32pxでの画像類似度Rewardの弱さ（色の違いがRewardにほとんど現れない可能性）、curriculum段階で、いずれも未検証です。次は、Rewardが色の違いに反応するか（正しい色と違う色で、Rewardの差があるか）を直接測ります。
