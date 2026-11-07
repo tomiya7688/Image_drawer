@@ -673,4 +673,3 @@ PR8の後、実験結果（`learned`/`not_learned`/`inconclusive`）を記録す
 学習できたのは「描き切ること」で、promptに応じた描き分けは学習できていません。合成データの目標画像は長方形と4×4ブロックで、promptが色や形の手がかりになりにくい作りのため、この結果はデータの作りの影響を受けている可能性があります（原因の切り分けは未実施）。`generalization_gap`はtrain側の実行をしていないため未計算です。`useful_stroke_rate`とOpenCLIP系は未実装です。
 
 再現の注意: `--train-config`を省くと「設定のハッシュが一致しません」で止まります。checkpointを作った実験の`experiment.json`の`config`を`--train-config`に渡してください。
-
