@@ -30,7 +30,7 @@ def _git(*args: str) -> str:
 
 # {
 #   責務: [
-#     _controls_of: 実行結果から計算できる対照指標だけを作る(prompt_shuffle_delta・probe_hit_rate)
+#     _controls_of: 実行結果から計算できる対照指標だけを作る(prompt_shuffle_delta・probe_hit_rate・nearest_train_hit_rate)
 #   ]
 #   処理: [
 #     入れ替え生成(run --shuffle-prompts)とprobe生成(run --probe)は、それぞれ記録があるときだけ計算する。
@@ -39,7 +39,11 @@ def _git(*args: str) -> str:
 # }
 def _controls_of(output, comparison: dict) -> dict:
     from image_drawer.generalization.compare import metric_names
-    from image_drawer.generalization.controls import probe_hit_rate_control, prompt_shuffle_control
+    from image_drawer.generalization.controls import (
+        nearest_train_hit_rate_control,
+        probe_hit_rate_control,
+        prompt_shuffle_control,
+    )
 
     controls: dict = {}
     names = metric_names(output)
@@ -58,6 +62,9 @@ def _controls_of(output, comparison: dict) -> dict:
     probe = probe_hit_rate_control(output) if output.probes else None
     if probe:
         controls["probe_hit_rate"] = probe
+    nearest = nearest_train_hit_rate_control(output)
+    if nearest:
+        controls["nearest_train_hit_rate"] = nearest
     return controls
 
 
