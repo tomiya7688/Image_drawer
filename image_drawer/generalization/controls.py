@@ -79,6 +79,53 @@ def nearest_train_hit_rate_control(
 
 # {
 #   責務: [
+#     generalization_gap_control: gain_train − gain_test(gainはafter − beforeの画像ごとの平均の平均)を作る
+#   ]
+#   処理: [
+#     失敗には画像のblank得点を割り当てる(ITT)。同じ指標で、trainの部分集合の実行とtestの実行を比べる。
+#     大きいほどtrainだけ改善している(記憶・過学習の疑い)
+#   ]
+#   引数: [ test_output, train_output: RunOutput(beforeとafterを持つ), metric: 指標名, before, after ]
+#   戻り値: [ {"gap","gain_train","gain_test","metric","n_train","n_test"}。片方に条件の記録が無ければNone ]
+# }
+def generalization_gap_control(
+    test_output: Any,
+    train_output: Any,
+    metric: str,
+    before: str = "before",
+    after: str = "after",
+) -> dict[str, Any] | None:
+    from image_drawer.generalization.compare import _itt_scores  # 循環importを避ける
+
+    def gain(output: Any) -> tuple[float, int] | None:
+        first, second = _itt_scores(output, before, metric), _itt_scores(output, after, metric)
+        shared = sorted(set(first) & set(second))
+        if not shared:
+            return None
+        per_image = []
+        for image_id in shared:
+            ks = sorted(set(first[image_id]) & set(second[image_id]))
+            if ks:
+                per_image.append(
+                    sum(second[image_id][k] - first[image_id][k] for k in ks) / len(ks)
+                )
+        return (sum(per_image) / len(per_image), len(per_image)) if per_image else None
+
+    test_gain, train_gain = gain(test_output), gain(train_output)
+    if test_gain is None or train_gain is None:
+        return None
+    return {
+        "gap": train_gain[0] - test_gain[0],
+        "gain_train": train_gain[0],
+        "gain_test": test_gain[0],
+        "metric": metric,
+        "n_train": train_gain[1],
+        "n_test": test_gain[1],
+    }
+
+
+# {
+#   責務: [
 #     shuffle_targets: 各画像の入れ替え先の画像を、固定乱数で決める(自分自身にならない巡回)
 #   ]
 #   処理: [ 画像IDを並べて固定乱数で1〜n-1の距離を選び、その分だけずらした画像を入れ替え先にする ]

@@ -44,7 +44,13 @@ def _build_parser() -> argparse.ArgumentParser:
     run = sub.add_parser("run", help="条件ごとに生成して指標を計算する")
     run.add_argument("--dataset", type=Path, required=True)
     run.add_argument("--eval-set", type=Path, required=True)
-    run.add_argument("--split", choices=("validation", "test"), required=True)
+    run.add_argument("--split", choices=("validation", "test", "train"), required=True)
+    run.add_argument(
+        "--max-items",
+        type=int,
+        default=None,
+        help="画像IDの昇順で先頭N件だけ使う(trainの部分集合をtestと同数にする)",
+    )
     run.add_argument("--condition", action="append", default=[], help="名前=checkpointのjson")
     run.add_argument("--freeze-manifest", type=Path, default=None)
     run.add_argument("--train-config", type=Path, default=None)
@@ -83,6 +89,12 @@ def _build_parser() -> argparse.ArgumentParser:
     report.add_argument("--run", type=Path, required=True)
     report.add_argument("--eval-set", type=Path, required=True)
     report.add_argument("--human", type=Path, default=None)
+    report.add_argument(
+        "--train-run",
+        type=Path,
+        default=None,
+        help="--split trainの実行結果ディレクトリ。generalization_gapを計算する",
+    )
     report.add_argument("--out", type=Path, required=True)
     report.add_argument("--markdown", type=Path, required=True)
     pack = sub.add_parser("human-pack", help="人間評価の盲検パックを作る")
@@ -273,6 +285,8 @@ def _cmd_run(args: argparse.Namespace) -> int:
     # 台帳に記録する前に、条件と評価集合の整合を確認する(実行不能な入力で台帳を汚さない)。
     specs = _parse_conditions(args.condition)
     samples = list(iter_samples(args.dataset, args.split))
+    if args.max_items is not None:
+        samples = sorted(samples, key=lambda pair: pair[0].image_id)[: args.max_items]
     if args.split == "test":
         # 評価集合とDatasetが一致しなければ、部分的な結果を保存せずに実行不能とする。
         wanted = {item.image_id for item in eval_set.items}
@@ -282,7 +296,8 @@ def _cmd_run(args: argparse.Namespace) -> int:
         samples = [pair for pair in samples if pair[0].image_id in wanted]
     ledger = args.ledger or args.out.parent / LEDGER_NAME
     try:
-        authorize_run(args.split, eval_set, args.freeze_manifest, ledger)
+        if args.split != "train":  # trainは公表の根拠にしない比較用の実行。台帳・凍結宣言は要らない
+            authorize_run(args.split, eval_set, args.freeze_manifest, ledger)
     except LedgerError as error:
         print(f"error: {error}", file=sys.stderr)
         return EXIT_UNRUNNABLE
