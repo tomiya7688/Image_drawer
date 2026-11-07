@@ -21,6 +21,8 @@ from image_drawer.generalization.metrics_quality import (
     blank_image,
     component_scores,
     heldout_scores,
+    memorization_tau,
+    nearest_train_distance,
     nearest_train_hit_rate,
     probe_hit,
     prompt_shuffle_delta,
@@ -193,3 +195,27 @@ def test_metrics_never_load_target_inside_policy_process_boundary():
         "print(bad); sys.exit(1 if bad else 0)"
     )
     assert subprocess.run([sys.executable, "-c", code], capture_output=True).returncode == 0
+
+
+def test_nearest_train_distance_is_zero_for_a_copy_and_positive_for_others():
+    stripes = np.zeros((16, 16, 3))
+    stripes[:, ::2] = 1.0
+    train = [RED, stripes]
+    assert nearest_train_distance(stripes.copy(), train) == pytest.approx(0.0, abs=1e-9)
+    assert nearest_train_distance(BLUE, [stripes]) > 0.0
+    with pytest.raises(ValueError):
+        nearest_train_distance(RED, [])
+
+
+def test_memorization_tau_is_a_lower_quantile_of_validation_to_train_distances():
+    stripes = np.zeros((16, 16, 3))
+    stripes[:, ::2] = 1.0
+    train = [stripes]
+    validation = [stripes.copy(), BLUE, RED]
+    distances = sorted(nearest_train_distance(v, train) for v in validation)
+    assert memorization_tau(validation, train, quantile=0.0) == pytest.approx(distances[0])
+    assert memorization_tau(validation, train, quantile=1.0) == pytest.approx(distances[-1])
+    with pytest.raises(ValueError):
+        memorization_tau([], train)
+    with pytest.raises(ValueError):
+        memorization_tau(validation, train, quantile=1.5)

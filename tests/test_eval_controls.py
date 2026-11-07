@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from dataclasses import replace
+
 import pytest
 
 from image_drawer.generalization.cli_report import _controls_of
@@ -116,3 +118,17 @@ def test_probe_set_uses_distinct_palette_colors_of_the_named_hues() -> None:
         "緑の": (0, 255, 0),
         "黄色い": (255, 255, 0),
     }
+
+
+def test_report_controls_include_nearest_train_hit_rate_when_memorization_was_checked() -> None:
+    output = output_with({i: 0.9 for i in IDS}, {i: 0.3 for i in IDS})
+    before = [replace(g, condition="before") for g in output.generations]
+    output.generations = [*before, *output.generations]
+    for item in output.generations:
+        item.nearest_train_distance = 0.5 if item.condition == "before" else 0.01
+    output.memorization = {"tau": 0.1, "train_count": 3}
+    controls = _controls_of(output, {"bootstrap": {"resamples": 50, "rng_seed": 3}})
+    near = controls["nearest_train_hit_rate"]
+    assert (near["before"], near["after"], near["tau"]) == (0.0, 1.0, 0.1)
+    notes = " ".join(_unverified(GateInputs(policy_kind="trained", controls=controls), output))
+    assert "nearest_train_hit_rate" not in notes

@@ -148,6 +148,43 @@ def nearest_train_hit_rate(
 
 # {
 #   責務: [
+#     nearest_train_distance: 生成画像から、trainの目標画像のうち最も近いものまでの距離(1 - ssim64)
+#   ]
+#   引数: [ rgb: 生成画像, train_rgbs: trainの目標画像(1枚以上) ]
+#   戻り値: [ 最小の距離。同一画像は0 ]
+#   エラー: [ ValueError: train_rgbsが空 ]
+# }
+def nearest_train_distance(rgb: Image, train_rgbs: Sequence[Image]) -> float:
+    if not train_rgbs:
+        raise ValueError("train_rgbs must not be empty")
+    return min(1.0 - ssim64(rgb, target) for target in train_rgbs)
+
+
+# {
+#   責務: [
+#     memorization_tau: 記憶・コピーの閾値τを、validationの実画像のtrainへの近さから決める
+#   ]
+#   処理: [
+#     validationの各目標画像について、trainの目標画像までの最小距離を求め、その下側quantile点をτにする。
+#     「未見の実画像でも普通は届かない近さ」まで生成画像が近い場合を、コピーの疑いとして数える。
+#     validationだけで決めてjsonへ保存して凍結し、testの結果を見て変更しない
+#   ]
+#   引数: [ validation_rgbs, train_rgbs: 1枚以上の目標画像, quantile: 0〜1(既定0.05) ]
+#   エラー: [ ValueError: 画像が空、quantileが範囲外 ]
+# }
+def memorization_tau(
+    validation_rgbs: Sequence[Image], train_rgbs: Sequence[Image], quantile: float = 0.05
+) -> float:
+    if not validation_rgbs or not train_rgbs:
+        raise ValueError("validation_rgbs and train_rgbs must not be empty")
+    if not 0.0 <= quantile <= 1.0:
+        raise ValueError("quantile must be within [0, 1]")
+    distances = [nearest_train_distance(rgb, train_rgbs) for rgb in validation_rgbs]
+    return float(np.quantile(distances, quantile))
+
+
+# {
+#   責務: [
 #     probe_hit: 指定した色の面積が、背景を除いて最大かを固定パレットの最近傍で判定する
 #   ]
 #   引数: [ rgb: 完成画像(0〜1), expected_color_id: パレットの色ID(0〜255) ]

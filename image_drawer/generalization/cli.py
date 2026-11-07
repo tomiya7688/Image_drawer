@@ -59,8 +59,19 @@ def _build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="色名などの構成的なpromptでも生成し、probe_hit_rateを計算できるようにする",
     )
+    run.add_argument(
+        "--memorization-tau",
+        type=Path,
+        default=None,
+        help="memorization-tauで作ったjson。trainへの近さも記録し、nearest_train_hit_rateを計算できるようにする",
+    )
     run.add_argument("--out", type=Path, required=True)
     run.add_argument("--ledger", type=Path, default=None)
+    tau = sub.add_parser("memorization-tau", help="記憶の閾値τをvalidationから決めて凍結する")
+    tau.add_argument("--dataset", type=Path, required=True)
+    tau.add_argument("--train-config", type=Path, default=None)
+    tau.add_argument("--quantile", type=float, default=0.05)
+    tau.add_argument("--out", type=Path, required=True)
     compare = sub.add_parser("compare", help="実行結果を比較する")
     compare.add_argument("--run", type=Path, required=True)
     compare.add_argument("--eval-set", type=Path, default=None)
@@ -203,6 +214,52 @@ def _parse_conditions(items: list[str]) -> dict[str, str]:
 
 
 # {
+#   責務: [ _load_config: --train-configのjson、またはTrainConfig()の既定を返す ]
+# }
+def _load_config(path: Path | None):
+    from image_drawer.training.config import TrainConfig
+
+    return (
+        TrainConfig.from_dict(json.loads(path.read_text(encoding="utf-8")))
+        if path
+        else TrainConfig()
+    )
+
+
+# {
+#   責務: [
+#     _cmd_memorization_tau: validationの実画像のtrainへの近さからτを決め、jsonに保存して凍結する
+#   ]
+#   処理: [ testは読まない。trainまたはvalidationが空なら実行不能 ]
+# }
+def _cmd_memorization_tau(args: argparse.Namespace) -> int:
+    from image_drawer.dataset import iter_samples
+    from image_drawer.generalization.metrics_quality import memorization_tau
+    from image_drawer.training.reward import RewardEvaluator
+
+    config = _load_config(args.train_config)
+    evaluator = RewardEvaluator(config.reward, config.canvas_side)
+    train = [evaluator.prepare_target(t).rgb for _, t in iter_samples(args.dataset, "train")]
+    validation = [
+        evaluator.prepare_target(t).rgb for _, t in iter_samples(args.dataset, "validation")
+    ]
+    tau = memorization_tau(validation, train, args.quantile)
+    _write_json(
+        args.out,
+        {
+            "tau": tau,
+            "quantile": args.quantile,
+            "n_validation": len(validation),
+            "n_train": len(train),
+            "distance": "1 - heldout_ssim64",
+            "source": "validation",
+        },
+    )
+    print(f"memorization tau={tau:.6f} (validation={len(validation)}, train={len(train)})")
+    return 0
+
+
+# {
 #   責務: [ _cmd_run: 規則を確認し、条件ごとに生成して結果を保存する ]
 #   処理: [ testでは凍結宣言と帳簿を要求する。失敗した生成があっても結果は保存し、終了コード1を返す ]
 # }
@@ -210,7 +267,6 @@ def _cmd_run(args: argparse.Namespace) -> int:
     from image_drawer.dataset import iter_samples
     from image_drawer.dataset.manifest import DatasetManifest
     from image_drawer.generalization.runner import run_generations
-    from image_drawer.training.config import TrainConfig
     from image_drawer.training.reward import RewardEvaluator
 
     eval_set = EvalSet.load(args.eval_set)
@@ -230,11 +286,12 @@ def _cmd_run(args: argparse.Namespace) -> int:
     except LedgerError as error:
         print(f"error: {error}", file=sys.stderr)
         return EXIT_UNRUNNABLE
-    config = (
-        TrainConfig.from_dict(json.loads(args.train_config.read_text(encoding="utf-8")))
-        if args.train_config
-        else TrainConfig()
-    )
+    config = _load_config(args.train_config)
+    train_targets = None
+    tau = None
+    if args.memorization_tau:
+        tau = float(json.loads(args.memorization_tau.read_text(encoding="utf-8"))["tau"])
+        train_targets = [target for _, target in iter_samples(args.dataset, "train")]
     conditions = {name: _load_runner(spec, config) for name, spec in specs.items()}
     manifest = DatasetManifest.load(args.dataset)
     groups = {image.image_id: image.group_id for image in manifest.images}
@@ -250,6 +307,8 @@ def _cmd_run(args: argparse.Namespace) -> int:
         sink=_make_image_sink(args.out, config.canvas_side),
         shuffle_prompts=args.shuffle_prompts,
         probe=args.probe,
+        train_targets=train_targets,
+        memorization_tau=tau,
     )
     args.out.mkdir(parents=True, exist_ok=True)
     (args.out / "run.json").write_text(output.to_json(indent=2), encoding="utf-8")
@@ -288,6 +347,7 @@ def main(argv: list[str] | None = None) -> int:
         "plan": _cmd_plan,
         "freeze": _cmd_freeze,
         "run": _cmd_run,
+        "memorization-tau": _cmd_memorization_tau,
         "compare": _cmd_compare,
         "report": cli_report.cmd_report,
         "human-pack": cli_report.cmd_human_pack,

@@ -31,6 +31,7 @@ from image_drawer.generalization.metrics_quality import (
     blank_image,
     component_scores,
     heldout_scores,
+    nearest_train_distance,
     probe_hit,
 )
 from image_drawer.generalization.stats import inference_seed
@@ -71,6 +72,8 @@ _FAILURE_BY_END_REASON = {
 #     audit_passed: 監査の合否。Episodeが無ければNone
 #     replay_exact: 再生した画像が生成時の画像とバイト単位で一致したか
 #     cost: GenerationCostの辞書
+#     nearest_train_distance: trainの目標画像までの最小距離(1 - ssim64)。記憶の確認(run --memorization-tau)のときだけ。
+#     失敗した生成はNone
 #   ]
 # }
 @dataclass(slots=True)
@@ -85,6 +88,7 @@ class GenerationResult(SerializableModel):
     audit_passed: bool | None = None
     replay_exact: bool | None = None
     cost: dict[str, Any] = field(default_factory=dict)
+    nearest_train_distance: float | None = None
 
 
 # {
@@ -119,6 +123,7 @@ class ProbeResult(SerializableModel):
 #     shuffled: promptを別の画像のものに入れ替えた生成(対照指標prompt_shuffle_delta用)。
 #     通常の生成・工程指標・コスト・終了コードには含めない
 #     probes: 構成的なprobeのpromptで生成した結果(対照指標probe_hit_rate用)。同じく別枠
+#     memorization: 記憶の確認の設定{"tau", "train_count"}。確認しない実行はNone
 #   ]
 # }
 @dataclass(slots=True)
@@ -135,6 +140,7 @@ class RunOutput(SerializableModel):
     exit_code: int = 0
     shuffled: list[GenerationResult] = field(default_factory=list)
     probes: list[ProbeResult] = field(default_factory=list)
+    memorization: dict[str, Any] | None = None
 
 
 # {
@@ -217,6 +223,7 @@ def _generate(
     k: int,
     seed: int,
     sink: Callable[[GenerationResult, Trial], None] | None = None,
+    train_rgbs: Sequence[Any] | None = None,
 ) -> tuple[GenerationResult, ProcessSample | None, GenerationCost]:
     started = time.perf_counter()
     trial = runner.run_trial(policy_input, seed, None)
@@ -228,6 +235,15 @@ def _generate(
         metrics, exact, failure = _score_generation(
             trial, evaluator, features, runner.config.canvas_side
         )
+    distance: float | None = None
+    if failure is None and train_rgbs:
+        try:
+            side = runner.config.canvas_side
+            distance = nearest_train_distance(
+                composite_over_white(trial.final_composite, side), train_rgbs
+            )
+        except Exception:
+            distance = None
     try:
         sample = make_process_sample(
             trial.episode,
@@ -247,6 +263,7 @@ def _generate(
         sample.audit.passed if sample and sample.audit else None,
         exact,
         asdict(cost),
+        distance,
     )
     if sink is not None:
         sink(result, trial)
@@ -314,12 +331,20 @@ def run_generations(
     sink: Callable[[GenerationResult, Trial], None] | None = None,
     shuffle_prompts: bool = False,
     probe: bool = False,
+    train_targets: Sequence[RewardTarget] | None = None,
+    memorization_tau: float | None = None,
 ) -> RunOutput:
     sides = {runner.config.canvas_side for runner in conditions.values()}
     budgets = {(r.config.max_actions, r.config.max_attempts) for r in conditions.values()}
     if len(sides) != 1 or len(budgets) != 1 or BLANK in conditions:
         raise ValueError("all conditions must share canvas and budget, and 'blank' is reserved")
     side = sides.pop()
+    if (train_targets is None) != (memorization_tau is None):
+        raise ValueError("train_targets and memorization_tau must be given together")
+    if train_targets is not None and not train_targets:
+        raise ValueError("train_targets must not be empty")
+    # 記憶の確認: trainの目標画像を評価器の大きさに揃えて1回だけ用意する
+    train_rgbs = [evaluator.prepare_target(t).rgb for t in train_targets] if train_targets else None
     ordered = sorted(samples, key=lambda pair: pair[0].image_id)
     # 入れ替え先のpromptは、評価集合IDだけで決まる固定の対応で選ぶ(条件・seedに依存しない)
     prompts = {pair[0].image_id: pair[0].prompt for pair in ordered}
@@ -343,7 +368,16 @@ def run_generations(
             seed = inference_seed(eval_set_id, policy_input.image_id, k)
             for name, runner in conditions.items():
                 result, sample, cost = _generate(
-                    name, runner, evaluator, policy_input, features, group_id, k, seed, sink
+                    name,
+                    runner,
+                    evaluator,
+                    policy_input,
+                    features,
+                    group_id,
+                    k,
+                    seed,
+                    sink,
+                    train_rgbs,
                 )
                 generations.append(result)
                 costs[name].append(cost)
@@ -372,6 +406,9 @@ def run_generations(
         dataset_exclusions=dataset_exclusions,
         shuffled=shuffled,
         probes=probes,
+        memorization=(
+            {"tau": memorization_tau, "train_count": len(train_rgbs)} if train_rgbs else None
+        ),
     )
     output.exit_code = decide_exit_code(output)
     return output

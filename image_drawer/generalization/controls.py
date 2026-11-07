@@ -43,6 +43,42 @@ def probe_hit_rate_control(
 
 # {
 #   責務: [
+#     nearest_train_hit_rate_control: 条件ごとに、trainの目標画像へτ未満まで近づいた生成の割合(記憶・コピーの疑い)を作る
+#   ]
+#   処理: [
+#     命中は nearest_train_distance < τ。失敗した生成は画像が無く命中に数えず、分母に残す。
+#     τはvalidationで決めて凍結した値で、実行時にRunOutput.memorizationへ保存される
+#   ]
+#   引数: [ output: RunOutput, before, after: 比較する条件名 ]
+#   戻り値: [ {"before": 率, "after": 率, "tau": τ, "n": 条件あたりの生成数}。確認していない・片方の記録が無い・件数が違えばNone ]
+# }
+def nearest_train_hit_rate_control(
+    output: Any, before: str = "before", after: str = "after"
+) -> dict[str, Any] | None:
+    memorization = getattr(output, "memorization", None)
+    if not memorization:
+        return None
+    tau = float(memorization["tau"])
+    rates: dict[str, float] = {}
+    counts: dict[str, int] = {}
+    for condition in (before, after):
+        rows = [g for g in output.generations if g.condition == condition]
+        if not rows:
+            return None
+        counts[condition] = len(rows)
+        hits = sum(
+            1
+            for g in rows
+            if g.nearest_train_distance is not None and g.nearest_train_distance < tau
+        )
+        rates[condition] = hits / len(rows)
+    if counts[before] != counts[after]:
+        return None
+    return {"before": rates[before], "after": rates[after], "tau": tau, "n": counts[after]}
+
+
+# {
+#   責務: [
 #     shuffle_targets: 各画像の入れ替え先の画像を、固定乱数で決める(自分自身にならない巡回)
 #   ]
 #   処理: [ 画像IDを並べて固定乱数で1〜n-1の距離を選び、その分だけずらした画像を入れ替え先にする ]

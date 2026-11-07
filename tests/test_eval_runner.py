@@ -10,7 +10,11 @@ from PIL import Image
 from image_drawer.dataset import PolicyInput, RewardTarget
 from image_drawer.drawing import DrawingAction
 from image_drawer.generalization.compare import compare_conditions
-from image_drawer.generalization.controls import PROBES, probe_hit_rate_control
+from image_drawer.generalization.controls import (
+    PROBES,
+    nearest_train_hit_rate_control,
+    probe_hit_rate_control,
+)
 from image_drawer.generalization.runner import RunOutput, run_generations
 from image_drawer.generalization.stats import inference_seed
 from image_drawer.training.action_codec import ActionChoice, layer_mask
@@ -277,3 +281,46 @@ def test_runner_probe_generates_with_probe_prompts_and_scores_the_expected_color
     assert RunOutput.from_json(output.to_json()).probes == output.probes
     plain = run_toy(tmp_path, {"before": make_runner(PaintPolicy())})
     assert plain.probes == []
+
+
+def white_train_targets(tmp_path):
+    path = tmp_path / "train_white.png"
+    Image.new("RGB", (16, 16), (255, 255, 255)).save(path)
+    return [RewardTarget("train1", str(path), "sha")]
+
+
+def test_runner_memorization_records_distance_and_hit_rate_against_tau(tmp_path):
+    conditions = {"before": make_runner(PaintPolicy()), "after": make_runner(PaintPolicy())}
+    train = white_train_targets(tmp_path)
+    loose = run_toy(tmp_path, conditions, train_targets=train, memorization_tau=2.0)
+    done = [g for g in loose.generations if g.failure_kind is None]
+    assert done and all(g.nearest_train_distance is not None for g in done)
+    assert loose.memorization == {"tau": 2.0, "train_count": 1}
+    assert nearest_train_hit_rate_control(loose) == {
+        "before": 1.0, "after": 1.0, "tau": 2.0, "n": 4,
+    }  # fmt: skip
+    strict = run_toy(tmp_path, conditions, train_targets=train, memorization_tau=-1.0)
+    assert nearest_train_hit_rate_control(strict)["after"] == 0.0
+    assert RunOutput.from_json(loose.to_json()).memorization == loose.memorization
+    plain = run_toy(tmp_path, {"before": make_runner(PaintPolicy())})
+    assert plain.memorization is None and nearest_train_hit_rate_control(plain) is None
+    assert all(g.nearest_train_distance is None for g in plain.generations)
+
+
+def test_runner_memorization_keeps_failed_generations_in_the_denominator(tmp_path):
+    conditions = {"before": make_runner(FailingPolicy()), "after": make_runner(PaintPolicy())}
+    out = run_toy(
+        tmp_path, conditions, train_targets=white_train_targets(tmp_path), memorization_tau=2.0
+    )
+    failed = [g for g in out.generations if g.condition == "before"]
+    assert failed and all(g.failure_kind and g.nearest_train_distance is None for g in failed)
+    control = nearest_train_hit_rate_control(out)
+    assert control["before"] == 0.0 and control["after"] == 1.0
+
+
+def test_runner_memorization_requires_targets_and_tau_together(tmp_path):
+    conditions = {"before": make_runner(PaintPolicy())}
+    with pytest.raises(ValueError):
+        run_toy(tmp_path, conditions, train_targets=white_train_targets(tmp_path))
+    with pytest.raises(ValueError):
+        run_toy(tmp_path, conditions, train_targets=[], memorization_tau=0.1)
