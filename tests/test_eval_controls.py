@@ -8,6 +8,7 @@ import pytest
 
 from image_drawer.generalization.cli_report import _controls_of
 from image_drawer.generalization.controls import (
+    generalization_gap_control,
     PROBES,
     probe_hit_rate_control,
     prompt_shuffle_control,
@@ -132,3 +133,29 @@ def test_report_controls_include_nearest_train_hit_rate_when_memorization_was_ch
     assert (near["before"], near["after"], near["tau"]) == (0.0, 1.0, 0.1)
     notes = " ".join(_unverified(GateInputs(policy_kind="trained", controls=controls), output))
     assert "nearest_train_hit_rate" not in notes
+
+
+def gain_output(before: float, after: float, ids=("a", "b")) -> RunOutput:
+    rows = [
+        GenerationResult(name, i, f"g-{i}", k, 0, None, {"rgb_128": score})
+        for i in ids
+        for k in range(2)
+        for name, score in (("before", before), ("after", after))
+    ]
+    return RunOutput("set", "x", rows, {i: {"rgb_128": 0.1} for i in ids}, {}, {}, {}, {})
+
+
+def test_generalization_gap_is_train_gain_minus_test_gain() -> None:
+    from image_drawer.generalization.controls import generalization_gap_control
+
+    gap = generalization_gap_control(gain_output(0.2, 0.3), gain_output(0.2, 0.6), "rgb_128")
+    assert gap["gain_test"] == pytest.approx(0.1) and gap["gain_train"] == pytest.approx(0.4)
+    assert gap["gap"] == pytest.approx(0.3) and (gap["n_train"], gap["n_test"]) == (2, 2)
+    assert generalization_gap_control(gain_output(0.2, 0.3), output_with({}, {}), "rgb_128") is None
+
+
+def test_report_controls_include_generalization_gap_only_with_a_train_run() -> None:
+    test = gain_output(0.2, 0.3)
+    assert "generalization_gap" not in _controls_of(test, {})
+    controls = _controls_of(test, {}, gain_output(0.2, 0.5))
+    assert controls["generalization_gap"]["gap"] == pytest.approx(0.2)

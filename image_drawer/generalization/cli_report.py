@@ -37,9 +37,10 @@ def _git(*args: str) -> str:
 #     shuffleの指標は報告書の例と同じ基準で選ぶ
 #   ]
 # }
-def _controls_of(output, comparison: dict) -> dict:
+def _controls_of(output, comparison: dict, train_output=None) -> dict:
     from image_drawer.generalization.compare import metric_names
     from image_drawer.generalization.controls import (
+        generalization_gap_control,
         nearest_train_hit_rate_control,
         probe_hit_rate_control,
         prompt_shuffle_control,
@@ -65,6 +66,11 @@ def _controls_of(output, comparison: dict) -> dict:
     nearest = nearest_train_hit_rate_control(output)
     if nearest:
         controls["nearest_train_hit_rate"] = nearest
+    if train_output is not None and names:
+        metric = "rgb_128" if "rgb_128" in names else names[0]
+        gap = generalization_gap_control(output, train_output, metric)
+        if gap:
+            controls["generalization_gap"] = gap
     return controls
 
 
@@ -84,6 +90,11 @@ def cmd_report(args: argparse.Namespace) -> int:
     comparison = json.loads(args.compare.read_text(encoding="utf-8"))
     output = RunOutput.from_json((args.run / "run.json").read_text(encoding="utf-8"))
     eval_set = EvalSet.load(args.eval_set)
+    train_output = (
+        RunOutput.from_json((args.train_run / "run.json").read_text(encoding="utf-8"))
+        if args.train_run
+        else None
+    )
     human = json.loads(args.human.read_text(encoding="utf-8")) if args.human else None
     after = output.process.get("after", {})
     exact = [g.replay_exact for g in output.generations if g.replay_exact is not None]
@@ -98,7 +109,7 @@ def cmd_report(args: argparse.Namespace) -> int:
         exclusions_disclosed=True,
         comparisons=comparison.get("comparisons", []),
         human=human,
-        controls=_controls_of(output, comparison),
+        controls=_controls_of(output, comparison, train_output),
     )
     report = build_report(
         comparison,
