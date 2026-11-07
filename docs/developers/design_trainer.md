@@ -670,6 +670,6 @@ PR8の後、実験結果（`learned`/`not_learned`/`inconclusive`）を記録す
 | `probe_hit_rate` | before 0.0、after 0.0（n=12）。色の指示に従えていない |
 | `nearest_train_hit_rate` | after 0.0、before 0.071（τ=0.404）。学習画像のコピーは見られない |
 
-学習できたのは「描き切ること」で、promptに応じた描き分けは学習できていません。合成データの目標画像は長方形と4×4ブロックで、promptが色や形の手がかりになりにくい作りのため、この結果はデータの作りの影響を受けている可能性があります（原因の切り分けは未実施）。`generalization_gap`はtrain側の実行をしていないため未計算です。`useful_stroke_rate`とOpenCLIP系は未実装です。
+学習できたのは「描き切ること」で、promptに応じた描き分けは学習できていません。合成データの目標画像は長方形と4×4ブロックで、promptが色や形の手がかりになりにくい作りのため、この結果はデータの作りの影響を受けている可能性があります（原因の切り分けは未実施）。`generalization_gap`は、trainの先頭14件（画像ID昇順）を同じ条件で実行して計算しました。gain_train=0.0575、validationのgain=0.0677で、gap=−0.0102（rgb_128、信頼区間は未実装）です。validation側の値でありtestの値ではありません。trainだけが改善している兆候（記憶・過学習）は、この規模では見られません。`useful_stroke_rate`とOpenCLIP系は未実装です。
 
 再現の注意: `--train-config`を省くと「設定のハッシュが一致しません」で止まります。checkpointを作った実験の`experiment.json`の`config`を`--train-config`に渡してください。
