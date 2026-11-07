@@ -91,8 +91,55 @@ class HashedNgramTextEncoder:
         return (vector / norm).astype(np.float32)
 
 
+# 色語の固定語彙。共通テンプレートに埋もれやすい色の違いを、別の特徴として明示する
+COLOR_KEYWORDS: tuple[str, ...] = (
+    "赤", "青", "緑", "黄", "黒", "桃", "灰色", "橙", "紫", "茶",
+)  # fmt: skip
+
+
+# {
+#   責務: [
+#     ColorKeywordTextEncoder: ハッシュn-gramに、色語の有無を示す特徴を連結して正規化する。
+#     共通のテンプレートが長いpromptでも、色の違いがベクトルに現れるようにする
+#   ]
+#   フィールド: [
+#     dim: ハッシュ部の次元 + 色語の数
+#     encoder_version: "color-keyword-v1"
+#     _base: ハッシュn-gramのencoder
+#   ]
+#   処理: [
+#     1: ハッシュn-gram(L2ノルム1)に重みHASH_WEIGHTを掛ける
+#     2: 色語が含まれるかを0/1で並べ、重み1で連結する
+#     3: 全体をL2正規化する(色語が1つも無いpromptも、ハッシュ部で非零になる)
+#   ]
+# }
+class ColorKeywordTextEncoder:
+    encoder_version = "color-keyword-v1"
+    HASH_WEIGHT = 0.3
+
+    # {
+    #   責務: [__init__: ハッシュ部のencoderを作り、次元を決める]
+    # }
+    def __init__(self) -> None:
+        self._base = HashedNgramTextEncoder()
+        self.dim = self._base.dim + len(COLOR_KEYWORDS)
+
+    # {
+    #   責務: [encode: 文章を決定的なL2ノルム1のfloat32ベクトルにする]
+    #   引数: [training_prompt: 学習用の文章]
+    #   戻り値: [vector: 形状(dim,)のfloat32]
+    #   エラー: [ValueError: 空文字・空白のみ]
+    # }
+    def encode(self, training_prompt: str) -> NDArray[np.float32]:
+        hashed = self._base.encode(training_prompt).astype(np.float64) * self.HASH_WEIGHT
+        keywords = np.array([1.0 if word in training_prompt else 0.0 for word in COLOR_KEYWORDS])
+        vector = np.concatenate([hashed, keywords])
+        return (vector / float(np.linalg.norm(vector))).astype(np.float32)
+
+
 _ENCODER_FACTORIES: dict[str, Callable[[], TextEncoder]] = {
     "hashed-ngram-v1": HashedNgramTextEncoder,
+    "color-keyword-v1": ColorKeywordTextEncoder,
 }
 
 
