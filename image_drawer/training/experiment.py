@@ -97,10 +97,11 @@ def build_record(
     metrics_path: str,
     claim: Mapping[str, Any] | None = None,
     abort_reason: str | None = None,
+    reward_sha256: str | None = None,
 ) -> ExperimentRecord:
     manifest = DatasetManifest.load(dataset_dir)
     catalog = default_catalog()
-    reward = default_stage_reward_spec()
+    reward_sha = reward_sha256 or default_stage_reward_spec().sha256
 
     def describe(info) -> str:
         return f"{info.id}@{info.version}#model={info.model_hash}#config={info.config_hash}"
@@ -127,7 +128,7 @@ def build_record(
         reward={
             "reward_profile_id": config.reward.reward_profile_id,
             "reward_impl_version": config.reward.reward_impl_version,
-            "stage_reward_v2_sha256": reward.sha256,
+            "stage_reward_v2_sha256": reward_sha,
         },
         config=config.to_dict(),
         seeds={"master_seed": config.master_seed, "split_seed": manifest.split_seed},
