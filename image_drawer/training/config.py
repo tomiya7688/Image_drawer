@@ -181,6 +181,8 @@ class TrainConfig:
     stroke_lengths: tuple[int, ...] = DEFAULT_LENGTHS
     tail_length: int = 8
     summary_side: int = 8
+    # 0なら線形(従来)。1以上なら特徴からtanhの隠れ層(この幅)を作り、特徴と連結して各headへ渡す。
+    policy_hidden: int = 0
     reward: RewardConfig = field(default_factory=RewardConfig)
     curriculum: CurriculumConfig = field(default_factory=CurriculumConfig)
 
@@ -198,6 +200,8 @@ class TrainConfig:
         ):  # fmt: skip
             if not isinstance(getattr(self, name), int) or getattr(self, name) < 1:
                 raise ValueError(f"{name}は1以上の整数にしてください")
+        if not isinstance(self.policy_hidden, int) or self.policy_hidden < 0:
+            raise ValueError("policy_hiddenは0以上の整数にしてください")
         if self.stroke_samples < 2:
             raise ValueError("stroke_samplesは2以上にしてください")
         # 型・範囲の検証はStrokeShapeが行う(整数でない値は上のループで拒否済み)。
@@ -244,6 +248,8 @@ class TrainConfig:
     def to_dict(self) -> dict[str, Any]:
         data = asdict(self)
         data["stroke_lengths"] = list(self.stroke_lengths)
+        if not self.policy_hidden:
+            del data["policy_hidden"]  # 線形は従来のconfig_hashを保つ
         data["curriculum"]["stage_counts"] = list(self.curriculum.stage_counts)
         data["curriculum"]["iterations_per_stage"] = list(self.curriculum.iterations_per_stage)
         data["reward"]["training_weights"] = dict(self.reward.training_weights)
