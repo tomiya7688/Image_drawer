@@ -102,7 +102,10 @@ class Trainer:
     ) -> TrainingRollout:
         stop = self.config.curriculum.stop_after_stage(iteration)
         trials, rewards = [], []
+        # 別promptの目標を対比に使う(text_matchの学習重みが0なら結果に影響しない)
+        features = [(pi.prompt, self._target_features(t)) for pi, t in samples]
         for sample_index, (policy_input, target) in enumerate(samples):
+            contrast = [f for prompt, f in features if prompt != policy_input.prompt]
             for seed_index in range(self.config.seeds_per_image):
                 seed = derive_seed(
                     self.config.master_seed, STREAM_TRIAL, iteration, sample_index, seed_index
@@ -114,7 +117,7 @@ class Trainer:
                 trials.append(trial)
                 rewards.append(
                     self.evaluator.evaluate_trial(
-                        trial, self._target_features(target), policy_input.prompt
+                        trial, self._target_features(target), policy_input.prompt, contrast
                     )
                 )
         return TrainingRollout(f"rollout-{iteration}", iteration, tuple(trials), tuple(rewards))

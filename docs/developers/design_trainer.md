@@ -201,7 +201,7 @@ Rewardはtrialが終わってから`evaluate_trial`で一括計算します。`R
 | `color`（色） | RGB類似度と色ヒストグラム | `rgb_32/128`、`rgb_hist_16` | 工程別表どおり |
 | `perceptual`（知覚差） | 輝度分布類似度 | `luma_64` | 工程別表どおり |
 | `shape`（形） | 前景マスクのIoU（白から一定以上離れた画素） | JSONに無い（暫定） | 0（記録のみ） |
-| `text_match`（文章一致） | 出力画像にS2の`CaptionExtractor`を適用した文と`training_prompt`の語の一致率 | JSONに無い（暫定） | 0（記録と評価のみ） |
+| `text_match`（文章一致） | 描き終えた画像の、自分の目標との`final_quality`から、同じバッチ内の別promptの目標との`final_quality`の平均を引いた対比値（12.9） | JSONに無い（暫定） | 0（`--text-match-weight`で有効化） |
 | `progress`（進捗） | `potential_after − potential_before` | 工程別重みの合計 | 1 |
 | `action_cost`（Actionコスト） | `−0.05 / max_actions`（全attemptに適用） | JSONの式 | 1 |
 | `final_bonus` / `failure_penalty` | `2.0 × final_quality`／`−1` | JSONの式 | 1 |
@@ -579,7 +579,7 @@ GPUと大規模モデルは本書の範囲外です。上の拡張点から後�
 - `register_images`のmanifestから、extractorの`id`・`version`・`hash`、`prompt_builder_version`、`IngestReport`の失敗件数を取り出す具体的な属性名（S2 #69）。
 - 32×32での最適な`max_actions`、`B`、`K`、学習率。PR8の実測の後に、事前登録した閾値は変えずに設定値だけを決める。
 - 上の見積りが実測と大きく異なる場合のキャンバスサイズ（16×16への縮小）と、その場合のcap規則。
-- 文章一致（`text_match`）を学習重みに入れるか。S2のcaptionerの精度を測った後に判断する。
+- 文章一致（`text_match`）は対比値として実装済みで、重み2.0では効果が出なかった（12.9）。重みの大きさや、属性別の報酬との組み合わせは未検証です。
 - Reward数値化のv2正本へのfreezeと、Goldenの置き場所（別PR）。
 
 ## 12. 実装手順（PR分割）
@@ -607,7 +607,7 @@ PR8の後、実験結果（`learned`/`not_learned`/`inconclusive`）を記録す
 | --- | --- |
 | `ObservationBuilder.build` | 引数は`(text_condition, controller, engine, budget)`。直近Actionは`ProposalResult`ではなく`controller.attempts()`から作る（拒否Actionの種別は`ProposalResult`に無いため）。`LayerBrief`に`layer_id`を含める（`select_layer`の宛先解決に必要） |
 | `DrawingPolicy` | `accumulate_entropy_grad`、`params_sha256()`を追加（エントロピー項、checkpoint照合に必要）。連続座標版のガウス幅`stroke_sigma`は離散ストロークへの置換で廃止 |
-| `RewardConfig` | `outline`/`color`/`perceptual`は`progress`の特徴群別の分解で、学習重みの既定は0（二重計上しない）。学習信号は`progress`・`action_cost`・`final_bonus`・`failure_penalty`。`text_match`は未計算（常に0.0、学習重み0） |
+| `RewardConfig` | `outline`/`color`/`perceptual`は`progress`の特徴群別の分解で、学習重みの既定は0（二重計上しない）。学習信号は`progress`・`action_cost`・`final_bonus`・`failure_penalty`。`text_match`は対比値（別promptの目標との`final_quality`差）で、対比の相手がなければ0.0、学習重みの既定は0 |
 | `RewardBreakdown` | `attempt_index`を追加。`finish`は専用のActionが無く、7番目の`advance_stage`（refine→finish）のstepが`final_bonus`を受ける |
 | 乱数 | 状態を持たない導出（`SeedSequence([master_seed, stream, iteration, ...])`）。再開はcheckpointのiterationだけで一致するため、checkpointへ乱数状態を保存しない |
 | `ExperimentRecord` | `abort_reason`を追加。`TrainConfig.checkpoint_every`を追加。checkpointの既定の置き場所は`<output_dir>/checkpoints/` |
@@ -761,3 +761,18 @@ PR8の後、実験結果（`learned`/`not_learned`/`inconclusive`）を記録す
 結論: Rewardの色への感度を上げても、promptは使われませんでした。これで、学習の短さ（12.3）、text encoder（12.5）、Rewardの重みの色感度（本節）の3つは、いずれも単独では主な原因と言えないことが、1つの設定・1つの学習seedの範囲で分かりました。
 
 残る候補は、(1)学習信号の構造（同じ画像のrolloutだけでは、promptを変えたときの報酬差がなく、promptを使う動機が勾配に現れない）、(2)線形方策の容量、(3)curriculum段階です。(1)は文献調査に基づく手法（promptを入れ替えた対比、他promptのrolloutを負例にする等）で試す予定で、未実施です。色の特徴の低下量には上限があり（12.7の限界）、前景だけで色を比べる特徴は未実装のため、Rewardの色感度は引き続き限定的です。
+
+### 12.9 対比Reward（text_match）での再学習（prompt未使用の原因の切り分け・6回目）
+
+12.8の残る候補(1)を試しました。描き終えた画像について、自分の目標との`final_quality`から、同じバッチ内の別promptの目標との`final_quality`の平均を引いた値を`text_match`とし、学習重み2.0で加えました。同じデータ・設定・学習seed（150枚・300 iteration・seed 0）です。
+
+| 指標 | 12.8（校正Reward） | 対比Reward（重み2.0） |
+| --- | --- | --- |
+| 完成率（random 0.55） | 1.00 | 1.00 |
+| `prompt_shuffle_delta` | +0.0002（信頼区間 −0.0002〜+0.0006） | −0.0002（信頼区間 −0.0012〜+0.0010） |
+| `probe_hit_rate` | 0.0 | 0.0 |
+| `nearest_train_hit_rate`（before 0.071） | 0.0 | 0.0 |
+
+結論: 対比Rewardを入れても、promptは使われませんでした（`claim_level=none`）。学習の短さ・text encoder・色の重み・対比Rewardの4つが、1つの設定・1つの学習seedの範囲で、単独では主な原因と言えません。
+
+残る候補は、線形方策の容量と8×8の観測の粗さ、curriculum、32pxでのRewardの特徴の弱さです。対比の相手が同じ色の目標だと差が出ないこと、重みが1点だけであることは未検証です。次は、方策の表現力（非線形化・観測の解像度）を上げた条件で、同じ測定をします。

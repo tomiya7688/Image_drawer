@@ -64,17 +64,21 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument(
         "--reward-spec", help="calibrate-rewardが書いたReward仕様JSON(省略時は既定)"
     )
+    parser.add_argument("--text-match-weight", type=float, default=0.0,
+                        help="text_match(別promptとの対比)の学習重み。0なら使わない")  # fmt: skip
     args = parser.parse_args(argv)
+    from image_drawer.training import RewardConfig
     from image_drawer.training.__main__ import main as training_main
 
     root = Path(args.output)
     dataset = make_dataset(root, args.images)
     config = root / "config.json"
-    config.write_text(
-        json.dumps({"canvas_side": 32, "summary_side": 8, "max_actions": 96,
-                    "text_encoder_id": args.text_encoder, "curriculum": {"enabled": True}}),
-        encoding="utf-8",
-    )  # fmt: skip
+    settings = {"canvas_side": 32, "summary_side": 8, "max_actions": 96,
+                "text_encoder_id": args.text_encoder, "curriculum": {"enabled": True}}  # fmt: skip
+    if args.text_match_weight:
+        weights = {**RewardConfig().training_weights, "text_match": args.text_match_weight}
+        settings["reward"] = {"training_weights": weights}
+    config.write_text(json.dumps(settings), encoding="utf-8")
     experiment = root / "experiment"
     spec_args = ["--reward-spec", args.reward_spec] if args.reward_spec else []
     code = training_main(["train", str(dataset), "--config", str(config), "--seed", str(args.seed),

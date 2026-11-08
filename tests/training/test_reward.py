@@ -141,6 +141,23 @@ def test_reward_final_bonus_uses_final_quality() -> None:
     assert reward.total_return == pytest.approx(sum(b.total for b in reward.steps))
 
 
+def test_text_match_is_own_quality_minus_other_prompt_targets_and_zero_without_contrast() -> None:
+    trial = run_scripted(complete_script())
+    own, other = band_target(True), band_target(False)
+    plain = evaluator().evaluate_trial(trial, own, "x")
+    assert plain.steps[-1].components["text_match"] == 0.0  # 対比が無ければ0
+    contrasted = evaluator().evaluate_trial(trial, own, "x", [other])
+    rgb_quality_other = evaluator().evaluate_trial(trial, other, "x").final_quality
+    assert contrasted.final_quality == plain.final_quality
+    expected = plain.final_quality - rgb_quality_other
+    assert contrasted.steps[-1].components["text_match"] == pytest.approx(expected)
+    # 学習重みが0なら学習信号(total)は変わらず、重みを上げると差の分だけ変わる
+    assert contrasted.total_return == pytest.approx(plain.total_return)
+    weights = {**RewardConfig().training_weights, "text_match": 2.0}
+    weighted = evaluator(training_weights=weights).evaluate_trial(trial, own, "x", [other])
+    assert weighted.total_return == pytest.approx(plain.total_return + 2.0 * expected)
+
+
 def test_reward_breakdown_contains_all_components() -> None:
     reward = evaluator().evaluate_trial(run_scripted(complete_script()), band_target(), "x")
     for breakdown in reward.steps:
