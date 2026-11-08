@@ -61,7 +61,9 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--iterations", type=int, default=200)
     parser.add_argument("--seed", type=int, default=0)
     parser.add_argument("--text-encoder", default="hashed-ngram-v1")
-    parser.add_argument("--reward-spec", help="calibrate-rewardが書いたReward仕様JSON(省略時は既定)")
+    parser.add_argument(
+        "--reward-spec", help="calibrate-rewardが書いたReward仕様JSON(省略時は既定)"
+    )
     args = parser.parse_args(argv)
     from image_drawer.training.__main__ import main as training_main
 

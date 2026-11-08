@@ -746,3 +746,18 @@ PR8の後、実験結果（`learned`/`not_learned`/`inconclusive`）を記録す
 実データ（合成60枚）での校正結果: `final_quality_weights`は`rgb_128 0.6 / edge_128 0.3 / rgb_hist_16 0.1`から`rgb_128 0.758 / edge_128 0.03 / rgb_hist_16 0.212`になり、すべての対象でCOLOR_RATIOに届きました。
 
 この校正が`prompt_shuffle_delta`と`probe_hit_rate`を改善するかは未確認です。同じ条件での再学習と評価の結果は、次の節に記録します。
+
+### 12.8 校正したRewardでの再学習（prompt未使用の原因の切り分け・5回目）
+
+12.7の校正（`calibrate-reward`、train分割60枚）で作った仕様（実験記録の`stage_reward_v2_sha256`が既定と異なることを確認済み）を`--reward-spec`で指定し、12.2と同じデータ（150枚）・設定・学習seed・encoder（`hashed-ngram-v1`）で300 iteration学習しました。評価は12.2と同じ条件（validation分割14画像、推論seed 3、`--shuffle-prompts --probe --memorization-tau`）です。`claim_level`は`none`です。
+
+| 指標 | 既定のReward（12.2） | 校正したReward |
+| --- | --- | --- |
+| 完成率（random 0.55） | 1.00 | 1.00 |
+| `prompt_shuffle_delta` | −0.0002（区間 −0.0008〜+0.0004） | +0.0002（区間 −0.0002〜+0.0006） |
+| `probe_hit_rate`（before 0.0） | 0.0 | 0.0 |
+| `nearest_train_hit_rate`（before 0.071） | 0.0 | 0.0 |
+
+結論: Rewardの色への感度を上げても、promptは使われませんでした。これで、学習の短さ（12.3）、text encoder（12.5）、Rewardの重みの色感度（本節）の3つは、いずれも単独では主な原因と言えないことが、1つの設定・1つの学習seedの範囲で分かりました。
+
+残る候補は、(1)学習信号の構造（同じ画像のrolloutだけでは、promptを変えたときの報酬差がなく、promptを使う動機が勾配に現れない）、(2)線形方策の容量、(3)curriculum段階です。(1)は文献調査に基づく手法（promptを入れ替えた対比、他promptのrolloutを負例にする等）で試す予定で、未実施です。色の特徴の低下量には上限があり（12.7の限界）、前景だけで色を比べる特徴は未実装のため、Rewardの色感度は引き続き限定的です。
