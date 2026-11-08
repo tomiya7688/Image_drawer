@@ -61,6 +61,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--iterations", type=int, default=200)
     parser.add_argument("--seed", type=int, default=0)
     parser.add_argument("--text-encoder", default="hashed-ngram-v1")
+    parser.add_argument("--reward-spec", help="calibrate-rewardが書いたReward仕様JSON(省略時は既定)")
     args = parser.parse_args(argv)
     from image_drawer.training.__main__ import main as training_main
 
@@ -73,11 +74,12 @@ def main(argv: list[str] | None = None) -> int:
         encoding="utf-8",
     )  # fmt: skip
     experiment = root / "experiment"
+    spec_args = ["--reward-spec", args.reward_spec] if args.reward_spec else []
     code = training_main(["train", str(dataset), "--config", str(config), "--seed", str(args.seed),
-                          "--iterations", str(args.iterations), "--output-dir", str(experiment)])  # fmt: skip
+                          "--iterations", str(args.iterations), "--output-dir", str(experiment), *spec_args])  # fmt: skip
     if code != 0:
         return code
-    return training_main(["evaluate", str(experiment), "--dataset", str(dataset)])
+    return training_main(["evaluate", str(experiment), "--dataset", str(dataset), *spec_args])
 
 
 if __name__ == "__main__":

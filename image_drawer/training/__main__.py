@@ -32,6 +32,11 @@ from image_drawer.training.optimizer import NON_UPDATING_END_REASONS, BaselineTa
 from image_drawer.training.policy import ParametricPolicy, RandomLegalPolicy
 from image_drawer.training.policy_params import AdamState
 from image_drawer.training.reward import RewardEvaluator
+from image_drawer.training.reward_calibration import calibrate_spec
+from image_drawer.training.reward_spec import (
+    default_stage_reward_spec,
+    load_stage_reward_spec,
+)
 from image_drawer.training.rollout import RolloutRunner
 from image_drawer.training.trainer import STREAM_INIT, Trainer, default_text_encoder, derive_seed
 
@@ -88,6 +93,37 @@ def _load_policy(config: TrainConfig, encoder, sidecar: Path) -> ParametricPolic
 
 
 # {
+#   責務: [ _evaluator: Reward仕様(省略時は既定)でRewardEvaluatorを作る ]
+#   引数: [ config, spec_path: stage_reward_v2形式のJSON。Noneなら既定の仕様 ]
+#   戻り値: [ RewardEvaluator ]
+#   エラー: [ ValueError, OSError: 仕様が読めない・不正 ]
+# }
+def _evaluator(config: TrainConfig, spec_path: str | None) -> RewardEvaluator:
+    spec = load_stage_reward_spec(Path(spec_path)) if spec_path else None
+    return RewardEvaluator(config.reward, config.canvas_side, spec)
+
+
+# {
+#   責務: [ _calibrate_reward: trainの目標画像でRewardの重みを校正し、仕様JSONと報告を書く ]
+#   処理: [ 1: train分割の先頭--images枚(image_id順)を縮小して読む 2: calibrate_specで校正する 3: 仕様JSONを--outへ書き、報告を標準出力へ出す ]
+#   戻り値: [ exit_code: 0 ]
+# }
+def _calibrate_reward(args: argparse.Namespace) -> int:
+    if args.images < 1:
+        raise ValueError("--imagesは1以上にしてください")
+    config = _load_config(args.config, None, None)
+    evaluator = RewardEvaluator(config.reward, config.canvas_side)
+    pairs = sorted(iter_samples(Path(args.dataset), "train"), key=lambda pair: pair[1].image_id)
+    targets = [evaluator.prepare_target(pair[1]).rgb for pair in pairs[: args.images]]
+    _, report, document = calibrate_spec(default_stage_reward_spec(), targets, config.canvas_side)
+    Path(args.out).write_text(
+        json.dumps(document, ensure_ascii=False, indent=2) + "\n", encoding="utf-8"
+    )
+    print(json.dumps({"images": len(targets), "report": report}, ensure_ascii=False))
+    return 0
+
+
+# {
 #   責務: [ _train: 学習を実行し、experiment.jsonとmetrics.jsonlを出力先へ書く ]
 #   戻り値: [ exit_code: 0=完了、1=中断 ]
 # }
@@ -103,7 +139,7 @@ def _train(args: argparse.Namespace) -> int:
         config,
         _new_policy(config, encoder.dim),
         encoder,
-        RewardEvaluator(config.reward, config.canvas_side),
+        _evaluator(config, args.reward_spec),
         output_dir,
     )
     record = trainer.train(
@@ -184,7 +220,12 @@ def _evaluate(args: argparse.Namespace) -> int:
         raise ValueError("test splitに評価できる画像がありません")
     held_out = sorted(held_out, key=lambda pair: pair[0].image_id)[: args.images]
     seeds = list(range(args.seeds))
-    evaluator = RewardEvaluator(config.reward, config.canvas_side)
+    evaluator = _evaluator(config, args.reward_spec)
+    recorded = record.get("reward", {}).get("stage_reward_v2_sha256")
+    if recorded is not None and recorded != evaluator.spec.sha256:
+        raise ValueError(
+            "Reward仕様が学習時と異なります(--reward-specを学習時と同じにしてください)"
+        )
     builder = ObservationBuilder(config.tail_length, config.summary_side)
 
     def measure(policy) -> list:
@@ -239,14 +280,24 @@ def main(argv: Sequence[str] | None = None) -> int:
     train.add_argument("--iterations", type=int, help="iterationsを上書きする")
     train.add_argument("--resume", help="再開するcheckpointのiter_N.json")
     train.add_argument("--stop-after", type=int, help="このiterationで一旦止める(再開の試験用)")
+    train.add_argument("--reward-spec", help="calibrate-rewardが書いたReward仕様JSON(省略時は既定)")
     evaluate = commands.add_parser("evaluate", help="held-outで学習前後とランダムを比べて判定する")
     evaluate.add_argument("experiment_dir", help="trainの出力先(experiment.jsonがある場所)")
     evaluate.add_argument("--dataset", required=True, help="学習に使ったDatasetのディレクトリ")
     evaluate.add_argument("--images", type=int, default=MIN_IMAGES, help="held-outの最大画像数")
     evaluate.add_argument("--seeds", type=int, default=MIN_SEEDS, help="画像ごとの評価seed数")
+    evaluate.add_argument("--reward-spec", help="学習時と同じReward仕様JSON(省略時は既定)")
+    calibrate = commands.add_parser(
+        "calibrate-reward", help="目標画像からRewardの重みを自動校正する"
+    )
+    calibrate.add_argument("dataset", help="Datasetのディレクトリ")
+    calibrate.add_argument("--config", help="TrainConfigの設定JSON(canvas_sideを合わせる)")
+    calibrate.add_argument("--images", type=int, default=60, help="校正に使うtrain画像の最大数")
+    calibrate.add_argument("--out", required=True, help="校正後のReward仕様JSONの出力先")
     args = parser.parse_args(argv)
     try:
-        return _train(args) if args.command == "train" else _evaluate(args)
+        handlers = {"train": _train, "evaluate": _evaluate, "calibrate-reward": _calibrate_reward}
+        return handlers[args.command](args)
     except (OSError, ValueError, KeyError, TypeError) as exc:
         print(
             json.dumps({"error": type(exc).__name__, "message": str(exc)}, ensure_ascii=False),

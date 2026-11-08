@@ -206,6 +206,7 @@ class Trainer:
         record = build_record(
             dataset_dir, self.config, self.text_encoder, experiment_id, before, after,
             dict(counts), str(metrics_path), abort_reason=abort_reason,
+            reward_sha256=self.evaluator.spec.sha256,
         )  # fmt: skip
         write_record(record, self.output_dir)
         return record
