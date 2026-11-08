@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from collections.abc import Mapping
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, replace
 from typing import Literal
 
@@ -169,12 +169,17 @@ class RewardEvaluator:
     #     2: 拒否は-action_costだけ。工程を進めるActionは新工程の入場時点を新しい基準にする
     #     3: finishしたら2.0*final_quality、予算超過なら最後の試行へ失敗ペナルティを加える
     #   ]
-    #   引数: [ trial, target: prepare_targetの結果, training_prompt: 記録用(text_matchは未計算) ]
+    #   引数: [ trial, target: prepare_targetの結果, training_prompt: 記録用,
+    #           contrast_targets: 別promptの目標(あれば、finish時にtext_match=自分の目標との類似度-他の目標との平均類似度を計算する) ]
     #   戻り値: [ reward ]
     #   エラー: [ ValueError: 目標のキャンバス寸法がtrialと違う ]
     # }
     def evaluate_trial(
-        self, trial: Trial, target: TargetFeatures, training_prompt: str
+        self,
+        trial: Trial,
+        target: TargetFeatures,
+        training_prompt: str,
+        contrast_targets: Sequence[TargetFeatures] = (),
     ) -> TrialReward:
         self.calls += 1
         side = self.canvas_side
@@ -211,9 +216,14 @@ class RewardEvaluator:
                 new_level = self._level(new_stage, rgb, target)
                 kind: BreakdownKind = "boundary"
                 bonus = 0.0
+                text_match = 0.0
                 if new_stage == "finish" and trial.end_reason == "finish":
                     final_quality = self.final_quality(rgb, target)
                     kind, bonus = "final", self.config.final_bonus_scale * final_quality
+                    if contrast_targets:
+                        # 別promptの目標との類似度の平均を引き、promptに固有な部分だけを残す
+                        others = [self.final_quality(rgb, other) for other in contrast_targets]
+                        text_match = final_quality - sum(others) / len(others)
                 breakdowns.append(
                     self._make(
                         step.stage_id,
@@ -224,6 +234,7 @@ class RewardEvaluator:
                         new_level.total,
                         action_cost=-cost,
                         final_bonus=bonus,
+                        text_match=text_match,
                         shape=new_level.shape,
                     )  # fmt: skip
                 )
