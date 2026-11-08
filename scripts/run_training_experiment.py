@@ -66,6 +66,8 @@ def main(argv: list[str] | None = None) -> int:
     )
     parser.add_argument("--text-match-weight", type=float, default=0.0,
                         help="text_match(別promptとの対比)の学習重み。0なら使わない")  # fmt: skip
+    parser.add_argument("--policy-hidden", type=int, default=0,
+                        help="方策の隠れ層の幅。0なら線形(従来)")  # fmt: skip
     args = parser.parse_args(argv)
     from image_drawer.training import RewardConfig
     from image_drawer.training.__main__ import main as training_main
@@ -75,6 +77,8 @@ def main(argv: list[str] | None = None) -> int:
     config = root / "config.json"
     settings = {"canvas_side": 32, "summary_side": 8, "max_actions": 96,
                 "text_encoder_id": args.text_encoder, "curriculum": {"enabled": True}}  # fmt: skip
+    if args.policy_hidden:
+        settings["policy_hidden"] = args.policy_hidden
     if args.text_match_weight:
         weights = {**RewardConfig().training_weights, "text_match": args.text_match_weight}
         settings["reward"] = {"training_weights": weights}

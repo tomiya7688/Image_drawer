@@ -54,8 +54,8 @@ def make_observation(side: int = 16):
     return observation, controller, engine
 
 
-def make_policy(side: int = 16, seed: int = 0) -> ParametricPolicy:
-    config = TrainConfig(canvas_side=side, summary_side=4, max_actions=24)
+def make_policy(side: int = 16, seed: int = 0, hidden: int = 0) -> ParametricPolicy:
+    config = TrainConfig(canvas_side=side, summary_side=4, max_actions=24, policy_hidden=hidden)
     return ParametricPolicy(config, 8, np.random.default_rng(seed))
 
 
@@ -171,8 +171,10 @@ def _samples(policy: ParametricPolicy) -> list[PolicySample]:
     return [PolicySample(features, "rough", kinds, layers, c) for c in choices]
 
 
-def test_policy_gradient_matches_finite_difference() -> None:
-    policy = make_policy()
+@pytest.mark.parametrize("hidden", [0, 6])
+def test_policy_gradient_matches_finite_difference(hidden: int) -> None:
+    policy = make_policy(hidden=hidden)
+    assert ("trunk" in policy.params) == bool(hidden)
     rng = np.random.default_rng(1)
     for sample in _samples(policy):
         grads = policy.new_grads()
@@ -180,7 +182,7 @@ def test_policy_gradient_matches_finite_difference() -> None:
         entropy_grads = policy.new_grads()
         policy.accumulate_entropy_grad(sample, 1.0, entropy_grads)
         for name, array in policy.params.items():
-            for _ in range(6):
+            for _ in range(10 if name == "trunk" else 6):
                 index = tuple(rng.integers(0, size) for size in array.shape)
                 original = array[index]
                 numeric = []
@@ -299,3 +301,13 @@ def test_action_codec_rejects_masked_layer_selection() -> None:
     masked = dataclasses.replace(observation, layer_summary=(hidden,))
     with pytest.raises(ValueError):
         codec.decode_action(codec.ActionChoice(0, layer_index=0), masked, 16, 6, 5)
+
+
+def test_hidden_policy_has_own_version_and_default_config_hash_is_unchanged() -> None:
+    linear, mlp = make_policy(), make_policy(hidden=6)
+    assert linear.policy_version == "parametric-softmax-stroke-v2"
+    assert mlp.policy_version == "parametric-softmax-stroke-mlp-v1"
+    assert "policy_hidden" not in TrainConfig().to_dict()
+    assert TrainConfig(policy_hidden=6).to_dict()["policy_hidden"] == 6
+    with pytest.raises(ValueError):
+        TrainConfig(policy_hidden=-1)

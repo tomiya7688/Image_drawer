@@ -34,6 +34,8 @@ from image_drawer.training.policy_params import (
 from image_drawer.training.stroke_geometry import GridPoint, StrokeShape, StrokeWalk, walk_stroke
 
 POLICY_VERSION = "parametric-softmax-stroke-v2"
+MLP_POLICY_VERSION = "parametric-softmax-stroke-mlp-v1"
+TRUNK = "trunk"  # 隠れ層の重み(隠れ幅 x 特徴次元)のparams名
 PRESSURE_LEVEL = 5  # 筆圧は固定(中央のlevel)。設計書4.2節。
 
 
@@ -174,16 +176,49 @@ def all_head_sizes(shape: StrokeShape) -> dict[str, int]:
 #   フィールド: [ config, params: head名->重み, 温度はconfig.softmax_temperature ]
 # }
 class ParametricPolicy:
-    policy_version = POLICY_VERSION
-
     def __init__(self, config: TrainConfig, text_dim: int, rng: np.random.Generator) -> None:
         self.config = config
         self.text_dim = text_dim
         self.feature_dim = feature_dim(text_dim, config.summary_side)
+        self.hidden = config.policy_hidden
+        self.policy_version = MLP_POLICY_VERSION if self.hidden else POLICY_VERSION
         self.params: Params = init_params(
-            self.feature_dim, rng, all_head_sizes(config.stroke_shape)
+            self.feature_dim + self.hidden, rng, all_head_sizes(config.stroke_shape)
         )
+        if self.hidden:
+            self.params[TRUNK] = rng.normal(
+                0.0, 1.0 / math.sqrt(self.feature_dim), size=(self.hidden, self.feature_dim)
+            )
         self.tracker = StrokeTracker()
+
+    # {
+    #   責務: [ _expand: 特徴に隠れ層(tanh(trunk x 特徴))を連結する。線形ならそのまま ]
+    #   戻り値: [ (headへの入力, 隠れ層の出力またはNone) ]
+    # }
+    def _expand(
+        self, features: NDArray[np.float64]
+    ) -> tuple[NDArray[np.float64], NDArray[np.float64] | None]:
+        if not self.hidden:
+            return features, None
+        hidden = np.tanh(self.params[TRUNK] @ features)
+        return np.concatenate([features, hidden]), hidden
+
+    # {
+    #   責務: [ _add_grad: headの勾配を足し、隠れ層があればtrunkへ逆伝播する ]
+    # }
+    def _add_grad(
+        self,
+        grads: PolicyGrads,
+        name: str,
+        output_grad: NDArray[np.float64],
+        inputs: NDArray[np.float64],
+        features: NDArray[np.float64],
+        hidden: NDArray[np.float64] | None,
+    ) -> None:
+        grads.add(name, output_grad, inputs)
+        if hidden is not None:
+            back = self.params[name][:, self.feature_dim :].T @ output_grad
+            grads.add(TRUNK, back * (1.0 - hidden * hidden), features)
 
     # {
     #   責務: [ _logits: headの出力(重み x 特徴) ]
@@ -205,12 +240,13 @@ class ParametricPolicy:
     # }
     def act(self, observation: Observation, rng: np.random.Generator) -> PolicyDecision:
         features = build_features(observation)
+        inputs, _hidden = self._expand(features)
         shape = self.config.stroke_shape
         kinds, layers = kind_mask(observation, shape), layer_mask(observation)
         prev_end = self.tracker.previous_end(observation)
 
         def draw(name: str, mask: NDArray[np.bool_] | None = None) -> int:
-            probabilities = self._probabilities(name, features, mask)
+            probabilities = self._probabilities(name, inputs, mask)
             return int(rng.choice(len(probabilities), p=probabilities))
 
         kind_index = draw("kind", kinds)
@@ -251,12 +287,15 @@ class ParametricPolicy:
     ) -> float:
         total = 0.0
         temperature = self.config.softmax_temperature
+        inputs, hidden = self._expand(sample.features)
         for name, index, mask in categorical_terms(sample, self.config.stroke_shape):
-            probabilities = self._probabilities(name, sample.features, mask)
+            probabilities = self._probabilities(name, inputs, mask)
             total += math.log(probabilities[index])
             output_grad = -probabilities
             output_grad[index] += 1.0
-            grads.add(name, weight * output_grad / temperature, sample.features)
+            self._add_grad(
+                grads, name, weight * output_grad / temperature, inputs, sample.features, hidden
+            )
         return total
 
     # {
@@ -268,15 +307,19 @@ class ParametricPolicy:
     ) -> float:
         total = 0.0
         temperature = self.config.softmax_temperature
+        inputs, hidden = self._expand(sample.features)
         for name, _index, mask in categorical_terms(sample, self.config.stroke_shape):
-            probabilities = self._probabilities(name, sample.features, mask)
+            probabilities = self._probabilities(name, inputs, mask)
             entropy = categorical_entropy(probabilities)
             total += entropy
             safe = np.where(probabilities > 0, probabilities, 1.0)
-            grads.add(
+            self._add_grad(
+                grads,
                 name,
                 -weight * probabilities * (np.log(safe) + entropy) / temperature,
+                inputs,
                 sample.features,
+                hidden,
             )
         return total
 
